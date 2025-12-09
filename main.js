@@ -10,6 +10,8 @@ import { pipeline as streamPipelineCb } from 'stream';
 import { promisify } from 'util';
 import dns from 'dns';
 import { createRequire } from 'module';
+const userDataPath = app.getPath("userData");
+
 
 // electron-updater is CommonJS; use default import + destructure for ESM
 import updaterPkg from 'electron-updater';
@@ -2309,6 +2311,8 @@ if (!gotLock) {
             }
         }
     } catch(_) {}
+global.manifestRead = (data) => ipcMain.invoke("manifestRead", data);
+global.manifestWrite = (data) => ipcMain.invoke("manifestWrite", data);
 
     // IPC handler to open MPV from renderer
     ipcMain.handle('open-in-mpv', (event, data) => {
@@ -2316,6 +2320,30 @@ if (!gotLock) {
         console.log(`Received MPV open request for hash: ${infoHash}`);
             return openInMPV(mainWindow, streamUrl, infoHash, startSeconds);
     });
+ipcMain.handle("manifestWrite", async (event, manifestUrl) => {
+    try {
+        const file = path.join(userDataPath, "manifest_url.json");
+        fs.writeFileSync(file, JSON.stringify({ manifestUrl }, null, 2));
+        return { success: true };
+    } catch (error) {
+        console.error("Error saving manifest:", error);
+        return { success: false, error };
+    }
+});
+
+ipcMain.handle("manifestRead", async () => {
+    try {
+        const file = path.join(userDataPath, "manifest_url.json");
+        if (!fs.existsSync(file)) return { success: true, data: "" };
+        
+        const raw = fs.readFileSync(file, "utf8");
+        const parsed = JSON.parse(raw);
+        return { success: true, data: parsed.manifestUrl || "" };
+    } catch (error) {
+        console.error("Error reading manifest:", error);
+        return { success: false, error };
+    }
+});
 
     // Advanced MPV launcher with headers (for MovieBox/FMovies)
     ipcMain.handle('open-mpv-headers', async (event, options) => {

@@ -7779,6 +7779,7 @@
 <!-- Settings Modal -->
 <div class="settings-modal" id="settingsModal">
     <div class="settings-content">
+
         <div class="settings-header">
             <h2 class="settings-title">
                 <i class="fas fa-cog"></i>
@@ -7803,7 +7804,6 @@
                 <input type="text" id="jackettUrl" class="api-input" placeholder="http://127.0.0.1:9117/api/v2.0/indexers/all/results/torznab" />
                 <small style="color:var(--secondary); font-size:0.85rem; margin-top:0.25rem;">Default: http://127.0.0.1:9117/api/v2.0/indexers/all/results/torznab</small>
             </div>
-            <!-- Removed: Watch without Jackett & Torrent Source options -->
         </div>
 
         <div class="settings-section" style="margin-top:1.25rem;">
@@ -7850,7 +7850,7 @@
                 <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap: wrap;">
                     <label for="debridProvider">Provider:</label>
                     <select id="debridProvider" class="api-input" style="min-width:220px; max-width:260px;">
-                        <option value="realdebrid">Real‑Debrid</option>
+                        <option value="realdebrid">Real-Debrid</option>
                         <option value="alldebrid">AllDebrid</option>
                         <option value="torbox">TorBox</option>
                         <option value="premiumize">Premiumize</option>
@@ -7858,99 +7858,14 @@
                     <span id="debridStatus" style="font-size:0.9rem; opacity:0.85;">Not logged in</span>
                 </div>
                 <div class="api-input-group" id="rdClientIdGroup">
-                    <label for="rdClientId">Real‑Debrid Client ID (device flow):</label>
+                    <label for="rdClientId">Real-Debrid Client ID (device flow):</label>
                     <input type="text" id="rdClientId" class="api-input" placeholder="Enter your RD Client ID (e.g., XXXXXXXXXXXXX)" />
                 </div>
                 <div id="rdButtons" style="display:flex; gap:0.5rem; flex-wrap: wrap; align-items:center;">
                     <button class="api-btn" id="rdDeviceLogin" style="background:#198754; color:#fff;">
-                        <i class="fas fa-sign-in-alt"></i> Login with Real‑Debrid
+                        <i class="fas fa-sign-in-alt"></i> Login with Real-Debrid
                     </button>
-                    <small style="opacity:0.85;">No password needed. Authenticate on real‑debrid.com using a short code.</small>
-                </div>
-                <div id="rdCodePanel" style="display:none; margin-top:0.5rem; padding:0.75rem; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
-                    <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                        <div>Code:</div>
-                        <div id="rdUserCode" style="font-family:monospace; font-weight:800; background:rgba(255,255,255,0.1); padding:0.25rem 0.5rem; border-radius:6px;">----</div>
-                        <button class="api-btn" id="rdCopyCode" style="padding:0.4rem 0.6rem; background:#0d6efd; color:#fff;"><i class="fas fa-copy"></i> Copy</button>
-                    </div>
-                    <div style="margin-top:0.5rem; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                        <div>Verify at:</div>
-                        <a id="rdVerifyUrl" href="#" target="_blank" style="color:#0d6efd; text-decoration:underline;">https://real-debrid.com/device</a>
-                        <button class="api-btn" id="rdOpenVerify" style="padding:0.4rem 0.6rem; background:#0d6efd; color:#fff;"><i class="fas fa-external-link-alt"></i> Open</button>
-                        <span id="rdLoginStatus" style="margin-left:auto; font-size:0.9rem; opacity:0.9;">Waiting for approval…</span>
-                        <button class="api-btn api-btn-secondary" id="rdCancelLogin"><i class="fas fa-times"></i> Cancel</button>
-                    </div>
-                </div>
-                <div class="api-input-group" id="rdTokenGroup">
-                    <label for="debridToken">Real‑Debrid Token (temporary MVP):</label>
-                    <input type="password" id="debridToken" class="api-input" placeholder="Paste RD token..." />
-                </div>
-                <div id="rdTokenButtons" style="display:flex; gap:0.5rem; flex-wrap: wrap;">
-                    <button class="api-btn" id="saveDebridToken" style="background:#0d6efd; color:#fff;">
-                        <i class="fas fa-key"></i> Save Token
-                    </button>
-                    <button class="api-btn api-btn-secondary" id="clearDebridToken">
-                        <i class="fas fa-sign-out-alt"></i> Logout
-                    </button>
-                </div>
-                <div style="margin-top:0.25rem; color:#ffc107; font-size:0.9rem;">Your token is stored locally and never exposed to websites.</div>
-
-                <!-- AllDebrid PIN Login UI -->
-                <div id="adSection" style="display:none; margin-top:1rem; padding:1rem; border:1px solid rgba(255,255,255,0.15); border-radius:8px; background: rgba(255,255,255,0.05);">
-                    <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
-                        <button class="api-btn" id="adStartPin" style="background:#198754; color:#fff;"><i class="fas fa-sign-in-alt"></i> Login with AllDebrid (PIN)</button>
-                        <small style="opacity:0.85;">Authenticate on alldebrid.com/pin with the code shown.</small>
-                    </div>
-                    <div id="adPinPanel" style="display:none; margin-top:0.5rem; padding:0.75rem; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
-                        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                            <div>PIN:</div>
-                            <div id="adPinCode" style="font-family:monospace; font-weight:800; background:rgba(255,255,255,0.1); padding:0.25rem 0.5rem; border-radius:6px;">----</div>
-                            <button class="api-btn" id="adCopyPin" style="padding:0.4rem 0.6rem; background:#0d6efd; color:#fff;"><i class="fas fa-copy"></i> Copy</button>
-                        </div>
-                        <div style="margin-top:0.5rem; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                            <div>Open:</div>
-                            <a id="adUserUrl" href="https://alldebrid.com/pin/" target="_blank" style="color:#0d6efd; text-decoration:underline;">https://alldebrid.com/pin/</a>
-                            <button class="api-btn" id="adOpenUserUrl" style="padding:0.4rem 0.6rem; background:#0d6efd; color:#fff;"><i class="fas fa-external-link-alt"></i> Open</button>
-                            <span id="adLoginStatus" style="margin-left:auto; font-size:0.9rem; opacity:0.9;">Waiting…</span>
-                            <button class="api-btn api-btn-secondary" id="adCancelPin"><i class="fas fa-times"></i> Cancel</button>
-                        </div>
-                    </div>
-                    <div class="api-input-group" style="margin-top:0.75rem;">
-                        <label for="adApiKey">AllDebrid API Key (optional/manual):</label>
-                        <input type="password" id="adApiKey" class="api-input" placeholder="Paste AD API key..." />
-                    </div>
-                    <div style="display:flex; gap:0.5rem; flex-wrap: wrap;">
-                        <button class="api-btn" id="adSaveApiKey" style="background:#0d6efd; color:#fff;"><i class="fas fa-key"></i> Save API Key</button>
-                        <button class="api-btn api-btn-secondary" id="adClearApiKey"><i class="fas fa-sign-out-alt"></i> Logout</button>
-                    </div>
-                </div>
-
-                <!-- TorBox Auth (token) -->
-                <div id="tbSection" style="display:none; margin-top:1rem; padding:1rem; border:1px solid rgba(255,255,255,0.15); border-radius:8px; background: rgba(255,255,255,0.05);">
-                    <div class="api-input-group">
-                        <label for="tbToken">TorBox Token (temporary):</label>
-                        <input type="password" id="tbToken" class="api-input" placeholder="Paste TorBox token..." />
-                    </div>
-                    <div style="display:flex; gap:0.5rem; flex-wrap: wrap;">
-                        <button class="api-btn" id="tbSaveToken" style="background:#0d6efd; color:#fff;"><i class="fas fa-key"></i> Save Token</button>
-                        <button class="api-btn api-btn-secondary" id="tbClearToken"><i class="fas fa-sign-out-alt"></i> Logout</button>
-                    </div>
-                    <div style="margin-top:0.25rem; color:#ffc107; font-size:0.9rem;">Token stored locally.</div>
-                </div>
-
-                <!-- Premiumize Auth (API Key) -->
-                <div id="pmSection" style="display:none; margin-top:1rem; padding:1rem; border:1px solid rgba(255,255,255,0.15); border-radius:8px; background: rgba(255,255,255,0.05);">
-                    <div class="api-input-group">
-                        <label for="pmApiKey">Premiumize API Key:</label>
-                        <input type="password" id="pmApiKey" class="api-input" placeholder="Enter your Premiumize API key..." />
-                    </div>
-                    <div style="display:flex; gap:0.5rem; flex-wrap: wrap;">
-                        <button class="api-btn" id="pmSaveApiKey" style="background:#0d6efd; color:#fff;"><i class="fas fa-key"></i> Save API Key</button>
-                        <button class="api-btn api-btn-secondary" id="pmClearApiKey"><i class="fas fa-sign-out-alt"></i> Logout</button>
-                    </div>
-                    <div style="margin-top:0.25rem; color:#ffc107; font-size:0.9rem;">
-                        Get your API key from <a href="https://www.premiumize.me/account" target="_blank" style="color:#0d6efd; text-decoration:underline;">premiumize.me/account</a>
-                    </div>
+                    <small style="opacity:0.85;">No password needed. Authenticate on real-debrid.com using a short code.</small>
                 </div>
             </div>
         </div>
@@ -7958,7 +7873,6 @@
         <div class="settings-section" style="margin-top:1.25rem;">
             <h3>User Interface</h3>
             <div style="margin-top:0.5rem; padding:1rem; border:1px solid rgba(255,255,255,0.15); border-radius:8px; background: rgba(255,255,255,0.05);">
-                <!-- Fullscreen toggle (first option) -->
                 <div style="margin-bottom:1rem; padding-bottom:0.75rem; border-bottom:1px solid rgba(255,255,255,0.1);">
                     <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer;">
                         <input type="checkbox" id="fullscreenToggle" />
@@ -7983,13 +7897,12 @@
                     <i class="fas fa-info-circle"></i> Changes will apply immediately after saving
                 </div>
                 
-                <!-- Theme Selector -->
                 <div style="margin-top:1.5rem; padding-top:1rem; border-top:1px solid rgba(255,255,255,0.1);">
                     <label style="display:block; margin-bottom:0.75rem; color:var(--light); font-weight:600; font-size:1rem;">
                         <i class="fas fa-palette" style="margin-right:0.5rem; color:var(--vlc-orange);"></i>
                         Color Theme
                     </label>
-                    <select id="themeSelector" class="api-input" style="width:100%; max-width:350px; padding:0.75rem 1rem; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.2); border-radius:10px; color:var(--light); font-size:0.95rem; font-weight:500; cursor:pointer; transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); appearance: none; background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27rgba(255,255,255,0.6)%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e'); background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 1.25rem; padding-right: 2.5rem;">
+                    <select id="themeSelector" class="api-input" style="width:100%; max-width:350px; padding:0.75rem 1rem; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.2); border-radius:10px; color:var(--light); font-size:0.95rem;">
                         <option value="default">Default (Purple Dream)</option>
                         <option value="green-forest">Green Forest</option>
                         <option value="cyberpunk-neon">Cyberpunk Neon</option>
@@ -7998,9 +7911,6 @@
                         <option value="midnight-dark">Midnight Dark</option>
                         <option value="sunset-orange">Sunset Orange</option>
                     </select>
-                    <div style="margin-top:0.5rem; color:var(--secondary); font-size:0.85rem;">
-                        <i class="fas fa-info-circle"></i> Choose your preferred color scheme
-                    </div>
                 </div>
             </div>
         </div>
@@ -8016,7 +7926,7 @@
                     <i class="fas fa-info-circle"></i>
                     Configure your Febbox token for Nuvio streaming (ShowBox). A default token is provided, but you can use your own.
                 </div>
-                
+
                 <label for="febboxTokenInput" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
                     Febbox JWT Token (Optional)
                 </label>
@@ -8026,16 +7936,18 @@
                     placeholder="Leave empty to use default token or paste your Febbox JWT token here"
                     style="width: 100%; padding: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: var(--light); font-size: 0.95rem; font-family: monospace; margin-bottom: 1rem;"
                 />
-                
+
                 <button id="saveFebboxToken" class="btn" style="width: 100%;">
                     <i class="fas fa-save"></i> Save Token
                 </button>
-                
+
                 <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(103, 126, 234, 0.1); border-left: 3px solid var(--secondary); border-radius: 4px; font-size: 0.85rem;">
                     <i class="fas fa-check-circle" style="color: var(--secondary);"></i> Default token is active. You can continue using Nuvio without adding your own token.
                 </div>
             </div>
         </div>
+
+
 
         <!-- Trakt Integration Section -->
         <div class="settings-section" style="margin-top:1.25rem;">
@@ -8087,7 +7999,6 @@
                     </div>
                 </div>
 
-                <!-- Trakt Device Code Panel -->
                 <div id="traktCodePanel" style="display: none; margin-top: 1rem; padding: 0.75rem; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
                     <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
                         <div>Device Code:</div>
@@ -8109,7 +8020,6 @@
                     </div>
                 </div>
 
-                <!-- Trakt Settings -->
                 <div id="traktSettings" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1);">
                     <h4 style="margin-bottom: 0.75rem; color: var(--text-primary);">Scrobbling Settings</h4>
                     <div style="display: flex; flex-direction: column; gap: 0.5rem;">
@@ -8127,7 +8037,7 @@
                         </label>
                     </div>
                     <div style="margin-top: 0.5rem; color: var(--secondary); font-size: 0.85rem;">
-                        <i class="fas fa-info-circle"></i> Your viewing activity will be automatically synchronized with Trakt.tv
+                        <i class="fas fa-info-circle"></i> Your viewing activity will automatically sync to Trakt.tv
                     </div>
                 </div>
             </div>
@@ -8143,8 +8053,10 @@
                 Save Changes
             </button>
         </div>
+
     </div>
 </div>
+
 
 <!-- Floating Navigation Arrow (Old UI Only, Home Page Only) -->
 <div class="floating-nav-container" id="floatingNavContainer">
@@ -9261,6 +9173,7 @@
                 <button class="settings-tab" data-section="debrid">Debrid</button>
                 <button class="settings-tab" data-section="ui">User Interface</button>
                 <button class="settings-tab" data-section="trakt">Trakt Integration</button>
+                <button class="settings-tab" data-section="aiostreams">AIOStreams</button>
             </div>
 
             <div class="settings-sections">
@@ -9491,6 +9404,42 @@
                         </div>
                     </div>
                 </div>
+                <!-- AIOStreams Section -->
+                <div id="aiostreamsContent" class="settings-section">
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-plug"></i> AIOStreams Plugin Installer</h3>
+                        </div>
+
+                        <div class="settings-card-body" id="aiostreamsSection">
+
+                            <div style="margin-bottom: 1rem; color: var(--secondary); font-size: 0.9rem;">
+                                <i class="fas fa-info-circle"></i>
+                                Install additional streaming providers using an AIOStreams manifest URL.
+                            </div>
+
+                            <div class="form-group">
+                                <label for="manifestUrl">Plugin Manifest URL (Go to https://aiostreams.elfhosted.com/stremio/configure setup the plugin, setup a password, click install, click copy url and paste it here</label>
+                                <input 
+                                    type="text" 
+                                    id="manifestUrl"
+                                    placeholder="https://example.com/manifest.json"
+                                    style="width:100%; padding:0.65rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.2); border-radius:6px; color:var(--light); font-family:monospace;"
+                                />
+                            </div>
+
+                            <button onclick="saveManifest()" class="api-btn" style="background:#0d6efd; color:#fff; width:100%; margin-top:1rem;">
+                                <i class="fas fa-save"></i> Save Manifest
+                            </button>
+
+
+                            <div id="manifestSavedBox" style="display:none; margin-top:1rem; padding:0.75rem; background:rgba(103,126,234,0.1); border-left:3px solid var(--secondary); border-radius:4px; font-size:0.85rem;">
+                                <i class="fas fa-check-circle" style="color:var(--secondary);"></i> Manifest URL saved locally.
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
 
                 <!-- User Interface Section -->
                 <div id="uiContent" class="settings-section">
@@ -9528,7 +9477,8 @@
                             </div>
                         </div>
                     </div>
-                    
+
+
                     <div class="settings-card">
                         <div class="settings-card-header">
                             <h3><i class="fas fa-palette"></i> Theme</h3>
@@ -9608,7 +9558,7 @@
                         </div>
                     </div>
                 </div>
-
+                
                 <!-- Trakt Integration Section -->
                 <div id="traktContent" class="settings-section">
                     <div class="settings-card">
@@ -10930,6 +10880,10 @@ If you experience audio problems or no audio at all, click <strong>"Open in MPV"
     <button class="provider-btn" data-provider="xdmovies">
         <i class="fas fa-film"></i> XDMovies
     </button>
+
+    <button class="provider-btn" data-provider="aiostreams">
+        <i class="fas fa-bolt"></i> AIOStreams
+    </button>
 </div>
 
 </button>
@@ -11640,7 +11594,7 @@ Your browser does not support the video tag.
         let currentSubtitles = [];
     let subtitleTrack = null;
     let currentSubtitleFile = null; // filename served under /subtitles to delete on switch
-    let selectedProvider = 'jackett'; // Default provider: jackett, torrentio, torrentless, nuvio, comet, 111477, xdmovies
+    let selectedProvider = 'jackett'; // Default provider: jackett, torrentio, torrentless, nuvio, comet, 111477, xdmovies, aiostreams
     let lastSearchedSeason = null; // Track last searched season for provider switching
     let lastSearchedEpisode = null; // Track last searched episode for provider switching
     
@@ -25343,6 +25297,191 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
             }
         }
 
+        // Fetch streams from AIOStreams
+        async function fetchAiostreamsStreams(season = null, episode = null) {
+            if (!currentContent) return;
+
+            const platform = window.electronAPI.platform;
+            const isWindows = platform === 'win32';
+            const isMac = platform === 'darwin';
+            const isLinux = platform === 'linux';
+
+            const torrentsList = document.getElementById('torrentsList');
+            torrentsList.innerHTML = '<div class="loading"><i class="fas fa-spinner"></i> Searching AIOStreams...</div>';
+
+            try {
+                const tmdbId = currentContent.id;
+                let apiUrl = '';
+
+                if (currentMediaType === 'movie') {
+                    apiUrl = `http://localhost:6987/aio/movie/${encodeURIComponent(tmdbId)}`;
+                } else if (currentMediaType === 'tv') {
+                    apiUrl = `http://localhost:6987/aio/series/${encodeURIComponent(tmdbId)}/${encodeURIComponent(season)}/${encodeURIComponent(episode)}`;
+                } else {
+                    torrentsList.innerHTML = '<div class="error-message"><i class="fas fa-info-circle"></i> AIOStreams only supports movies and TV shows.</div>';
+                    return;
+                }
+
+                console.log('[AIOStreams] Fetching from:', apiUrl);
+
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error(`AIOStreams API error: ${response.statusText}`);
+                
+                const data = await response.json();
+                
+                if (!data.streams || !data.streams.streams || data.streams.streams.length === 0) {
+                    torrentsList.innerHTML = `<div class="error-message"><i class="fas fa-info-circle"></i> No AIOStreams streams found</div>`;
+                    return;
+                }
+
+                const streams = data.streams.streams;
+                
+                                console.log('[AIOStreams] Found', streams.length, 'streams');
+                
+                                torrentsList.innerHTML = '';
+                                streams.forEach(stream => {
+                                    const item = document.createElement('div');
+                                    item.className = 'torrent-item';
+                                    item.style.display = 'flex';
+                                    item.style.justifyContent = 'space-between';
+                                    item.style.alignItems = 'center';
+                                    item.style.padding = '1rem';
+                                    item.style.marginBottom = '0.5rem';
+                                    item.style.background = 'rgba(255,255,255,0.05)';
+                                    item.style.borderRadius = '8px';
+                
+                                    const infoDiv = document.createElement('div');
+                                    infoDiv.style.flex = '1';
+                                    infoDiv.style.minWidth = '0';
+                
+                                    const name = document.createElement('div');
+                                    name.style.fontWeight = '500';
+                                    name.style.marginBottom = '0.25rem';
+                                    name.textContent = stream.name;
+                
+                                    const description = document.createElement('div');
+                                    description.style.fontSize = '0.85rem';
+                                    description.style.opacity = '0.7';
+                                    description.innerHTML = stream.description.replace(/\\n/g, '<br>');
+                                    
+                                    infoDiv.appendChild(name);
+                                    infoDiv.appendChild(description);
+                
+                                    const buttonsDiv = document.createElement('div');
+                                    buttonsDiv.style.display = 'flex';
+                                    buttonsDiv.style.flexDirection = 'row';
+                                    buttonsDiv.style.alignItems = 'center';
+                                    buttonsDiv.style.gap = '0.5rem';
+                                    buttonsDiv.style.marginLeft = '1rem';
+                                    buttonsDiv.style.flexShrink = '0';
+                
+                                    if (stream.infoHash) {
+                                        // P2P Stream
+                                        const fileName = (stream.behaviorHints && stream.behaviorHints.filename) ? stream.behaviorHints.filename : stream.name;
+                                        let magnetLink = `magnet:?xt=urn:btih:${stream.infoHash}&dn=${encodeURIComponent(fileName)}`;
+                                        if(stream.sources) {
+                                            stream.sources.forEach(tracker => {
+                                                magnetLink += `&tr=${encodeURIComponent(tracker)}`;
+                                            });
+                                        }
+                
+                                        const playBtn = document.createElement('button');
+                                        playBtn.className = 'btn';
+                                        playBtn.innerHTML = '<i class="fas fa-play"></i> Play';
+                                        playBtn.style.backgroundColor = '#28a745';
+                                        playBtn.style.borderColor = '#28a745';
+                                        playBtn.onclick = () => startStream(magnetLink);
+                
+                                        const copyBtn = document.createElement('button');
+                                        copyBtn.className = 'btn';
+                                        copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copy';
+                                        copyBtn.onclick = () => copyMagnet(magnetLink);
+                
+                                        buttonsDiv.appendChild(playBtn);
+                                        buttonsDiv.appendChild(copyBtn);
+                                    } else {
+                                        // Direct Stream
+                                        const playBtn = document.createElement('button');
+                                        playBtn.className = 'btn';
+                                        playBtn.innerHTML = '<i class="fas fa-play"></i> Play';
+                                        playBtn.style.backgroundColor = '#28a745';
+                                        playBtn.style.borderColor = '#28a745';
+                                        playBtn.onclick = async (e) => {
+                                            e.stopPropagation();
+                                            try {
+                                                const tmdbId = currentContent?.id?.toString() || '';
+                                                let seasonNum = null;
+                                                let episodeNum = null;
+                                                if (currentMediaType === 'tv' && season && episode) {
+                                                    seasonNum = String(season);
+                                                    episodeNum = String(episode);
+                                                }
+                                                
+                                                const res = await window.electronAPI.spawnMpvjsPlayer({
+                                                    url: stream.url,
+                                                    tmdbId,
+                                                    seasonNum,
+                                                    episodeNum
+                                                });
+                
+                                                if (res?.success) {
+                                                    showNotification('Player launched');
+                                                } else {
+                                                    showNotification('Failed to launch player', 'error');
+                                                }
+                                            } catch (err) {
+                                                showNotification(`Player error: ${err.message}`, 'error');
+                                            }
+                                        };
+                
+                                        const copyBtn = document.createElement('button');
+                                        copyBtn.className = 'btn';
+                                        copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copy Link';
+                                        copyBtn.onclick = (e) => {
+                                            e.stopPropagation();
+                                            navigator.clipboard.writeText(stream.url).then(() => {
+                                                showNotification('Link copied to clipboard');
+                                            }, () => {
+                                                showNotification('Failed to copy link', 'error');
+                                            });
+                                        };
+                
+                                        const openInBtn = document.createElement('button');
+                                        openInBtn.className = 'btn';
+                                        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                                        openInBtn.innerHTML = isMac ? '<i class="fas fa-external-link-alt"></i> Open in IINA' : '<i class="fas fa-external-link-alt"></i> Open in MPV';
+                                        openInBtn.onclick = async (e) => {
+                                            e.stopPropagation();
+                                            try {
+                                                 await window.electronAPI.openInMPV({
+                                                    url: stream.url,
+                                                    title: stream.name
+                                                });
+                                            } catch (err) {
+                                                showNotification(`Failed to open: ${err.message}`, 'error');
+                                            }
+                                        };
+                                        
+                                        buttonsDiv.appendChild(playBtn);
+                                        buttonsDiv.appendChild(copyBtn);
+                                        
+                                        if (isWindows || isMac || isLinux) {
+                                            buttonsDiv.appendChild(openInBtn);
+                                        }
+                                    }
+                
+                                    item.appendChild(infoDiv);
+                                    item.appendChild(buttonsDiv);
+                                    torrentsList.appendChild(item);
+                                });
+                
+
+            } catch (error) {
+                console.error('[AIOStreams] Error:', error);
+                torrentsList.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-triangle"></i> AIOStreams Error: ${error.message}</div>`;
+            }
+        }
+        
         // Fetch torrents from the backend
         async function fetchTorrents(season = null, episode = null) {
             if (!currentContent) {
@@ -25371,6 +25510,9 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
             } else if (selectedProvider === 'xdmovies') {
                 console.log('[Provider] Routing to XDmovies');
                 return fetchXDMoviesStreams(season, episode);
+            } else if (selectedProvider === 'aiostreams') {
+                console.log('[Provider] Routing to AIOStreams');
+                return fetchAiostreamsStreams(season, episode);
             } else if (selectedProvider === 'torrentio' || selectedProvider === 'torrentless' || selectedProvider === 'jackett') {
                 // Explicit provider override buttons
                 console.log('[Provider] Explicit override:', selectedProvider);
@@ -31531,21 +31673,173 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
             }
         }
 
-        // Load both lists on app start
+        function updateCardDoneStatus(cardElement, id, mediaType) {
+            const button = cardElement.querySelector('.done-watching-btn');
+            if (!button) return;
+
+            const isDone = doneWatchingCache.some(item =>
+                item.id === id && item.media_type === mediaType && (!item.season && !item.episode)
+            );
+            
+            if (isDone) {
+                button.classList.add('is-done');
+                button.innerHTML = '<i class="fas fa-check-circle"></i>';
+                button.title = 'Remove from Done Watching';
+            } else {
+                button.classList.remove('is-done');
+                button.innerHTML = '<i class="fas fa-check"></i>';
+                button.title = 'Mark as Done Watching';
+            }
+        }
+
+        async function displayDoneWatching() {
+            const grid = document.getElementById('doneWatchingGrid');
+            const loading = document.getElementById('doneWatchingLoading');
+            const empty = document.getElementById('doneWatchingEmpty');
+            
+            if (!grid) return;
+
+            loading.style.display = 'block';
+            empty.style.display = 'none';
+            grid.innerHTML = '';
+
+            await loadDoneWatching();
+
+            loading.style.display = 'none';
+
+            if (doneWatchingCache.length === 0) {
+                empty.style.display = 'block';
+                return;
+            }
+
+            const groupedItems = new Map();
+            
+            doneWatchingCache.forEach(item => {
+                if (item.media_type === 'tv' && item.season && item.episode) {
+                    const showKey = `${item.id}-${item.media_type}`;
+                    if (!groupedItems.has(showKey)) {
+                        groupedItems.set(showKey, {
+                            ...item,
+                            episodes: [],
+                            isGrouped: true
+                        });
+                    }
+                    groupedItems.get(showKey).episodes.push({
+                        season: item.season,
+                        episode: item.episode,
+                        episode_title: item.episode_title,
+                        completed_date: item.completed_date
+                    });
+                } else {
+                    const key = `${item.id}-${item.media_type}-single`;
+                    groupedItems.set(key, {
+                        ...item,
+                        isGrouped: false
+                    });
+                }
+            });
+
+            Array.from(groupedItems.values())
+                .sort((a, b) => new Date(b.completed_date) - new Date(a.completed_date))
+                .forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'movie-card';
+                    card.dataset.rating = item.vote_average || 0;
+                    card.dataset.date = `${item.year}-01-01`;
+                    
+                    let displayTitle = item.title;
+                    let episodeInfo = '';
+                    let episodeBadge = '';
+                    
+                    if (item.isGrouped && item.episodes && item.episodes.length > 0) {
+                        const sortedEpisodes = item.episodes.sort((a, b) => {
+                            if (a.season !== b.season) return b.season - a.season;
+                            return b.episode - a.episode;
+                        });
+                        
+                        const latestEpisode = sortedEpisodes[0];
+                        const episodeCount = item.episodes.length;
+                        
+                        episodeInfo = `<p class="episode-subtitle">${episodeCount} episodes watched • Latest: S${latestEpisode.season}E${latestEpisode.episode}</p>`;
+                        episodeBadge = `<div class="episode-badge"><i class="fas fa-tv"></i> ${episodeCount} Episodes</div>`;
+                    }
+                    
+                    card.innerHTML = `
+                        <button class="add-to-list-btn" onclick="toggleMyList(event, ${item.id}, '${item.media_type}', '${item.title.replace(/'/g, "\\'")}', '${item.poster_path}', '${item.year}', ${item.vote_average})">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        ${item.media_type === 'movie' ? `
+                        <button class="done-watching-btn is-done" onclick="toggleDoneWatching(event, ${item.id}, '${item.media_type}', '${item.title.replace(/'/g, "\\'")}', '${item.poster_path}', '${item.year}', ${item.vote_average})">
+                            <i class="fas fa-check-circle"></i>
+                        </button>` : ''}
+                        ${episodeBadge}
+                        <img loading="lazy" decoding="async" src="https://image.tmdb.org/t/p/w342${item.poster_path}" alt="${displayTitle}" class="movie-poster">
+                        <div class="movie-info">
+                            <h3 class="movie-title">${displayTitle}</h3>
+                            ${episodeInfo}
+                            <p class="movie-year">${item.year}</p>
+                        </div>
+                        <div class="movie-rating">
+                            <i class="fas fa-star"></i> ${Number(item.vote_average).toFixed(1)}
+                        </div>
+                        ${item.isGrouped ? `
+                        <button class="episode-details-btn" onclick="showEpisodeDetails(event, ${item.id}, '${item.title.replace(/'/g, "\\'")}')">
+                            <i class="fas fa-list"></i> View ${item.episodes.length} Episode${item.episodes.length > 1 ? 's' : ''}
+                        </button>
+                        ` : ''}
+                    `;
+                    card.addEventListener('click', (e) => {
+                        if (!e.target.closest('.add-to-list-btn') && !e.target.closest('.done-watching-btn')) {
+                            openDetailsModal(item, item.media_type);
+                        }
+                    });
+                    grid.appendChild(card);
+                });
+        }
+
+        // GLOBAL manifest save function
+        async function saveManifest() {
+            const input = document.getElementById("manifestUrl").value.trim();
+            if (!input) return;
+
+            manifestUrl = input;
+            await window.electronAPI.manifestWrite(manifestUrl);
+
+            document.getElementById("manifestSavedBox").style.display = "block";
+            if (document.getElementById("manifestStatus"))
+                document.getElementById("manifestStatus").innerHTML = '<span class="status connected">✓ Manifest Connected</span>';
+
+            loadContent(currentTab);
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
-            // Reconcile downloaded music with disk at launch so manually deleted files are not listed
             try { await reconcileDownloadedMusicWithDisk(); } catch(_) {}
             try { renderDownloadedMusic(); } catch(_) {}
             await loadMyList();
             await loadDoneWatching();
             await loadContinueWatching();
-            
-            // Update existing cards with both list statuses when movies are loaded
+
+            // --- Load manifest from disk ---
+            try {
+                const result = await window.electronAPI.manifestRead();
+                if (result.success && result.data) {
+                    manifestUrl = result.data;
+
+                    const manifestInput = document.getElementById("manifestUrl");
+                    if (manifestInput) manifestInput.value = manifestUrl;
+
+                    const statusEl = document.getElementById("manifestStatus");
+                    if (statusEl)
+                        statusEl.innerHTML = '<span class="status connected">✓ Manifest Connected</span>';
+                }
+            } catch (err) {
+                console.error("Failed to load manifest", err);
+            }
+            // -------------------------------
+
             const originalDisplayMovies = displayMovies;
             displayMovies = function(movies, append = true) {
                 const result = originalDisplayMovies.call(this, movies, append);
-                
-                // Update both list and done watching status for newly added cards
                 setTimeout(() => {
                     movies.forEach(movie => {
                         const cards = document.querySelectorAll(`[data-rating="${movie.vote_average || 0}"]`);
@@ -31555,16 +31849,12 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
                         });
                     });
                 }, 100);
-                
                 return result;
             };
 
-            // Also update cards for genre items
             const originalDisplayGenreItems = displayGenreItems;
             displayGenreItems = function(items, mediaType) {
                 const result = originalDisplayGenreItems.call(this, items, mediaType);
-                
-                // Update both list and done watching status for genre cards
                 setTimeout(() => {
                     items.forEach(item => {
                         const cards = document.querySelectorAll(`.movie-card`);
@@ -31577,15 +31867,15 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
                         });
                     });
                 }, 100);
-                
                 return result;
             };
 
-            // Add button handlers
             document.getElementById('clearMyListBtn')?.addEventListener('click', clearMyList);
             document.getElementById('clearDoneWatchingBtn')?.addEventListener('click', clearDoneWatching);
         });
+
     </script>
+
     
     <!-- Updater Overlay (enhanced, user-friendly) -->
     <div id="updateOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:9999; display:none; align-items:center; justify-content:center; backdrop-filter:blur(10px);">

@@ -4,8 +4,33 @@ const cors = require('cors');
 const cheerio = require('cheerio');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
-const fs = require('fs').promises;
 const NodeCache = require('node-cache');
+const { app } = require("electron");
+const os = require("os");
+const fs = require("fs");
+
+
+const appName = "PlayTorrio"; 
+const userDataPath = path.join(os.homedir(), "AppData", "Roaming", appName);
+
+function getSavedManifestUrl() {
+    try {
+        const file = path.join(userDataPath, "manifest_url.json");
+        if (!fs.existsSync(file)) {
+            console.log("[AIO] Manifest file not found:", file);
+            return null;
+        }
+
+        const raw = fs.readFileSync(file, "utf8");
+        const parsed = JSON.parse(raw);
+        console.log("[AIO] Loaded Manifest:", parsed.manifestUrl);
+        
+        return parsed.manifestUrl || null;
+    } catch (err) {
+        console.error("Manifest Read Error:", err);
+        return null;
+    }
+}
 
 // Initialize cache with 1 hour TTL
 const gamesCache = new NodeCache({ stdTTL: 3600 });
@@ -4162,6 +4187,210 @@ app.post('/api/audiobooks/stream', async (req, res) => {
 });
 
 // ============================================================================
+// AIOSTREAMS™ TMDB + STREAM FORWARDING MODULE
+// ============================================================================
+
+const TMDB_API_KEY = "b3556f3b206e16f82df4d1f6fd4545e6";
+const TMDB_BASE_URL = "https://api.themoviedb.org/3";
+
+// Read Manifest URL saved by Electron (window.electronAPI.manifestWrite)
+
+
+
+// Parse manifest URL: /stremio/<uuid>/<token>/manifest.json
+function parseManifestUrl(manifestUrl) {
+    const match = manifestUrl.match(/\/stremio\/([^/]+)\/([^/]+)\/manifest\.json/);
+    if (!match) throw new Error("Invalid manifest URL format");
+    return {
+        uuid: match[1],
+        token: match[2],
+        baseUrl: manifestUrl.replace(/\/manifest\.json$/, "")
+    };
+}
+
+// --------------------------------------------------------------------
+// TMDB Endpoints
+// --------------------------------------------------------------------
+
+app.get("/aio/movies/popular", async (req, res) => {
+    try {
+        const response = await axios.get(`${TMDB_BASE_URL}/movie/popular`, {
+            params: { api_key: TMDB_API_KEY, language: "en-US", page: req.query.page || 1 }
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get("/aio/tv/popular", async (req, res) => {
+    try {
+        const response = await axios.get(`${TMDB_BASE_URL}/tv/popular`, {
+            params: { api_key: TMDB_API_KEY, language: "en-US", page: req.query.page || 1 }
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get("/aio/search/movie", async (req, res) => {
+    try {
+        const response = await axios.get(`${TMDB_BASE_URL}/search/movie`, {
+            params: { api_key: TMDB_API_KEY, language: "en-US", query: req.query.q, page: 1 }
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get("/aio/search/tv", async (req, res) => {
+    try {
+        const response = await axios.get(`${TMDB_BASE_URL}/search/tv`, {
+            params: { api_key: TMDB_API_KEY, language: "en-US", query: req.query.q, page: 1 }
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get("/aio/tv/:id", async (req, res) => {
+    try {
+        const response = await axios.get(`${TMDB_BASE_URL}/tv/${req.params.id}`, {
+            params: { api_key: TMDB_API_KEY, language: "en-US" }
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get("/aio/tv/:id/season/:season", async (req, res) => {
+    try {
+        const response = await axios.get(`${TMDB_BASE_URL}/tv/${req.params.id}/season/${req.params.season}`, {
+            params: { api_key: TMDB_API_KEY, language: "en-US" }
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get("/aio/:type/:id/external_ids", async (req, res) => {
+    try {
+        const response = await axios.get(`${TMDB_BASE_URL}/${req.params.type}/${req.params.id}/external_ids`, {
+            params: { api_key: TMDB_API_KEY }
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --------------------------------------------------------------------
+// STREAM FORWARDING FROM AIOSTREAMS (the important part)
+// --------------------------------------------------------------------
+
+app.post("/aio/streams", async (req, res) => {
+    try {
+        let manifestUrl = req.body.manifestUrl || getSavedManifestUrl();
+        if (!manifestUrl) return res.status(400).json({ error: "No saved manifest found" });
+
+        const { type, imdbId, season, episode } = req.body;
+        const { baseUrl } = parseManifestUrl(manifestUrl);
+
+        let streamId = imdbId;
+        if (type === "series" && season && episode) {
+            streamId = `${imdbId}:${season}:${episode}`;
+        }
+
+        const streamUrl = `${baseUrl}/stream/${type}/${streamId}.json`;
+        console.log("[AIO] Streaming from:", streamUrl);
+
+        const response = await axios.get(streamUrl);
+        res.json(response.data);
+
+    } catch (error) {
+        console.error("AIO /streams error:", error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get("/aio/series/:tmdbId/:season/:episode", async (req, res) => {
+    try {
+        const { tmdbId, season, episode } = req.params;
+
+        // ---- Load Saved Manifest URL (same as movie) ----
+        const savedManifest = await getSavedManifestUrl();
+        if (!savedManifest) return res.status(400).json({ error: "No saved manifest found" });
+
+        // ---- Convert TMDB -> IMDB ----
+        const external = await axios.get(
+            `${TMDB_BASE_URL}/tv/${tmdbId}/external_ids`,
+            { params: { api_key: TMDB_API_KEY } }
+        );
+
+        const imdbId = external.data.imdb_id;
+        if (!imdbId) return res.status(404).json({ error: "IMDb ID not found for this TMDB ID" });
+
+        // ---- Parse Manifest URL ----
+        const { baseUrl } = parseManifestUrl(savedManifest);
+
+        // ---- Build Stream URL for SERIES ----
+        const streamUrl = `${baseUrl}/stream/series/${imdbId}:${season}:${episode}.json`;
+
+        console.log("[AIOSTREAM SERIES] CALL =>", streamUrl);
+
+        // ---- Fetch & Return Streams ----
+        const response = await axios.get(streamUrl);
+        res.json({ imdbId, season, episode, streamUrl, streams: response.data });
+
+    } catch (error) {
+        console.error("AIO /series ERROR:", error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================================================
+
+app.get("/aio/movie/:tmdbId", async (req, res) => {
+    try {
+        const tmdbId = req.params.tmdbId;
+
+        // ---- Load Saved Manifest URL ----
+        const savedManifest = await getSavedManifestUrl();
+        if (!savedManifest) return res.status(400).json({ error: "No saved manifest found" });
+
+        // ---- Convert TMDB -> IMDB ----
+        const external = await axios.get(
+            `${TMDB_BASE_URL}/movie/${tmdbId}/external_ids`,
+            { params: { api_key: TMDB_API_KEY } }
+        );
+
+        const imdbId = external.data.imdb_id;
+        if (!imdbId) return res.status(404).json({ error: "IMDB ID not found for this TMDB ID" });
+
+        // ---- Parse Manifest URL ----
+        const { baseUrl } = parseManifestUrl(savedManifest);
+
+        // ---- Build Stream URL ----
+        const streamUrl = `${baseUrl}/stream/movie/${imdbId}.json`;
+        console.log("[AIOSTREAM] CALL =>", streamUrl);
+
+        // ---- Fetch & Return Streams ----
+        const response = await axios.get(streamUrl);
+        res.json({ imdbId, streamUrl, streams: response.data });
+
+    } catch (error) {
+        console.error("AIO /movie/:tmdbId ERROR:", error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// ============================================================================
 // MANGA SERVICE (WeebCentral scraper)
 // ============================================================================
 
@@ -4819,6 +5048,9 @@ process.on('uncaughtException', (err) => {
         process.exit(1);
     }
 });
+
+
+
 
 // Export the function to register routes instead of starting a server
 module.exports = { registerApiRoutes };

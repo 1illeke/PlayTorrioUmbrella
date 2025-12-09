@@ -3650,6 +3650,8 @@ for (let i = 0; i < 10; i++) {
     // ----------------------
     // Configuration and API Key Management
     // ----------------------
+// ---- Manifest URL persistent storage ----
+
 
     // API Key Management
     let API_KEY = '';
