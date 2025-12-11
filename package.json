@@ -12,7 +12,6 @@
   "scripts": {
     "start": "electron .",
     "serve": "node server.mjs",
-    "prebuild": "node build/copyChromium.cjs",
     "build": "electron-builder --publish always",
     "postinstall": "electron-builder install-app-deps"
   },
@@ -67,13 +66,11 @@
       "node_modules/**/*",
       "mpv/**",
       "VLC/**",
-      "chromium-bundle/**",
       "!mpv.js-master-updated/**"
     ],
     "asarUnpack": [
       "mpv/**",
       "VLC/**",
-      "chromium-bundle/**",
       "node_modules/ffmpeg-static/**"
     ],
     "extraResources": [],
@@ -101,13 +98,6 @@
         {
           "from": "mpv.js-master-updated",
           "to": "mpv.js-master-updated",
-          "filter": [
-            "**/*"
-          ]
-        },
-        {
-          "from": "chromium-bundle",
-          "to": "chromium-bundle",
           "filter": [
             "**/*"
           ]
@@ -146,15 +136,7 @@
         "NSCameraUsageDescription": "PlayTorrio does not require camera access.",
         "NSAppleEventsUsageDescription": "PlayTorrio needs to control external media players."
       },
-      "extraResources": [
-        {
-          "from": "chromium-bundle",
-          "to": "chromium-bundle",
-          "filter": [
-            "**/*"
-          ]
-        }
-      ]
+      "extraResources": []
     },
     "dmg": {
       "title": "${productName}",
