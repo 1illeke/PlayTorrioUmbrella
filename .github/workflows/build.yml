@@ -29,10 +29,24 @@ jobs:
           elseif (Test-Path "mpv.zip") { Expand-Archive -Path mpv.zip -DestinationPath mpv-temp -Force }
           if (!(Test-Path "mpv/mpv.exe")) { Write-Host "MPV missing" }
           if (Test-Path "vlc.rar") { 7z x vlc.rar -y }
+          # Extract yt-dlp binary for Windows (if provided)
+          # The archive should contain a folder named "yt" with yt-dlp.exe inside.
+          if (Test-Path "yt.rar") { 7z x yt.rar -y }
       - name: Verify Icons
         run: |
           if (!(Test-Path build)) { mkdir build }
           if (Test-Path icon.ico) { Copy-Item icon.ico build/icon.ico -Force }
+      - name: Check for yt-dlp binary on Windows
+        run: |
+          # Check if yt-dlp.exe exists after extraction
+          if (Test-Path "yt\yt-dlp.exe") {
+            Write-Host "✓ yt-dlp.exe found in yt folder"
+          } elseif (Test-Path "yt\yt-dlp_windows.exe") {
+            Write-Host "✓ yt-dlp_windows.exe found in yt folder"
+          } else {
+            Write-Error "❌ yt-dlp binary not found in expected location"
+            exit 1
+          }
       - name: Build Windows Installer
         run: npm run build -- --win --publish always
         env:
@@ -53,6 +67,20 @@ jobs:
         run: |
           mkdir -p mpv VLC build
           [ -f icon.png ] && cp icon.png build/icon.png || true
+      - name: Extract yt-dlp binary for Linux
+        run: |
+          if [ -f linuxyt.rar ]; then
+            sudo apt-get update -y
+            sudo apt-get install -y p7zip-full
+            7z x linuxyt.rar -y
+          fi
+      - name: Check for yt-dlp binary on Linux
+        run: |
+          if [ -f linyt/yt-dlp_linux ] || [ -f linyt/yt-dlp ]; then
+            echo "✓ yt-dlp binary found in linyt folder"
+          else
+            echo "❌ yt-dlp binary not found in expected location" && exit 1
+          fi
       - name: Build Linux Packages
         run: npm run build -- --linux --publish always
         env:
@@ -81,6 +109,19 @@ jobs:
           curl -fL https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz -o mpv.tar.gz || true
           mkdir -p mpv
           [ -f mpv.tar.gz ] && tar -xzf mpv.tar.gz -C mpv || true
+      - name: Extract yt-dlp binary for macOS
+        run: |
+          if [ -f macyt.rar ]; then
+            brew install p7zip || true
+            7z x macyt.rar -y
+          fi
+      - name: Check for yt-dlp binary on macOS x64
+        run: |
+          if [ -f macyt/yt-dlp_macos ] || [ -f macyt/yt-dlp ]; then
+            echo "✓ yt-dlp binary found in macyt folder"
+          else
+            echo "❌ yt-dlp binary not found in expected location" && exit 1
+          fi
       - name: Build macOS x64 DMG
         run: npm run build -- --mac --x64 --publish always
         env:
@@ -107,6 +148,19 @@ jobs:
           curl -fL https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz -o mpv.tar.gz || true
           mkdir -p mpv
           [ -f mpv.tar.gz ] && tar -xzf mpv.tar.gz -C mpv || true
+      - name: Extract yt-dlp binary for macOS
+        run: |
+          if [ -f macyt.rar ]; then
+            brew install p7zip || true
+            7z x macyt.rar -y
+          fi
+      - name: Check for yt-dlp binary on macOS arm64
+        run: |
+          if [ -f macyt/yt-dlp_macos ] || [ -f macyt/yt-dlp ]; then
+            echo "✓ yt-dlp binary found in macyt folder"
+          else
+            echo "❌ yt-dlp binary not found in expected location" && exit 1
+          fi
       - name: Build macOS arm64 DMG
         run: npm run build -- --mac --arm64 --publish always
         env:
