@@ -77,7 +77,17 @@
         }
 
         /* Keep full-screen overlays below the title bar in the new UI */
-        body.ui-new .wcjs-player-container { top: 32px !important; height: calc(100vh - 32px) !important; }
+        body.ui-new:not(.platform-darwin) .wcjs-player-container,
+        body.ui-new:not(.platform-darwin) .vlc-player-container,
+        body.ui-new:not(.platform-darwin) .custom-player-container,
+        body.ui-new:not(.platform-darwin) #livetv-stream-viewer,
+        body.ui-new:not(.platform-darwin) #video-player-modal,
+        body.ui-new:not(.platform-darwin) #books-reader-modal,
+        body.ui-new:not(.platform-darwin) #epubReaderOverlay,
+        body.ui-new:not(.platform-darwin) #server-selection-modal {
+            top: 32px !important;
+            height: calc(100vh - 32px) !important;
+        }
         
         .title-bar-left {
             display: flex;
@@ -3598,23 +3608,58 @@
         }
         .reader-settings {
             position: fixed;
-            bottom: 60px; /* above footer */
-            right: 0;
-            width: 320px;
-            max-height: 400px;
-            background: var(--bg);
-            color: #eee;
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px 0 0 0;
-            transform: translateX(0);
-            transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
-            padding: 1rem;
-            z-index: 2050;
+            bottom: 80px;
+            right: 20px;
+            width: 340px;
+            max-height: 80vh;
+            background: var(--bar-bg);
+            color: var(--text);
+            border: 1px solid var(--bar-border);
+            border-radius: 12px;
+            transform: translateY(0);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            padding: 1.5rem;
+            z-index: 2200;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.5);
+            opacity: 1;
+            pointer-events: auto;
+            overflow-y: auto;
         }
-        .reader-settings.hidden { transform: translateX(100%); }
-        .settings-section { margin-bottom: 1rem; }
+        .reader-settings.hidden { 
+            transform: translateY(20px); 
+            opacity: 0; 
+            pointer-events: none; 
+        }
+        .settings-row.justify { justify-content: space-between; }
+        .align-btn { 
+            flex: 1; 
+            padding: 0.5rem; 
+            border: 1px solid var(--bar-btn-border); 
+            background: var(--bar-btn-bg); 
+            color: var(--text); 
+            cursor: pointer; 
+            border-radius: 6px; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+        }
+        .align-btn.active { background: var(--vlc-orange); color: #fff; border-color: var(--vlc-orange); }
+        .align-btn:not(:last-child) { margin-right: 0.5rem; }
+        .reader-settings-section { margin-bottom: 1rem; }
         .settings-row { display: flex; gap: 0.5rem; }
         .theme-btn { padding: 0.5rem 0.75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); color: #eee; cursor: pointer; }
+
+        #focusRuler {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 60px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.85);
+            z-index: 50;
+            pointer-events: none;
+            display: none;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
 
         /* Themes for overlay container */
         .theme-light { --bg: #ffffff; --text: #111111; }
@@ -7751,6 +7796,10 @@
             margin-top: 1rem !important;
             margin-bottom: 1rem !important;
         }
+
+        body.reader-fullscreen-mode #mangaReaderBack {
+            display: none !important;
+        }
     </style>
     <!-- Google Cast SDK -->
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
@@ -10029,6 +10078,10 @@
                             <i class="fas fa-search"></i>
                             Search
                         </button>
+                        <button id="books-saved-btn" class="books-search-button" style="margin-left: 10px; background: #2ecc71;">
+                            <i class="fas fa-bookmark"></i>
+                            Saved
+                        </button>
                     </div>
                 </div>
             </div>
@@ -10404,11 +10457,12 @@
     <!-- EPUB Reader Overlay -->
     <div id="epubReaderOverlay" style="display:none;">
         <div class="reader-header">
-            <div class="reader-esc-hint">Press ESC to exit</div>
+            <div class="reader-esc-hint">PlayTorrio Reader</div>
             <div class="reader-title" id="readerTitle"></div>
             <div style="width: 120px;"></div> <!-- Spacer for symmetry -->
         </div>
         <div id="readerContainer"></div>
+        <div id="focusRuler"></div>
         <div class="reader-footer">
             <button id="readerBackBtn" class="reader-back-btn" title="Exit reader">
                 <i class="fas fa-arrow-left"></i>
@@ -10426,7 +10480,7 @@
             <button id="readerSettingsBtn" class="reader-gear" aria-label="Settings"><i class="fas fa-cog"></i></button>
         </div>
         <div id="readerSettingsPanel" class="reader-settings hidden">
-            <div class="settings-section">
+            <div class="reader-settings-section">
                 <label>Theme</label>
                 <div class="settings-row">
                     <button class="theme-btn" data-theme="light">Light</button>
@@ -10434,18 +10488,56 @@
                     <button class="theme-btn" data-theme="night">Night</button>
                 </div>
             </div>
-            <div class="settings-section">
+            <div class="reader-settings-section">
+                <label>Focus Mode</label>
+                <div class="settings-row">
+                    <button id="focusModeBtn" class="align-btn" style="width:100%"><i class="fas fa-eye"></i> Enable Focus</button>
+                </div>
+                <div style="font-size: 0.8rem; color: #888; margin-top: 0.5rem; text-align: center;">
+                    Use arrow keys to control the line
+                </div>
+                <div style="margin-top: 0.5rem; display: flex; align-items: center; justify-content: space-between;">
+                    <label style="font-size: 0.9rem; color: #ccc;">Speed</label>
+                    <input id="focusSpeedInput" type="range" min="1" max="20" value="2" style="width: 60%;">
+                    <span id="focusSpeedVal" style="font-size: 0.9rem; width: 20px; text-align: right;">2</span>
+                </div>
+            </div>
+            <div class="reader-settings-section">
                 <label>Font</label>
-                <select id="readerFont">
+                <select id="readerFont" class="modal-select" style="width:100%">
                     <option value="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif">System Default</option>
                     <option value="Georgia, Cambria, 'Times New Roman', Times, serif">Serif</option>
                     <option value="Arial, Helvetica, sans-serif">Sans-Serif</option>
                     <option value="'Courier New', Courier, monospace">Monospace</option>
                 </select>
             </div>
-            <div class="settings-section">
-                <label>Text size</label>
-                <input id="readerFontSize" type="range" min="12" max="28" step="1" value="16"/>
+            <div class="reader-settings-section">
+                <div class="settings-row justify">
+                    <label>Text Size</label>
+                    <span id="readerFontSizeVal">16px</span>
+                </div>
+                <input id="readerFontSize" type="range" min="12" max="32" step="1" value="16" style="width:100%"/>
+            </div>
+            <div class="reader-settings-section">
+                <div class="settings-row justify">
+                    <label>Line Height</label>
+                    <span id="readerLineHeightVal">1.5</span>
+                </div>
+                <input id="readerLineHeight" type="range" min="1.0" max="2.5" step="0.1" value="1.5" style="width:100%"/>
+            </div>
+            <div class="reader-settings-section">
+                <div class="settings-row justify">
+                    <label>Content Width</label>
+                    <span id="readerWidthVal">80%</span>
+                </div>
+                <input id="readerWidth" type="range" min="40" max="100" step="5" value="80" style="width:100%"/>
+            </div>
+            <div class="reader-settings-section">
+                <label>Alignment</label>
+                <div class="settings-row">
+                    <button class="align-btn" data-align="left"><i class="fas fa-align-left"></i></button>
+                    <button class="align-btn" data-align="justify"><i class="fas fa-align-justify"></i></button>
+                </div>
             </div>
         </div>
     </div>
@@ -10662,7 +10754,7 @@
     <!-- Manga Reader Page -->
     <div id="manga-reader-page" style="display: none; background: #000; min-height: 100vh; position: relative;">
         <!-- Floating Controls -->
-        <div style="position: sticky; top: 1rem; left: 1rem; z-index: 1000; display: flex; gap: 10px; width: fit-content; margin-bottom: 1rem;">
+        <div id="mangaReaderControls" style="position: sticky; top: 1rem; left: 1rem; z-index: 1000; display: flex; gap: 10px; width: fit-content; margin-bottom: 1rem;">
             <button id="mangaReaderBack" style="background: var(--secondary); border: none; padding: 0.75rem 1.5rem; border-radius: 8px; color: white; font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
                 <i class="fas fa-arrow-left"></i> Back
             </button>
@@ -18626,6 +18718,10 @@ Your browser does not support the video tag.
 
             // Books Functionality
             let booksSearchResults = [];
+            let booksCurrentPage = 1;
+            let booksIsLoading = false;
+            let booksHasMore = true;
+            let booksCurrentQuery = '';
             
             // Books search input and button
             const booksSearchInput = document.getElementById('books-search-input');
@@ -18642,6 +18738,128 @@ Your browser does not support the video tag.
             const booksReaderBack = document.getElementById('books-reader-back');
             const booksReaderTitle = document.getElementById('books-reader-title');
             const booksReaderFrame = document.getElementById('books-reader-frame');
+
+            // Initialize/Reset books page
+            async function startBooks() {
+                booksCurrentPage = 1;
+                booksHasMore = true;
+                booksCurrentQuery = '';
+                booksSearchResults = [];
+                booksResultsGrid.innerHTML = '';
+                booksEmpty.style.display = 'none';
+                booksResults.style.display = 'none';
+                booksLoading.style.display = 'block';
+                
+                // Load popular books by default
+                await loadBooks(1);
+            }
+
+            function getSavedBooks() {
+                try {
+                    return JSON.parse(localStorage.getItem('zlib_saved_books') || '[]');
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            function saveBook(book) {
+                const saved = getSavedBooks();
+                // Avoid duplicates based on URL
+                if (!saved.some(b => (b.url || b.bookUrl) === (book.url || book.bookUrl))) {
+                    saved.push(book);
+                    localStorage.setItem('zlib_saved_books', JSON.stringify(saved));
+                    showNotification('Book saved to library', 'success');
+                }
+            }
+
+            function removeBook(bookUrl) {
+                let saved = getSavedBooks();
+                saved = saved.filter(b => (b.url || b.bookUrl) !== bookUrl);
+                localStorage.setItem('zlib_saved_books', JSON.stringify(saved));
+                showNotification('Book removed from library', 'info');
+            }
+
+            function isBookSaved(bookUrl) {
+                const saved = getSavedBooks();
+                return saved.some(b => (b.url || b.bookUrl) === bookUrl);
+            }
+
+            async function loadBooks(page = 1, append = false) {
+                if (booksIsLoading) return;
+                booksIsLoading = true;
+                if (!append) {
+                    booksLoading.style.display = 'block';
+                    if (page === 1) booksResultsGrid.innerHTML = '';
+                }
+
+                try {
+                    let url;
+                    // Using new API endpoints
+                    const booksBase = 'http://localhost:6987/api/zlib'; 
+
+                    if (booksCurrentQuery) {
+                         // Search mode (no pagination support in backend for search yet, so we only load page 1)
+                         if (page > 1) {
+                             booksIsLoading = false;
+                             return; 
+                         }
+                         url = `${booksBase}/search/${encodeURIComponent(booksCurrentQuery)}`;
+                    } else {
+                        // Popular/All mode (supports pagination)
+                        url = `${booksBase}/all?page=${page}`;
+                    }
+                    
+                    console.log(`[BOOKS] Fetching: ${url}`);
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const data = await response.json();
+                    let items = [];
+                    
+                    if (booksCurrentQuery) {
+                        // Search returns { success: 1, books: [...] }
+                        items = data.books || [];
+                        booksHasMore = false; // Disable infinite scroll for search for now
+                    } else {
+                        // All/Popular returns [ ... ] or { books: [...] }
+                        if (Array.isArray(data)) {
+                            items = data;
+                        } else if (data.books && Array.isArray(data.books)) {
+                            items = data.books;
+                        } else if (data.mostPopular && Array.isArray(data.mostPopular)) {
+                             items = data.mostPopular;
+                        }
+                        
+                        // If we got items, assume there might be more pages
+                        booksHasMore = items.length > 0;
+                    }
+                    
+                    if (append) {
+                        booksSearchResults = [...booksSearchResults, ...items];
+                    } else {
+                        booksSearchResults = items;
+                    }
+                    
+                    displayBooksResults(items, append);
+                    
+                } catch (error) {
+                    console.error('[BOOKS] Error loading books:', error);
+                    if (!append) {
+                        booksResults.style.display = 'none';
+                        booksEmpty.style.display = 'block';
+                        booksEmpty.innerHTML = `<div class="books-empty-icon"><i class="fas fa-exclamation-triangle"></i></div><h3>Error Loading Books</h3><p>${error.message}</p>`;
+                    }
+                } finally {
+                    booksIsLoading = false;
+                    booksLoading.style.display = 'none';
+                }
+            }
+
+            async function loadMoreBooks() {
+                if (booksIsLoading || !booksHasMore || booksCurrentQuery) return; // Disable infinite scroll for search
+                booksCurrentPage++;
+                await loadBooks(booksCurrentPage, true);
+            }
             
             // Search functionality
             async function searchBooks(query) {
@@ -18650,150 +18868,221 @@ Your browser does not support the video tag.
                     return;
                 }
                 
-                const searchTerm = query.trim();
-                console.log('[BOOKS] Searching for:', searchTerm);
+                booksCurrentQuery = query.trim();
+                booksCurrentPage = 1;
+                booksHasMore = true; 
                 
-                // Show loading state
-                booksEmpty.style.display = 'none';
-                booksResults.style.display = 'none';
-                booksLoading.style.display = 'block';
-                
-                try {
-                    const encodedQuery = encodeURIComponent(searchTerm);
-                    // Resolve Books server base URL dynamically from main process (port may vary)
-                    let booksBase = 'http://localhost:6987/zlib';
-                    try {
-                        if (window.electronAPI?.booksGetUrl) {
-                            const r = await window.electronAPI.booksGetUrl();
-                            if (r?.success && r?.url) booksBase = r.url;
-                        }
-                    } catch(_) {}
-                    const response = await fetch(`${booksBase}/search/${encodedQuery}`);
-                    
-                    if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({}));
-                        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    
-                    const data = await response.json();
-                    
-                    console.log('[BOOKS] Search results:', data);
-                    
-                    booksLoading.style.display = 'none';
-                    
-                    if (data.results && data.results.length > 0) {
-                        booksSearchResults = data.results;
-                        displayBooksResults(data.results, searchTerm);
-                        showNotification(`Found ${data.results.length} books`, 'success');
-                    } else {
-                        booksResults.style.display = 'none';
-                        booksEmpty.style.display = 'block';
-                        booksEmpty.innerHTML = `
-                            <div class="books-empty-icon">
-                                <i class="fas fa-search"></i>
-                            </div>
-                            <h3>No Books Found</h3>
-                            <p>No results found for "${searchTerm}". Try a different search term.</p>
-                        `;
-                        showNotification('No books found for your search', 'info');
-                    }
-                } catch (error) {
-                    console.error('[BOOKS] Search error:', error);
-                    booksLoading.style.display = 'none';
-                    booksResults.style.display = 'none';
-                    booksEmpty.style.display = 'block';
-                    
-                    // Show more detailed error message
-                    const errorMsg = error.message || 'Unknown error';
-                    const isConnectionError = errorMsg.includes('Unable to connect') || errorMsg.includes('503');
-                    
-                    booksEmpty.innerHTML = `
-                        <div class="books-empty-icon">
-                            <i class="fas fa-exclamation-triangle"></i>
-                        </div>
-                        <h3>Search Error</h3>
-                        <p>${isConnectionError ? 
-                            'Z-Library servers are currently unreachable. This may be due to ISP blocking or regional restrictions.' : 
-                            'Failed to search books. Please check your connection and try again.'
-                        }</p>
-                        ${isConnectionError ? '<p style="font-size: 0.9em; opacity: 0.7; margin-top: 0.5rem;">💡 Tip: Try using a VPN if Z-Library is blocked in your region.</p>' : ''}
-                        <p style="font-size: 0.85em; opacity: 0.6; margin-top: 1rem;">Error: ${errorMsg}</p>
-                    `;
-                    showNotification(isConnectionError ? 'Z-Library unreachable - try VPN' : 'Failed to search books', 'error');
-                }
+                await loadBooks(1, false);
             }
             
-            function displayBooksResults(books, query) {
-                booksResultsTitle.textContent = `Search Results for "${query}"`;
-                booksResultsCount.textContent = `${books.length} book${books.length !== 1 ? 's' : ''} found`;
+            function displayBooksResults(books, append) {
+                if (!append) {
+                    booksResultsTitle.textContent = booksCurrentQuery ? `Search Results for "${booksCurrentQuery}"` : 'Most Popular Books';
+                    booksResultsCount.textContent = ''; 
+                    booksResultsGrid.innerHTML = '';
+                }
+
+                if (books.length === 0 && !append) {
+                     booksResults.style.display = 'none';
+                     booksEmpty.style.display = 'block';
+                     booksEmpty.innerHTML = `
+                        <div class="books-empty-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <h3>No Books Found</h3>
+                        <p>${booksCurrentQuery ? `No results found for "${booksCurrentQuery}"` : 'No popular books found at the moment.'}</p>
+                     `;
+                     return;
+                }
                 
-                booksResultsGrid.innerHTML = '';
+                booksEmpty.style.display = 'none';
+                booksResults.style.display = 'block';
                 
                 books.forEach(book => {
                     const bookCard = document.createElement('div');
                     bookCard.className = 'books-book-card';
                     
+                    const cover = book.cover || book.photo || '';
+                    const title = book.title || 'Unknown Title';
+                    const author = book.author || 'Unknown Author';
+                    const format = book.extension || book.format || 'EPUB';
+                    const bookUrl = book.url || book.bookUrl; 
+                    
+                    // Add styles for save button if not present
+                    if (!document.getElementById('zlib-save-btn-style')) {
+                        const style = document.createElement('style');
+                        style.id = 'zlib-save-btn-style';
+                        style.textContent = `
+                            .books-save-btn {
+                                position: absolute;
+                                top: 5px;
+                                right: 5px;
+                                width: 32px;
+                                height: 32px;
+                                border-radius: 50%;
+                                background: rgba(0, 0, 0, 0.6);
+                                color: white;
+                                border: none;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                                z-index: 10;
+                            }
+                            .books-save-btn:hover {
+                                background: #2ecc71;
+                                transform: scale(1.1);
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
+
+                    const isSaved = isBookSaved(bookUrl);
+
                     bookCard.innerHTML = `
                         <div class="books-book-cover">
-                            <img loading="lazy" src="${book.photo}" alt="${book.title}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <img loading="lazy" src="${cover}" alt="${title}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                             <div class="books-book-cover-placeholder" style="display: none;">
                                 <i class="fas fa-book"></i>
                             </div>
-                            <div class="books-book-format">${book.format}</div>
+                            <div class="books-book-format">${format}</div>
+                            <button class="books-save-btn" data-book='${JSON.stringify(book).replace(/'/g, "&apos;")}' title="${isSaved ? 'Remove from Saved' : 'Save Book'}">
+                                <i class="fas ${isSaved ? 'fa-check' : 'fa-plus'}"></i>
+                            </button>
                         </div>
                         <div class="books-book-info">
-                            <h3 class="books-book-title">${book.title}</h3>
-                            <p class="books-book-author">by ${book.author}</p>
-                            ${book.year ? `<span class="books-book-year">${book.year}</span>` : ''}
+                            <h3 class="books-book-title">${title}</h3>
+                            <p class="books-book-author">by ${author}</p>
                             <div class="books-book-actions">
-                                <button class="books-read-btn" data-read-link="${book.readLink}" data-title="${book.title}">
+                                <button class="books-read-btn" data-book-path="${bookUrl}" data-title="${title}">
                                     <i class="fas fa-book-open"></i>
                                     Read Now
-                                </button>
-                                <button class="books-download-btn" data-book-url="${book.bookUrl}" title="View on Z-Library">
-                                    <i class="fas fa-external-link-alt"></i>
                                 </button>
                             </div>
                         </div>
                     `;
                     
                     booksResultsGrid.appendChild(bookCard);
-                });
-                
-                // Add event listeners to Read Now buttons
-                const readButtons = booksResultsGrid.querySelectorAll('.books-read-btn');
-                readButtons.forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const readLink = e.currentTarget.getAttribute('data-read-link');
-                        const title = e.currentTarget.getAttribute('data-title');
-                        // Open in default browser instead of iframe
-                        if (readLink && window.electronAPI?.openExternal) {
-                            console.log('[BOOKS] Opening book reader in browser:', title, readLink);
-                            window.electronAPI.openExternal(readLink);
-                            showNotification(`Opening "${title}" in browser...`, 'success');
+
+                    // Save button listener
+                    const saveBtn = bookCard.querySelector('.books-save-btn');
+                    saveBtn.addEventListener('click', (e) => {
+                         e.stopPropagation();
+                         const btn = e.currentTarget;
+                         const bookData = JSON.parse(btn.getAttribute('data-book'));
+                         const bUrl = bookData.url || bookData.bookUrl;
+                         
+                         if (isBookSaved(bUrl)) {
+                             removeBook(bUrl);
+                             btn.innerHTML = '<i class="fas fa-plus"></i>';
+                             btn.title = 'Save Book';
+                             
+                             // If viewing saved books, remove the card
+                             if (booksCurrentQuery === '__saved__') {
+                                 bookCard.remove();
+                                 // Check if grid is empty
+                                 if (booksResultsGrid.children.length === 0) {
+                                     booksResults.style.display = 'none';
+                                     booksEmpty.style.display = 'block';
+                                     booksEmpty.innerHTML = `
+                                        <div class="books-empty-icon"><i class="fas fa-bookmark"></i></div>
+                                        <h3>No Saved Books</h3>
+                                        <p>You haven't saved any books yet.</p>
+                                     `;
+                                 }
+                             }
+                         } else {
+                             saveBook(bookData);
+                             btn.innerHTML = '<i class="fas fa-check"></i>';
+                             btn.title = 'Remove from Saved';
+                         }
+                    });
+                    
+                    // Attach event listener immediately
+                    const readBtn = bookCard.querySelector('.books-read-btn');
+                    readBtn.addEventListener('click', async (e) => {
+                        const btn = e.currentTarget;
+                        const path = btn.getAttribute('data-book-path');
+                        const title = btn.getAttribute('data-title');
+                        
+                        if (!path) return;
+                        
+                        const originalText = btn.innerHTML;
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Opening...';
+                        btn.disabled = true;
+                        
+                        try {
+                            const booksBase = 'http://localhost:6987/api/zlib'; 
+                            const resp = await fetch(`${booksBase}/read-link?path=${encodeURIComponent(path)}`);
+                            const json = await resp.json();
+                            
+                            if (json.success && json.readLink) {
+                                if (window.electronAPI?.openExternal) {
+                                    window.electronAPI.openExternal(json.readLink);
+                                    showNotification(`Opening "${title}"...`, 'success');
+                                } else {
+                                     window.open(json.readLink, '_blank');
+                                }
+                            } else {
+                                showNotification('Could not find read link for this book', 'error');
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            showNotification('Failed to fetch read link', 'error');
+                        } finally {
+                            btn.innerHTML = originalText;
+                            btn.disabled = false;
                         }
                     });
                 });
-                
-                // Add event listeners to download buttons
-                const downloadButtons = booksResultsGrid.querySelectorAll('.books-download-btn');
-                downloadButtons.forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const bookUrl = e.currentTarget.getAttribute('data-book-url');
-                        if (bookUrl) {
-                            window.electronAPI.openExternal(bookUrl);
-                        }
-                    });
-                });
-                
-                booksEmpty.style.display = 'none';
-                booksResults.style.display = 'block';
             }
 
             // Music Functionality
             let musicResultsCache = [];
             const musicSearchInput = document.getElementById('music-search-input');
             const musicSearchBtn = document.getElementById('music-search-btn');
+
+            // Wire up Books search
+            const booksSavedBtn = document.getElementById('books-saved-btn');
+            
+            if (booksSavedBtn) {
+                booksSavedBtn.addEventListener('click', () => {
+                     booksCurrentQuery = '__saved__';
+                     booksResultsTitle.textContent = 'My Saved Books';
+                     booksResultsCount.textContent = '';
+                     
+                     const savedBooks = getSavedBooks();
+                     
+                     if (savedBooks.length === 0) {
+                         booksResults.style.display = 'none';
+                         booksEmpty.style.display = 'block';
+                         booksEmpty.innerHTML = `
+                            <div class="books-empty-icon"><i class="fas fa-bookmark"></i></div>
+                            <h3>No Saved Books</h3>
+                            <p>You haven't saved any books yet.</p>
+                         `;
+                         booksResultsGrid.innerHTML = '';
+                         return;
+                     }
+                     
+                     booksResultsGrid.innerHTML = '';
+                     displayBooksResults(savedBooks, false);
+                });
+            }
+
+            if (booksSearchBtn) {
+                booksSearchBtn.addEventListener('click', () => {
+                    searchBooks(booksSearchInput.value);
+                });
+            }
+            if (booksSearchInput) {
+                booksSearchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        searchBooks(booksSearchInput.value);
+                    }
+                });
+            }
             const musicLoading = document.getElementById('music-loading');
             const musicEmpty = document.getElementById('music-empty');
             const musicResults = document.getElementById('music-results');
@@ -23227,12 +23516,13 @@ Your browser does not support the video tag.
     showSection('minigames');
     reloadMiniGamesPage();
     return;
-} else if (hash === '#/books') {
-    activeRoute = 'books';
-    showSection('books');
-    return;
-} else if (hash === '#/audiobooks') {
-    activeRoute = 'audiobooks';
+            } else if (hash === '#/books') {
+                activeRoute = 'books';
+                showSection('books');
+                // startBooks(); - Reverted auto-load
+                startBooks(); 
+                return;
+            } else if (hash === '#/audiobooks') {    activeRoute = 'audiobooks';
     showSection('audiobooks');
     return;
 } else if (hash === '#/music') {
@@ -23962,11 +24252,20 @@ Your browser does not support the video tag.
                     const scrollTop = mainElement.scrollTop;
                     const scrollHeight = mainElement.scrollHeight;
                     const clientHeight = mainElement.clientHeight;
-                    shouldLoad = scrollTop + clientHeight >= scrollHeight - 500 && !isLoading;
+                    
+                    if (activeRoute === 'books') {
+                        shouldLoad = scrollTop + clientHeight >= scrollHeight - 500 && !booksIsLoading;
+                    } else {
+                        shouldLoad = scrollTop + clientHeight >= scrollHeight - 500 && !isLoading;
+                    }
                 }
             } else {
                 // OLD UI mode (scrolling on window)
-                shouldLoad = window.innerHeight + window.scrollY >= document.body.offsetHeight - 500 && !isLoading;
+                if (activeRoute === 'books') {
+                    shouldLoad = window.innerHeight + window.scrollY >= document.body.offsetHeight - 500 && !booksIsLoading;
+                } else {
+                    shouldLoad = window.innerHeight + window.scrollY >= document.body.offsetHeight - 500 && !isLoading;
+                }
             }
             
             if (shouldLoad) {
@@ -28826,10 +29125,6 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
 
                         resultsContainer.innerHTML = epubBooks.map(book => `
                             <div class="book-card">
-                                <img src="${book.coverUrl || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMDZiNmQ0Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNHB4IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkJvb2s8L3RleHQ+PC9zdmc+'}" 
-                                     alt="${book.title}" 
-                                     class="book-cover"
-                                     onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMDZiNmQ0Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNHB4IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkJvb2s8L3RleHQ+PC9zdmc+'">
                                 <div class="book-title">${book.title}</div>
                                 <div class="book-author">${Array.isArray(book.author) ? book.author.join(', ') : book.author}</div>
                                 <div class="book-details">
@@ -31324,6 +31619,11 @@ window.addEventListener("scroll", () => {
     let chapterToc = null;
     let chapterSpineItems = null;
     let chapterTotal = 0;
+        let isReaderFocusMode = false;
+        let focusRulerTopPx = 80;
+        let focusRulerHeightPx = 0;
+        let focusRulerOffset = 0;
+        let rulerObserver = null;
 
         async function openEpubReader(localPath, title) {
             try {
@@ -31401,6 +31701,11 @@ window.addEventListener("scroll", () => {
                     flow: 'paginated'
                 });
                 
+                // Listen for keydown in the iframe to support Focus Mode navigation
+                rendition.on('keydown', (e) => {
+                    handleReaderKeydown(e);
+                });
+                
                 // Create a unique key for this book based on its path
                 const bookKey = 'epub_position_' + encodeURIComponent(localPath);
                 
@@ -31409,6 +31714,11 @@ window.addEventListener("scroll", () => {
                     console.log('[EPUB] Relocated:', location.atStart, location.atEnd);
                     prevBtn.disabled = location.atStart;
                     nextBtn.disabled = location.atEnd;
+                    
+                    if (isReaderFocusMode) {
+                        focusRulerOffset = 0; // Reset manual offset on page turn
+                        [100, 300, 600].forEach(t => setTimeout(alignFocusRulerToText, t));
+                    }
                     
                     // Save current position to localStorage
                     if (location && location.start && location.start.cfi) {
@@ -31448,6 +31758,10 @@ window.addEventListener("scroll", () => {
 
                 // Initialize chapter controls (count and input range)
                 await initChapterControls();
+                
+                // Reset focus mode on open
+                isReaderFocusMode = false;
+                updateFocusModeUI();
             } catch (err) {
                 console.error('[EPUB] Error:', err);
                 alert('Could not open the EPUB: ' + err.message);
@@ -31470,6 +31784,8 @@ window.addEventListener("scroll", () => {
             chapterTotal = 0;
             const chapterControls = document.getElementById('readerChapterControls');
             if (chapterControls) chapterControls.style.display = 'none';
+            isReaderFocusMode = false;
+            updateFocusModeUI();
         }
 
         // Escape key to close reader
@@ -31488,9 +31804,49 @@ window.addEventListener("scroll", () => {
             const theme = localStorage.getItem('reader.theme') || 'dark';
             const font = localStorage.getItem('reader.font') || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif";
             const size = parseInt(localStorage.getItem('reader.size') || '16', 10);
+            const lineHeight = localStorage.getItem('reader.lineHeight') || '1.5';
+            const width = parseInt(localStorage.getItem('reader.width') || '80', 10);
+            const align = localStorage.getItem('reader.align') || 'left';
+            const focusSpeed = parseInt(localStorage.getItem('reader.focusSpeed') || '2', 10);
 
             overlay.classList.remove('theme-light', 'theme-dark', 'theme-night');
             overlay.classList.add(`theme-${theme}`);
+            
+            // Update UI controls
+            const fontSelect = document.getElementById('readerFont');
+            const sizeInput = document.getElementById('readerFontSize');
+            const lhInput = document.getElementById('readerLineHeight');
+            const widthInput = document.getElementById('readerWidth');
+            const speedInput = document.getElementById('focusSpeedInput');
+            
+            if (fontSelect) fontSelect.value = font;
+            if (sizeInput) sizeInput.value = size;
+            if (lhInput) lhInput.value = lineHeight;
+            if (widthInput) widthInput.value = width;
+            if (speedInput) {
+                speedInput.value = focusSpeed;
+                const valEl = document.getElementById('focusSpeedVal');
+                if (valEl) valEl.textContent = focusSpeed;
+            }
+            
+            const sizeVal = document.getElementById('readerFontSizeVal');
+            const lhVal = document.getElementById('readerLineHeightVal');
+            const widthVal = document.getElementById('readerWidthVal');
+            
+            if (sizeVal) sizeVal.textContent = `${size}px`;
+            if (lhVal) lhVal.textContent = lineHeight;
+            if (widthVal) widthVal.textContent = `${width}%`;
+            
+            document.querySelectorAll('.align-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.align === align);
+            });
+            
+            // Re-align focus ruler if active
+            if (isReaderFocusMode) {
+                focusRulerHeightPx = 0; // Force recalculation of height
+                updateFocusModeUI();
+                [200, 400, 800].forEach(t => setTimeout(alignFocusRulerToText, t));
+            }
 
             if (rendition) {
                 // Map explicit colors for the iframe
@@ -31498,13 +31854,25 @@ window.addEventListener("scroll", () => {
                 if (theme === 'light') { fg = '#111111'; bg = '#ffffff'; }
                 else if (theme === 'night') { fg = '#e5e7eb'; bg = '#000000'; }
                 
+                // Calculate padding for width simulation
+                const padding = Math.max(0, (100 - width) / 2);
+                
                 // Register and select theme with font
                 try { 
                     rendition.themes.register('custom', { 
                         'body': { 
                             'font-family': `${font} !important`, 
                             'color': fg, 
-                            'background': bg 
+                            'background': bg,
+                            'padding-left': `${padding}% !important`,
+                            'padding-right': `${padding}% !important`,
+                            'text-align': `${align} !important`,
+                            'line-height': `${lineHeight} !important`
+                        },
+                        'p': {
+                            'font-family': `${font} !important`,
+                            'line-height': `${lineHeight} !important`,
+                            'text-align': `${align} !important`
                         },
                         '*': {
                             'font-family': `${font} !important`
@@ -31517,13 +31885,137 @@ window.addEventListener("scroll", () => {
                 // Force font update
                 try {
                     rendition.themes.default({
-                        'body': { 'font-family': `${font} !important` },
-                        'p': { 'font-family': `${font} !important` },
+                        'body': { 
+                            'font-family': `${font} !important`,
+                            'padding-left': `${padding}% !important`,
+                            'padding-right': `${padding}% !important`,
+                            'text-align': `${align} !important`,
+                            'line-height': `${lineHeight} !important`
+                        },
+                        'p': { 
+                            'font-family': `${font} !important`,
+                            'line-height': `${lineHeight} !important`,
+                            'text-align': `${align} !important`
+                        },
                         'div': { 'font-family': `${font} !important` },
                         'span': { 'font-family': `${font} !important` }
                     });
                 } catch(e){ }
             }
+        }
+
+        function updateFocusModeUI() {
+            const ruler = document.getElementById('focusRuler');
+            const btn = document.getElementById('focusModeBtn');
+            
+            if (isReaderFocusMode) {
+                // Calculate grid based on settings
+                const size = parseInt(localStorage.getItem('reader.size') || '16', 10);
+                const lh = parseFloat(localStorage.getItem('reader.lineHeight') || '1.5');
+                const calcHeight = size * lh; 
+                const heightPx = focusRulerHeightPx > 0 ? focusRulerHeightPx : calcHeight;
+
+                if (ruler) {
+                    ruler.style.display = 'block';
+                    ruler.style.height = `${heightPx}px`;
+                    ruler.style.top = `${focusRulerTopPx}px`;
+                }
+                if (btn) {
+                    btn.classList.add('active');
+                    btn.innerHTML = '<i class="fas fa-eye"></i> Focus Active';
+                }
+            } else {
+                if (ruler) ruler.style.display = 'none';
+                if (btn) {
+                    btn.classList.remove('active');
+                    btn.innerHTML = '<i class="fas fa-eye"></i> Enable Focus';
+                }
+            }
+        }
+
+        function alignFocusRulerToText() {
+            if (!rendition) return;
+            try {
+                const contents = rendition.getContents();
+                if (!contents || contents.length === 0) return;
+                const doc = contents[0].document;
+                const iframe = document.querySelector('#readerContainer iframe');
+                if (!iframe) return;
+                
+                // Attach observer if new document or not exists
+                if (!rulerObserver || rulerObserver._doc !== doc) {
+                    if (rulerObserver) rulerObserver.disconnect();
+                    rulerObserver = new MutationObserver(() => {
+                        // Debounce slightly or run immediate? 
+                        // Immediate is better for "sticking", but risk of thrashing.
+                        // We'll use requestAnimationFrame to align in next frame
+                        requestAnimationFrame(() => alignFocusRulerToText());
+                    });
+                    rulerObserver.observe(doc.body, { childList: true, attributes: true, subtree: true, characterData: true });
+                    rulerObserver._doc = doc;
+                }
+
+                const overlay = document.getElementById('epubReaderOverlay');
+                const overlayRect = overlay.getBoundingClientRect();
+                const iframeRect = iframe.getBoundingClientRect();
+                const borderTop = iframe.clientTop || 0;
+                const borderLeft = iframe.clientLeft || 0;
+
+                const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+                let node;
+                
+                while (node = walker.nextNode()) {
+                    if (!node.textContent.trim()) continue;
+                    
+                    // Skip if parent is a heading
+                    const parentTag = node.parentNode.tagName.toLowerCase();
+                    if (/^h[1-6]$/.test(parentTag)) continue;
+
+                    const range = doc.createRange();
+                    range.selectNodeContents(node);
+                    const rects = range.getClientRects();
+
+                    // Use user settings for exact sizing
+                    const userSize = parseInt(localStorage.getItem('reader.size') || '16', 10);
+                    const userLh = parseFloat(localStorage.getItem('reader.lineHeight') || '1.5');
+                    const targetHeight = userSize * userLh;
+
+                    for (const rect of rects) {
+                        // Check if at least partially visible vertically
+                        if (rect.bottom > 0 && rect.top < iframe.clientHeight && rect.width > 0) {
+                             // Check horizontal visibility roughly
+                             if (rect.left < iframe.clientWidth) {
+                                focusRulerHeightPx = targetHeight;
+                                // Center the ruler over the text rect
+                                const center = rect.top + (rect.height / 2);
+                                // Calculate position relative to overlay
+                                const relativeTop = (iframeRect.top - overlayRect.top) + borderTop + (center - targetHeight / 2);
+                                focusRulerTopPx = relativeTop + focusRulerOffset;
+                                updateFocusModeUI();
+                                return;
+                             }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Error aligning focus ruler:', e);
+            }
+        }
+
+        function toggleReaderFocusMode() {
+            isReaderFocusMode = !isReaderFocusMode;
+            if (isReaderFocusMode) {
+                localStorage.setItem('reader.theme', 'night');
+                focusRulerOffset = 0; // Reset offset on enable
+                applyReaderPrefs();
+                // Start near top, aligned to grid
+                const size = parseInt(localStorage.getItem('reader.size') || '16', 10);
+                const lh = parseFloat(localStorage.getItem('reader.lineHeight') || '1.5');
+                const step = size * lh;
+                focusRulerTopPx = Math.ceil(80 / step) * step;
+                [100, 300, 600].forEach(t => setTimeout(alignFocusRulerToText, t));
+            }
+            updateFocusModeUI();
         }
 
         // Header buttons
@@ -31553,13 +32045,7 @@ window.addEventListener("scroll", () => {
                 
                 // Restore current values when opening settings
                 if (wasHidden) {
-                    const fontSelect = document.getElementById('readerFont');
-                    const fontSizeInput = document.getElementById('readerFontSize');
-                    const currentFont = localStorage.getItem('reader.font') || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif";
-                    const currentSize = localStorage.getItem('reader.size') || '16';
-                    
-                    if (fontSelect) fontSelect.value = currentFont;
-                    if (fontSizeInput) fontSizeInput.value = currentSize;
+                    applyReaderPrefs(); // Re-sync UI
                 }
                 
                 console.log('[EPUB] Settings panel toggled:', wasHidden ? 'now visible' : 'now hidden');
@@ -31586,6 +32072,17 @@ window.addEventListener("scroll", () => {
                 localStorage.setItem('reader.theme', theme);
                 applyReaderPrefs();
             }
+            
+            const alignBtn = e.target.closest('.align-btn');
+            if (alignBtn) {
+                const align = alignBtn.getAttribute('data-align');
+                localStorage.setItem('reader.align', align);
+                applyReaderPrefs();
+            }
+            
+            if (e.target.closest('#focusModeBtn')) {
+                toggleReaderFocusMode();
+            }
         });
         document.addEventListener('input', (e) => {
             if (e.target.id === 'readerFont') {
@@ -31594,8 +32091,43 @@ window.addEventListener("scroll", () => {
             } else if (e.target.id === 'readerFontSize') {
                 localStorage.setItem('reader.size', e.target.value);
                 applyReaderPrefs();
+            } else if (e.target.id === 'readerLineHeight') {
+                localStorage.setItem('reader.lineHeight', e.target.value);
+                applyReaderPrefs();
+            } else if (e.target.id === 'readerWidth') {
+                localStorage.setItem('reader.width', e.target.value);
+                applyReaderPrefs();
+            } else if (e.target.id === 'focusSpeedInput') {
+                localStorage.setItem('reader.focusSpeed', e.target.value);
+                const valEl = document.getElementById('focusSpeedVal');
+                if (valEl) valEl.textContent = e.target.value;
             }
         });
+        
+        function handleReaderKeydown(e) {
+            if (!isReaderFocusMode) return;
+            const overlay = document.getElementById('epubReaderOverlay');
+            if (!overlay || overlay.style.display === 'none') return;
+            
+            const container = document.getElementById('readerContainer');
+            const maxH = container ? container.clientHeight : window.innerHeight;
+            const speed = parseInt(localStorage.getItem('reader.focusSpeed') || '2', 10);
+            
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                focusRulerOffset -= speed;
+                focusRulerTopPx -= speed; // Update immediately visual
+                updateFocusModeUI();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                focusRulerOffset += speed;
+                focusRulerTopPx += speed; // Update immediately visual
+                updateFocusModeUI();
+            }
+        }
+
+        // Focus Mode Arrow Keys
+        document.addEventListener('keydown', handleReaderKeydown);
 
         // Expose open function if needed elsewhere
         window.openEpubReader = openEpubReader;

@@ -2124,9 +2124,10 @@ app.get('/api/acermovies/sourceUrl', async (req, res) => {
 
 
 // ============================================================================
-// Z-LIBRARY SERVICE (from z-lib.js)
+// Z-LIBRARY SERVICE (Search & Read Only)
 // ============================================================================
 
+// Preserved for otherbook service compatibility
 const ZLIB_DOMAINS = [
     'z-library.mn',
     'z-lib.gd',
@@ -2144,9 +2145,9 @@ const ZLIB_DOMAINS = [
 
 function zlib_createAxiosInstance() {
     return axios.create({
-        timeout: 45000, // Increased from 30s to 45s for slower connections
+        timeout: 45000,
         maxRedirects: 5,
-        validateStatus: (status) => status >= 200 && status < 400, // Accept redirects
+        validateStatus: (status) => status >= 200 && status < 400,
         headers: {
             'User-Agent': getRandomUserAgent(),
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
@@ -2164,406 +2165,221 @@ function zlib_createAxiosInstance() {
     });
 }
 
-async function zlib_getReadLink(bookUrl, workingDomain) {
-    try {
-        const axiosInstance = zlib_createAxiosInstance();
-        const response = await axiosInstance.get(bookUrl, {
-            timeout: 20000 // Shorter timeout for individual book pages
-        });
-        
-        if (response.status !== 200) {
-            console.log(`[ZLIB] Non-200 status for book page: ${response.status}`);
-            return null;
-        }
+// ============================================================================
+// NEW Z-LIBRARY SERVICE (v3.0 - with Challenge Solver)
+// ============================================================================
 
-        const $ = cheerio.load(response.data);
-        let readerUrl = null;
+const zlib_crypto = require('crypto');
+
+// Global state to store cookies for Z-Lib
+let zlib_globalCookies = 'siteLanguage=en; bsrv=0bf492b2e869251834795b4bb6158ed0';
+
+/**
+ * Solves the Z-lib custom challenge
+ */
+function zlib_solveChallenge(body) {
+    try {
+        // Extract the token array content
+        const arrayMatch = body.match(/const a0_0x2a54=\[(.*?)\];/);
+        if (!arrayMatch) return null;
         
-        const readSelectors = [
-            '.reader-link',
-            '.read-online .reader-link',
-            '.book-details-button .reader-link',
-            'a[href*="reader.z-lib"]',
-            'a[href*="/read/"]',
-            '.read-online a[href*="reader"]',
-            '.dlButton.reader-link',
-            'a.btn[href*="reader"]',
-            '.btn-primary[href*="reader"]',
-            'a[data-book_id][href*="reader"]',
-            'a[onclick*="reader"]'
-        ];
+        const arrayItems = arrayMatch[1].split(',').map(s => s.trim().replace(/['"]/g, ''));
+        // Find the long hex token (usually 40 chars)
+        const c = arrayItems.find(item => /^[A-F0-9]{40}$/.test(item));
         
-        for (const selector of readSelectors) {
-            const elements = $(selector);
-            
-            elements.each((i, el) => {
-                const $el = $(el);
-                const href = $el.attr('href');
-                
-                if (href && (href.includes('reader.z-lib') || href.includes('reader.singlelogin.site'))) {
-                    readerUrl = href;
-                    return false;
-                }
-                
-                if (href && href.includes('/read/') && !href.includes('litera-reader')) {
-                    readerUrl = href;
-                    return false;
-                }
-            });
-            
-            if (readerUrl) break;
+        if (!c) return null;
+
+        const n1 = parseInt(c[0], 16);
+        let i = 0;
+        while (i < 2000000) {
+            const hash = zlib_crypto.createHash('sha1').update(c + i).digest();
+            if (hash[n1] === 0xb0 && hash[n1 + 1] === 0x0b) {
+                return c + i;
+            }
+            i++;
         }
-        
-        if (readerUrl && readerUrl.startsWith('/')) {
-            readerUrl = `https://${workingDomain}${readerUrl}`;
-        }
-        
-        return readerUrl;
-    } catch (error) {
-        console.error('[ZLIB] Error getting read link:', error.message);
-        return null;
+    } catch (e) {
+        console.error('[ZLIB] Error solving challenge:', e);
     }
+    return null;
 }
 
-app.get('/zlib/test', (req, res) => {
-    res.json({ message: 'Z-Library Book Search API is running!', timestamp: new Date().toISOString() });
-});
-
-app.get('/zlib/search/:query', async (req, res) => {
-    const query = req.params.query;
+/**
+ * Generic fetcher with challenge handling
+ */
+async function zlib_fetchWithRetry(targetUrl, options = {}) {
+    // Dynamic import because got-scraping is ESM
+    const { gotScraping } = await import('got-scraping');
     
-    if (!query || query.trim().length === 0) {
-        return res.status(400).json({ error: 'Search query is required' });
+    // Helper to perform the request
+    const performRequest = async (cookies) => {
+        return gotScraping({
+            url: targetUrl,
+            headers: {
+                'cookie': cookies,
+                'referer': 'https://z-library.mn/',
+                ...options.headers
+            },
+            throwHttpErrors: false, // Don't throw on 503 so we can handle it
+            ...options
+        });
+    };
+
+    let response = await performRequest(zlib_globalCookies);
+
+    if (response.statusCode === 503) {
+        console.log('[ZLIB] Got 503, attempting to solve challenge...');
+        const solvedToken = zlib_solveChallenge(response.body);
+        
+        if (solvedToken) {
+            console.log('[ZLIB] Challenge solved! New c_token:', solvedToken);
+            
+            // Update global cookies, replacing old c_token and _cookie_
+            const cookieParts = zlib_globalCookies.split(';')
+                .map(c => c.trim())
+                .filter(c => !c.startsWith('c_token=') && !c.startsWith('_cookie_'));
+            
+            cookieParts.push(`c_token=${solvedToken}`);
+            cookieParts.push(`_cookie_${Date.now()}=true`);
+            
+            zlib_globalCookies = cookieParts.join('; ');
+            
+            // Retry with new cookie
+            response = await performRequest(zlib_globalCookies);
+        } else {
+            console.log('[ZLIB] Failed to solve challenge from 503 response.');
+        }
+    }
+    
+    if (response.statusCode >= 400 && response.statusCode !== 503) {
+        console.log(`[ZLIB] Request failed with status ${response.statusCode}`);
     }
 
-    console.log(`[ZLIB] Searching for: ${query}`);
+    return response;
+}
 
+// API Endpoint - Popular Books
+app.get('/api/zlib/all', async (req, res) => {
     try {
-        let searchResults = null;
-        let workingDomain = null;
+        const page = req.query.page || 1;
+        const targetUrl = `https://z-library.mn/papi/book/mostpopular/mosaic/20/${page}`;
+        
+        console.log(`[ZLIB] Fetching popular books: ${targetUrl}`);
+        const response = await zlib_fetchWithRetry(targetUrl);
+        
+        // Parse the JSON response body
+        let data;
+        try {
+            data = JSON.parse(response.body);
+        } catch (e) {
+            console.error('[ZLIB] Failed to parse JSON response for /all');
+            data = [];
+        }
+        res.json(data);
 
-        for (const domain of ZLIB_DOMAINS) {
-            try {
-                console.log(`[ZLIB] Trying domain: ${domain}`);
-                
-                const axiosInstance = zlib_createAxiosInstance();
-                const searchUrl = `https://${domain}/s/${encodeURIComponent(query)}`;
-                
-                const response = await axiosInstance.get(searchUrl);
-                
-                if (response.status === 200 && response.data && response.data.length > 100) {
-                    searchResults = response.data;
-                    workingDomain = domain;
-                    console.log(`[ZLIB] ✅ Successfully connected to: ${domain}`);
-                    break;
-                }
-            } catch (error) {
-                console.log(`[ZLIB] ❌ Failed to connect to ${domain}: ${error.code || error.message}`);
-                continue;
+    } catch (error) {
+        console.error('[ZLIB] Error fetching data:', error.message);
+        res.status(500).json({ error: 'Failed to fetch data from Z-Library' });
+    }
+});
+
+// Search Endpoint
+app.get('/api/zlib/search/:query', async (req, res) => {
+    try {
+        const query = req.params.query;
+        const targetUrl = `https://z-library.mn/s/${encodeURIComponent(query)}`;
+        
+        console.log(`[ZLIB] Searching: ${targetUrl}`);
+        
+        let books = [];
+        let retries = 0;
+        const maxRetries = 3;
+
+        while (books.length === 0 && retries < maxRetries) {
+            if (retries > 0) {
+                 console.log(`[ZLIB] No books found, retrying... (${retries}/${maxRetries})`);
+                 await new Promise(r => setTimeout(r, 1500));
             }
-        }
-
-        if (!searchResults) {
-            console.error('[ZLIB] All domains failed. Domains tried:', ZLIB_DOMAINS);
-            return res.status(503).json({ 
-                error: 'Unable to connect to any Z-Library servers. They might be temporarily down, blocked by your ISP, or require a VPN.',
-                suggestion: 'Try using a VPN or check if Z-Library is accessible in your region.',
-                domains_tried: ZLIB_DOMAINS
-            });
-        }
-
-        const $ = cheerio.load(searchResults);
-        
-        let bookElements = [];
-        const selectors = [
-            '.book-item',
-            '.resItemBox',
-            '.bookRow',
-            '.result-item',
-            '[itemtype*="Book"]',
-            'table tr',
-            '.bookBox',
-            'div[id*="book"]',
-            '.booklist .book',
-            '.search-item',
-            'a[href*="/book/"]'
-        ];
-        
-        for (const selector of selectors) {
-            bookElements = $(selector);
             
-            if (bookElements.length > 0) {
-                if (selector === 'a[href*="/book/"]' && bookElements.length > 0) {
-                    bookElements = bookElements.map((i, el) => {
-                        const $el = $(el);
-                        let parent = $el.closest('tr, div, li, article').first();
-                        return parent.length ? parent[0] : el;
+            const response = await zlib_fetchWithRetry(targetUrl);
+            const $ = cheerio.load(response.body);
+            
+            $('.resItemBoxBooks z-bookcard').each((i, element) => {
+                const card = $(element);
+                const href = card.attr('href');
+                const title = card.find('div[slot="title"]').text().trim();
+                const author = card.find('div[slot="author"]').text().trim();
+                const cover = card.find('img').attr('data-src');
+                const extension = card.attr('extension');
+                
+                if (title && href) {
+                    books.push({
+                        title,
+                        author,
+                        cover,
+                        extension,
+                        url: href 
                     });
                 }
-                break;
-            }
+            });
+            
+            retries++;
         }
 
-        if (bookElements.length === 0) {
-            return res.status(404).json({ 
-                error: 'No books found for your search',
-                query: query,
-                domain_used: workingDomain
-            });
-        }
-
-        const books = [];
-        
-        bookElements.each((index, element) => {
-            if (index >= 10) return false;
-            
-            const $book = $(element);
-            let title = '';
-            let bookUrl = '';
-            let author = 'Unknown';
-            let year = 'Unknown';
-            let language = 'Unknown';
-            let pages = 'Unknown';
-            let format = 'Unknown';
-            let coverUrl = null;
-            
-            const zbookcard = $book.find('z-bookcard').first();
-            if (zbookcard.length) {
-                bookUrl = zbookcard.attr('href') || '';
-                year = zbookcard.attr('year') || 'Unknown';
-                language = zbookcard.attr('language') || 'Unknown';
-                format = zbookcard.attr('extension') || 'Unknown';
-                title = zbookcard.find('[slot="title"]').text().trim() || zbookcard.find('div[slot="title"]').text().trim();
-                author = zbookcard.find('[slot="author"]').text().trim() || zbookcard.find('div[slot="author"]').text().trim();
-                
-                const imgElement = zbookcard.find('img').first();
-                if (imgElement.length) {
-                    coverUrl = imgElement.attr('data-src') || imgElement.attr('src');
-                }
-            }
-            
-            if (!title || !bookUrl) {
-                const titleSelectors = ['h3 a', '.book-title a', '.title a', 'a[href*="/book/"]'];
-                for (const selector of titleSelectors) {
-                    const titleElement = $book.find(selector).first();
-                    if (titleElement.length) {
-                        title = titleElement.text().trim();
-                        bookUrl = titleElement.attr('href') || '';
-                        if (title && bookUrl) break;
-                    }
-                }
-            }
-            
-            if (!title || !bookUrl || title.length < 2) {
-                return;
-            }
-            
-            if (bookUrl && bookUrl.startsWith('/')) {
-                bookUrl = `https://${workingDomain}${bookUrl}`;
-            }
-            
-            if (author === 'Unknown' && !zbookcard.length) {
-                const authorSelectors = ['.authors a', '.author a', '[class*="author"]', 'a[href*="/author/"]'];
-                for (const selector of authorSelectors) {
-                    const authorElement = $book.find(selector).first();
-                    if (authorElement.length && authorElement.text().trim()) {
-                        const authorText = authorElement.text().trim();
-                        if (authorText.length < 100) {
-                            author = authorText;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            if (!coverUrl) {
-                const coverSelectors = ['img[data-src]', 'img[src*="cover"]', '.itemCover img', 'img'];
-                for (const selector of coverSelectors) {
-                    const coverElement = $book.find(selector).first();
-                    if (coverElement.length) {
-                        const src = coverElement.attr('data-src') || coverElement.attr('src');
-                        if (src && !src.includes('placeholder') && !src.includes('icon')) {
-                            coverUrl = src;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            if (coverUrl && coverUrl.startsWith('/')) {
-                coverUrl = `https://${workingDomain}${coverUrl}`;
-            }
-            
-            books.push({
-                title: title.replace(/\s+/g, ' ').trim(),
-                author: author.replace(/\s+/g, ' ').trim(),
-                year,
-                language,
-                pages,
-                format: format.toUpperCase(),
-                bookUrl,
-                coverUrl,
-                domain: workingDomain
-            });
-        });
-
-        if (books.length === 0) {
-            return res.status(404).json({ 
-                error: 'Could not parse book information from search results',
-                query: query,
-                domain_used: workingDomain
-            });
-        }
-
-        console.log(`[ZLIB] Successfully parsed ${books.length} books, fetching read links...`);
-        
-        // Fetch read links for all books (not just first 5) but with parallel processing
-        const booksWithReadLinks = [];
-        const readLinkPromises = books.map(async (book) => {
-            try {
-                const readLink = await zlib_getReadLink(book.bookUrl, workingDomain);
-                return {
-                    title: book.title,
-                    author: book.author,
-                    photo: book.coverUrl || 'No image available',
-                    readLink: readLink || 'Read link not available',
-                    bookUrl: book.bookUrl,
-                    format: book.format,
-                    year: book.year
-                };
-            } catch (error) {
-                console.error(`[ZLIB] Error fetching read link for "${book.title}":`, error.message);
-                // Return book without read link instead of failing
-                return {
-                    title: book.title,
-                    author: book.author,
-                    photo: book.coverUrl || 'No image available',
-                    readLink: 'Read link not available',
-                    bookUrl: book.bookUrl,
-                    format: book.format,
-                    year: book.year
-                };
-            }
-        });
-        
-        // Process all books in parallel with timeout protection
-        const results = await Promise.allSettled(readLinkPromises);
-        results.forEach((result) => {
-            if (result.status === 'fulfilled' && result.value) {
-                booksWithReadLinks.push(result.value);
-            }
-        });
-
-        console.log(`[ZLIB] Returning ${booksWithReadLinks.length} books with read links`);
-
-        res.json({
-            query: query,
-            domainUsed: workingDomain,
-            results: booksWithReadLinks
-        });
+        console.log(`[ZLIB] Found ${books.length} books.`);
+        res.json({ success: 1, books: books });
 
     } catch (error) {
-        console.error('[ZLIB] Search error:', error);
-        res.status(500).json({ 
-            error: 'Internal server error during search',
-            details: error.message 
-        });
+        console.error('[ZLIB] Error searching:', error.message);
+        res.status(500).json({ error: 'Failed to search Z-Library' });
     }
 });
 
-app.get('/zlib/api/book/details', async (req, res) => {
-    const bookUrl = req.query.url;
-    
-    if (!bookUrl) {
-        return res.status(400).json({ error: 'Book URL is required' });
-    }
-
+// Get Read Link Endpoint
+app.get('/api/zlib/read-link', async (req, res) => {
     try {
-        const axiosInstance = zlib_createAxiosInstance();
-        const response = await axiosInstance.get(bookUrl);
-        
-        if (response.status !== 200) {
-            throw new Error(`HTTP ${response.status}`);
+        const bookPath = req.query.path;
+        if (!bookPath) {
+            return res.status(400).json({ error: 'Path is required' });
         }
 
-        const $ = cheerio.load(response.data);
-        let readerUrl = null;
-        
-        const readSelectors = ['.reader-link', 'a[href*="reader.z-lib"]', 'a[href*="/read/"]'];
-        
-        for (const selector of readSelectors) {
-            const elements = $(selector);
-            elements.each((i, el) => {
-                const href = $(el).attr('href');
-                if (href && (href.includes('reader.z-lib') || href.includes('/read/'))) {
-                    readerUrl = href;
-                    return false;
-                }
-            });
-            if (readerUrl) break;
+        const targetUrl = `https://z-library.mn${bookPath}`;
+        console.log(`[ZLIB] Fetching book details from: ${targetUrl}`);
+
+        let readLink = null;
+        let retries = 0;
+        const maxRetries = 6;
+
+        while (!readLink && retries < maxRetries) {
+            if (retries > 0) {
+                 console.log(`[ZLIB] Read link not found, retrying... (${retries}/${maxRetries})`);
+                 await new Promise(r => setTimeout(r, 1500));
+            }
+
+            const response = await zlib_fetchWithRetry(targetUrl);
+            const $ = cheerio.load(response.body);
+            
+            readLink = $('a.reader-link').attr('href');
+            retries++;
         }
-        
-        if (readerUrl && readerUrl.startsWith('/')) {
-            const urlObj = new URL(bookUrl);
-            readerUrl = `${urlObj.protocol}//${urlObj.host}${readerUrl}`;
+
+        if (readLink) {
+            console.log(`[ZLIB] Found read link: ${readLink}`);
+            res.json({ success: 1, readLink: readLink });
+        } else {
+            console.log('[ZLIB] Read link not found.');
+            res.json({ success: 0, error: 'Read link not found' });
         }
-        
-        const bookTitle = $('h1').first().text().trim() || $('.book-title, .title').first().text().trim();
-        const bookAuthor = $('.author a, .authors a, [itemprop="author"]').first().text().trim();
-        const description = $('.book-description, .description, #bookDescriptionBox').first().text().trim();
-        
-        res.json({
-            success: true,
-            bookUrl: bookUrl,
-            readerUrl: readerUrl,
-            title: bookTitle,
-            author: bookAuthor,
-            description: description || null,
-            hasReadOption: !!readerUrl
-        });
 
     } catch (error) {
-        console.error('[ZLIB] Book details error:', error);
-        res.status(500).json({ 
-            error: 'Failed to get book details',
-            details: error.message 
-        });
+        console.error('[ZLIB] Error getting read link:', error.message);
+        res.status(500).json({ error: 'Failed to get read link' });
     }
 });
 
-app.get('/zlib/api/proxy', async (req, res) => {
-    const targetUrl = req.query.url;
-    
-    if (!targetUrl) {
-        return res.status(400).json({ error: 'URL parameter is required' });
-    }
-
-    try {
-        const axiosInstance = zlib_createAxiosInstance();
-        const response = await axiosInstance.get(targetUrl);
-        
-        res.set({
-            'Content-Type': response.headers['content-type'] || 'text/html',
-            'Access-Control-Allow-Origin': '*'
-        });
-        
-        res.send(response.data);
-        
-    } catch (error) {
-        console.error('[ZLIB] Proxy error:', error);
-        res.status(500).json({ 
-            error: 'Failed to fetch URL',
-            details: error.message 
-        });
-    }
-});
-
+// Backward compatibility / Health Check
 app.get('/zlib/health', (req, res) => {
-    res.json({ 
-        status: 'healthy', 
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
-    });
+    res.json({ status: 'healthy', version: '3.0 (got-scraping + challenge solver)' });
 });
 
 // ============================================================================
@@ -2727,7 +2543,6 @@ async function otherbook_getDownloadLinksInParallel(books, concurrency = 3) {
         const chunkPromises = chunk.map(async (book) => {
             const authorForDisplay = Array.isArray(book.author) ? book.author[0] || 'Unknown' : book.author || 'Unknown';
             const actualDownloadLink = await otherbook_getActualDownloadLink(book.id);
-            const coverUrl = await otherbook_getCoverByAuthor(book.author, book.title);
             
             const result = {
                 id: book.id,
@@ -2740,10 +2555,6 @@ async function otherbook_getDownloadLinksInParallel(books, concurrency = 3) {
                 fileSize: book.fileSize,
                 downloadlink: actualDownloadLink || `https://libgen.download/api/download?id=${book.id}`
             };
-            
-            if (coverUrl) {
-                result.coverUrl = coverUrl;
-            }
             
             return result;
         });
