@@ -2007,31 +2007,28 @@ app.get('/api/xdmovies/:tmdbid', async (req, res) => {
 
 // Simple helper: safe JSON fetch with good error output
 async function acermovies_postJson(url, payload) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "accept": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
+    let lastError;
+    for (let i = 0; i < 3; i++) {
+        try {
+            const response = await axios.post(url, payload, {
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                },
+                timeout: 0
+            });
+            return response.data;
+        } catch (error) {
+            lastError = error;
+            if (i < 2) await new Promise(r => setTimeout(r, 1500));
+        }
+    }
 
-  const text = await res.text();
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    data = { raw: text };
-  }
-
-  if (!res.ok) {
-    const err = new Error(`Upstream ${res.status} ${res.statusText}`);
-    err.status = res.status;
-    err.data = data;
+    const err = new Error("Acermovies is currently experiencing upstream instability. Please try again later.");
+    err.status = lastError.response?.status;
+    err.data = lastError.response?.data;
     throw err;
-  }
-
-  return data;
 }
 
 // --- API: SEARCH ---
