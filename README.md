@@ -89,7 +89,8 @@
 PlayTorrio requires either MPV or VLC for video playback:
 
 #### Windows
-- Players are bundled in the installer
+- **MPV**: Bundled in the installer
+- **VLC**: Download from [videolan.org](https://www.videolan.org/) (optional, if you prefer VLC over MPV)
 
 #### macOS
 - Install system-wide: `brew install --cask mpv` or download from [mpv.io](https://mpv.io/)

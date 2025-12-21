@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PlayTorrio Player</title>
+  <style>
+    :root {
+      --primary: #8A2BE2; /* BlueViolet */
+      --primary-hover: #9d4ced;
+      --primary-dim: rgba(138, 43, 226, 0.3);
+      --bg-dark: #121212;
+      --bg-overlay: rgba(10, 5, 15, 0.9);
+      --text-main: #ffffff;
+      --text-muted: rgba(255, 255, 255, 0.7);
+      --border-light: rgba(255, 255, 255, 0.1);
+      --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* --- Custom Title Bar --- */
+    #title-bar {
+      height: 32px;
+      background: linear-gradient(to right, rgba(20, 10, 30, 0.95), rgba(10, 5, 15, 0.95));
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      -webkit-app-region: drag;
+      user-select: none;
+      z-index: 1000;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .title-left {
+      display: flex;
+      align-items: center;
+      padding-left: 12px;
+      gap: 10px;
+    }
+
+    .app-icon {
+      width: 16px;
+      height: 16px;
+      fill: var(--primary);
+    }
+
+    .app-title {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+
+    .title-right {
+      display: flex;
+      height: 100%;
+      -webkit-app-region: no-drag;
+    }
+
+    .window-btn {
+      width: 46px;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .window-btn svg {
+      width: 10px;
+      height: 10px;
+      fill: var(--text-main);
+      opacity: 0.8;
+    }
+
+    .window-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .window-btn.close:hover {
+      background: #e81123;
+    }
+    .window-btn.close:hover svg {
+      fill: white;
+    }
+
+    /* --- Video Area --- */
+    #video-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: transparent;
+      z-index: -1;
+    }
+
+    /* --- Controls Overlay --- */
+    #controls {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(10, 5, 20, 0.8) 60%, transparent 100%);
+      padding: 0 20px 20px 20px;
+      transition: opacity 0.3s ease;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #controls.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Progress Bar */
+    .progress-container {
+      width: 100%;
+      height: 20px; /* Interaction area */
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      group: progress;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      position: relative;
+      transition: height 0.1s;
+    }
+
+    .progress-container:hover .progress-track {
+      height: 6px;
+    }
+
+    .progress-filled {
+      height: 100%;
+      background: var(--primary);
+      border-radius: 2px;
+      width: 0%;
+      position: relative;
+    }
+
+    .progress-thumb {
+      width: 12px;
+      height: 12px;
+      background: var(--primary);
+      border-radius: 50%;
+      position: absolute;
+      right: -6px;
+      top: 50%;
+      transform: translateY(-50%) scale(0);
+      transition: transform 0.1s;
+      box-shadow: 0 0 10px var(--primary);
+    }
+
+    .progress-container:hover .progress-thumb {
+      transform: translateY(-50%) scale(1);
+    }
+
+    /* Control Bar */
+    .control-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 40px;
+    }
+
+    .left-controls, .right-controls {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    /* Buttons */
+    .icon-btn {
+      background: none;
+      border: none;
+      color: var(--text-main);
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      opacity: 0.8;
+    }
+
+    .icon-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      opacity: 1;
+      color: var(--primary);
+    }
+    
+    .icon-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+
+    .play-btn {
+      width: 40px;
+      height: 40px;
+      background: var(--primary);
+      color: white;
+      opacity: 1;
+    }
+
+    .play-btn:hover {
+      background: var(--primary-hover);
+      transform: scale(1.05);
+      color: white;
+      box-shadow: 0 0 15px var(--primary-dim);
+    }
+
+    /* Volume */
+    .volume-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 0;
+      overflow: hidden;
+      transition: width 0.3s;
+    }
+    
+    .volume-wrapper:hover .volume-container {
+      width: 100px;
+    }
+
+    .volume-wrapper {
+        display: flex;
+        align-items: center;
+    }
+
+    .volume-slider {
+      width: 80px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .volume-filled {
+      height: 100%;
+      background: var(--text-main);
+      border-radius: 2px;
+    }
+
+    /* Time */
+    .time-display {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      font-feature-settings: "tnum";
+    }
+
+    /* Menus */
+    .menu-container {
+      position: relative;
+    }
+
+    .popup-menu {
+      position: absolute;
+      bottom: 50px;
+      right: 0;
+      background: rgba(20, 20, 25, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      padding: 8px 0;
+      min-width: 200px;
+      max-height: 300px;
+      overflow-y: auto;
+      display: none;
+      flex-direction: column;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+      z-index: 200;
+    }
+
+    .popup-menu.active {
+      display: flex;
+      animation: slideUp 0.2s ease-out;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .menu-header {
+      padding: 8px 16px;
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--primary);
+      font-weight: 700;
+      letter-spacing: 1px;
+      border-bottom: 1px solid var(--border-light);
+      margin-bottom: 4px;
+    }
+
+    .menu-item {
+      padding: 8px 16px;
+      font-size: 13px;
+      color: var(--text-main);
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .menu-item:hover {
+      background: rgba(138, 43, 226, 0.2);
+    }
+
+    .menu-item.selected {
+      color: var(--primary);
+      font-weight: 500;
+    }
+    
+    .menu-item.selected::before {
+      content: '●';
+      font-size: 10px;
+    }
+    
+    .menu-item:not(.selected)::before {
+        content: '';
+        width: 7px; /* preserve spacing */
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.2);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    /* URL Input Overlay */
+    #url-overlay {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        backdrop-filter: blur(5px);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s;
+    }
+    
+    #url-overlay.active {
+        opacity: 1;
+        pointer-events: all;
+    }
+    
+    .url-box {
+        background: #1a1a1a;
+        padding: 30px;
+        border-radius: 12px;
+        border: 1px solid var(--border-light);
+        width: 500px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    
+    .url-input {
+        width: 100%;
+        padding: 12px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid var(--border-light);
+        border-radius: 6px;
+        color: white;
+        font-size: 16px;
+    }
+    
+    .url-input:focus {
+        outline: none;
+        border-color: var(--primary);
+    }
+    
+    .input-row {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .input-row input {
+        flex: 1;
+        padding: 12px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid var(--border-light);
+        border-radius: 6px;
+        color: white;
+        font-size: 14px;
+    }
+    
+    .input-row input:focus {
+        outline: none;
+        border-color: var(--primary);
+    }
+    
+    .url-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+    
+    .btn {
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        border: none;
+        transition: 0.2s;
+    }
+    
+    .btn-primary {
+        background: var(--primary);
+        color: white;
+    }
+    .btn-primary:hover {
+        background: var(--primary-hover);
+    }
+    
+    .btn-secondary {
+        background: rgba(255,255,255,0.1);
+        color: white;
+    }
+    .btn-secondary:hover {
+        background: rgba(255,255,255,0.2);
+    }
+
+  </style>
+</head>
+<body>
+  <!-- Title Bar -->
+  <div id="title-bar">
+    <div class="title-left">
+      <div class="window-btn" onclick="window.mpv.close()" style="-webkit-app-region: no-drag; width: 32px; height: 32px; margin-right: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+         <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: var(--text-main);"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </div>
+      <svg class="app-icon" viewBox="0 0 24 24">
+        <path d="M8 5v14l11-7z"/>
+      </svg>
+      <span class="app-title">PlayTorrio</span>
+    </div>
+    <div class="title-right" style="-webkit-app-region: no-drag;">
+      <div class="window-btn" onclick="window.mpv.minimize()">
+        <svg viewBox="0 0 12 12"><rect y="5" width="12" height="2"/></svg>
+      </div>
+      <div class="window-btn" onclick="window.mpv.maximize()">
+        <svg viewBox="0 0 12 12"><rect width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      </div>
+      <div class="window-btn close" onclick="window.mpv.close()">
+        <svg viewBox="0 0 12 12"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="2"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Video Container -->
+  <div id="video-container"></div>
+
+  <!-- URL Input Overlay -->
+  <div id="url-overlay">
+      <div class="url-box">
+          <h3 style="color: var(--primary);">Open Media</h3>
+          <input type="text" class="url-input" id="urlInput" placeholder="Enter URL or file path...">
+          
+          <div class="url-actions">
+              <button class="btn btn-secondary" onclick="toggleUrlOverlay()">Cancel</button>
+              <button class="btn btn-primary" onclick="loadVideo()">Play</button>
+          </div>
+      </div>
+  </div>
+
+  <!-- Controls -->
+  <div id="controls">
+    <!-- Progress -->
+    <div class="progress-container" id="progressContainer" onclick="seekToPosition(event)">
+      <div class="progress-track">
+        <div class="progress-filled" id="progressFilled">
+            <div class="progress-thumb"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Buttons Bar -->
+    <div class="control-bar">
+      <div class="left-controls">
+        <button class="icon-btn" onclick="window.mpv.seekRelative(-10)" title="Rewind 10s">
+            <svg viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
+        </button>
+
+        <button class="icon-btn play-btn" id="playPauseBtn" onclick="togglePlayPause()">
+          <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        
+        <button class="icon-btn" onclick="window.mpv.seekRelative(10)" title="Forward 10s">
+            <svg viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+        </button>
+
+        <div class="volume-wrapper">
+            <button class="icon-btn" onclick="toggleMute()">
+              <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            </button>
+            <div class="volume-container">
+                <div class="volume-slider" id="volumeSlider" onclick="setVolumeByClick(event)">
+                  <div class="volume-filled" id="volumeFilled" style="width: 50%"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="time-display">
+          <span id="currentTime">00:00</span> <span style="opacity:0.5">/</span> <span id="duration">00:00</span>
+        </div>
+      </div>
+
+      <div class="right-controls">
+        <!-- Subtitles -->
+        <div class="menu-container">
+          <button class="icon-btn" title="Subtitles" onclick="toggleMenu('subtitleMenu')">
+            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12zM7 9h10v2H7zm0-3h10v2H7z"/></svg>
+          </button>
+          <div id="subtitleMenu" class="popup-menu">
+            <div class="menu-header">Subtitles</div>
+            
+            <!-- Customization Controls -->
+            <div style="padding: 10px 16px; border-bottom: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; color: var(--text-muted);">Size</span>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 12px;" onclick="adjustSubSize(-1)">-</button>
+                        <span id="subSizeDisplay" style="font-size: 12px; min-width: 30px; text-align: center;">100%</span>
+                        <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 12px;" onclick="adjustSubSize(1)">+</button>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; color: var(--text-muted);">Delay</span>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 12px;" onclick="adjustSubDelay(-0.1)">-0.1s</button>
+                        <span id="subDelayDisplay" style="font-size: 12px; min-width: 45px; text-align: center;">0.0s</span>
+                        <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 12px;" onclick="adjustSubDelay(0.1)">+0.1s</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="subtitleList">
+                <div class="menu-item" style="opacity: 0.5; cursor: default;">No subtitles</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audio -->
+        <div class="menu-container">
+          <button class="icon-btn" title="Audio Tracks" onclick="toggleMenu('audioMenu')">
+            <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          </button>
+          <div id="audioMenu" class="popup-menu">
+            <div class="menu-header">Audio Tracks</div>
+             <div id="audioList">
+                <div class="menu-item" style="opacity: 0.5; cursor: default;">No audio tracks</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="icon-btn" title="Fullscreen" id="fullscreenBtn" onclick="toggleFullscreen()">
+          <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentTime = 0;
+    let duration = 0;
+    let isPaused = true;
+    let currentVolume = 50;
+    let tracks = [];
+    let wyzieSubs = [];
+    let lastVolume = 50;
+    let isFullscreen = false;
+    let subSize = 100;
+    let subDelay = 0;
+
+    function adjustSubSize(delta) {
+        subSize = Math.max(10, Math.min(300, subSize + delta * 10));
+        document.getElementById('subSizeDisplay').innerText = subSize + '%';
+        window.mpv.command('set_property', 'sub-scale', subSize / 100);
+    }
+
+    function adjustSubDelay(delta) {
+        subDelay = Math.round((subDelay + delta) * 10) / 10;
+        document.getElementById('subDelayDisplay').innerText = (subDelay >= 0 ? '+' : '') + subDelay.toFixed(1) + 's';
+        window.mpv.command('set_property', 'sub-delay', subDelay);
+    }
+
+    // --- MPV Event Listeners ---
+    
+    window.mpv.onTimeUpdate((time) => {
+      currentTime = time;
+      updateTimeDisplay();
+      updateProgressBar();
+    });
+
+    window.mpv.onDurationUpdate((dur) => {
+      duration = dur;
+      updateTimeDisplay();
+    });
+
+    window.mpv.onPauseState((paused) => {
+      isPaused = paused;
+      updatePlayButton();
+    });
+
+    window.mpv.onVolumeUpdate((vol) => {
+      currentVolume = vol;
+      if (vol > 0) lastVolume = vol;
+      updateVolumeDisplay();
+    });
+    
+    window.mpv.onTrackListUpdate((trackList) => {
+        tracks = trackList || [];
+        updateTrackMenus();
+    });
+
+    window.mpv.onWyzieSubtitles((subs) => {
+        console.log(`[UI] Received ${subs.length} subtitles from Wyzie`);
+        wyzieSubs = subs || [];
+        updateTrackMenus();
+    });
+    
+    window.mpv.onFullscreenChange((fs) => {
+        isFullscreen = fs;
+        const titleBar = document.getElementById('title-bar');
+        titleBar.style.display = isFullscreen ? 'none' : 'flex';
+        updateFullscreenButton();
+    });
+
+    // --- Controls ---
+
+    async function loadVideo() {
+      const url = document.getElementById('urlInput').value.trim();
+      if (!url) return;
+
+      toggleUrlOverlay();
+      try {
+        await window.mpv.loadFile(url);
+        isPaused = false;
+        updatePlayButton();
+      } catch (error) {
+        console.error('Error loading video:', error);
+      }
+    }
+    
+    async function togglePlayPause() {
+      await window.mpv.playPause();
+    }
+    
+    function toggleMute() {
+        if (currentVolume > 0) {
+            window.mpv.setVolume(0);
+        } else {
+            window.mpv.setVolume(lastVolume || 50);
+        }
+    }
+    
+    function toggleUrlOverlay() {
+        document.getElementById('url-overlay').classList.toggle('active');
+        if(document.getElementById('url-overlay').classList.contains('active')) {
+            document.getElementById('urlInput').focus();
+        }
+    }
+    
+    function toggleFullscreen() {
+        window.mpv.setFullscreen(!isFullscreen);
+    }
+    
+    function updateFullscreenButton() {
+        const btn = document.getElementById('fullscreenBtn');
+        if (isFullscreen) {
+            // Exit Fullscreen Icon
+            btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-14v3h3v2h-5V5h2z"/></svg>';
+            btn.title = "Exit Fullscreen";
+        } else {
+            // Enter Fullscreen Icon
+            btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
+            btn.title = "Fullscreen";
+        }
+    }
+
+    function seekToPosition(event) {
+      const bar = document.getElementById('progressContainer');
+      const rect = bar.getBoundingClientRect();
+      const pos = (event.clientX - rect.left) / rect.width;
+      const seekTime = pos * duration;
+      window.mpv.seek(seekTime);
+    }
+
+    function setVolumeByClick(event) {
+      const slider = document.getElementById('volumeSlider');
+      const rect = slider.getBoundingClientRect();
+      const pos = (event.clientX - rect.left) / rect.width;
+      const volume = Math.max(0, Math.min(100, pos * 100));
+      window.mpv.setVolume(volume);
+    }
+    
+    function setTrack(type, id) {
+        if (type === 'sub') {
+            window.mpv.setSubtitle(id);
+        } else if (type === 'audio') {
+            window.mpv.setAudio(id);
+        }
+        toggleMenu(''); // Close menus
+    }
+
+    // --- UI Updates ---
+
+    function updatePlayButton() {
+      const btn = document.getElementById('playPauseBtn');
+      // SVG for Pause vs Play
+      if (!isPaused) {
+         btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+      } else {
+         btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+      }
+    }
+
+    function updateTimeDisplay() {
+      document.getElementById('currentTime').textContent = formatTime(currentTime);
+      document.getElementById('duration').textContent = formatTime(duration);
+    }
+
+    function updateProgressBar() {
+      if (duration > 0) {
+        const percent = (currentTime / duration) * 100;
+        document.getElementById('progressFilled').style.width = percent + '%';
+      }
+    }
+
+    function updateVolumeDisplay() {
+      document.getElementById('volumeFilled').style.width = currentVolume + '%';
+    }
+    
+    function updateTrackMenus() {
+        const subList = document.getElementById('subtitleList');
+        const audioList = document.getElementById('audioList');
+        
+        subList.innerHTML = '';
+        audioList.innerHTML = '';
+        
+        // Filter tracks from MPV
+        const allSubs = tracks.filter(t => t.type === 'sub');
+        allSubs.sort((a, b) => {
+            if (a.external === b.external) return a.id - b.id;
+            return a.external ? 1 : -1; 
+        });
+
+        const audios = tracks.filter(t => t.type === 'audio');
+        
+        // Populate Subs
+        if (allSubs.length === 0 && wyzieSubs.length === 0) {
+             subList.innerHTML = '<div class="menu-item" style="opacity: 0.5">No subtitles</div>';
+        } else {
+             // Add "None" option
+             const noneItem = document.createElement('div');
+             noneItem.className = 'menu-item';
+             noneItem.innerText = 'None';
+             noneItem.onclick = () => setTrack('sub', 'no');
+             subList.appendChild(noneItem);
+
+             // 1. Add tracks already in MPV
+             allSubs.forEach(t => {
+                 const item = document.createElement('div');
+                 item.className = 'menu-item ' + (t.selected ? 'selected' : '');
+                 item.innerText = t.title || t.lang || `Track ${t.id}`;
+                 item.onclick = () => setTrack('sub', t.id);
+                 subList.appendChild(item);
+             });
+
+             // 2. Add Wyzie Subtitles (load on click)
+             if (wyzieSubs.length > 0) {
+                 const divider = document.createElement('div');
+                 divider.style.padding = '4px 16px';
+                 divider.style.fontSize = '10px';
+                 divider.style.color = 'var(--primary)';
+                 divider.style.background = 'rgba(255,255,255,0.05)';
+                 divider.innerText = 'AVAILABLE FROM WYZIE (Click to Load)';
+                 subList.appendChild(divider);
+
+                 // Sort subs: English first, then by language name
+                 const sortedWyzie = [...wyzieSubs].sort((a, b) => {
+                     const langA = (a.display || a.language || '').toLowerCase();
+                     const langB = (b.display || b.language || '').toLowerCase();
+                     const isEngA = langA.includes('english') || a.language === 'en';
+                     const isEngB = langB.includes('english') || b.language === 'en';
+                     
+                     if (isEngA && !isEngB) return -1;
+                     if (!isEngA && isEngB) return 1;
+                     return langA.localeCompare(langB);
+                 });
+
+                 const langCounts = {};
+
+                 sortedWyzie.forEach(s => {
+                     const langName = s.display || s.language || 'Unknown';
+                     langCounts[langName] = (langCounts[langName] || 0) + 1;
+                     
+                     const item = document.createElement('div');
+                     item.className = 'menu-item';
+                     
+                     // Label: "English 1 (opensubtitles)"
+                     const label = `${langName} ${langCounts[langName]} (${s.source || 'wyzie'})`;
+                     item.innerText = label;
+                     
+                     item.onclick = async () => {
+                         console.log('[UI] Loading Wyzie sub:', s.url);
+                         // Use 'select' so it's loaded and chosen immediately
+                         await window.mpv.command('sub-add', s.url, 'select', label);
+                         toggleMenu('');
+                     };
+                     subList.appendChild(item);
+                 });
+             }
+        }
+        
+        // Populate Audio
+        if (audios.length === 0) {
+             audioList.innerHTML = '<div class="menu-item" style="opacity: 0.5">No audio tracks</div>';
+        } else {
+             audios.forEach(t => {
+                 const item = document.createElement('div');
+                 item.className = 'menu-item ' + (t.selected ? 'selected' : '');
+                 item.innerText = t.title || t.lang || `Track ${t.id}`;
+                 item.onclick = () => setTrack('audio', t.id);
+                 audioList.appendChild(item);
+             });
+        }
+    }
+
+    function formatTime(seconds) {
+      if (isNaN(seconds) || seconds < 0) return '00:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    // --- Menu Handling ---
+    
+    function toggleMenu(menuId) {
+        const menus = ['subtitleMenu', 'audioMenu'];
+        menus.forEach(id => {
+            if (id === menuId) {
+                const el = document.getElementById(id);
+                if (el.classList.contains('active')) {
+                    el.classList.remove('active');
+                } else {
+                    el.classList.add('active');
+                }
+            } else {
+                document.getElementById(id).classList.remove('active');
+            }
+        });
+    }
+
+    // Auto-hide controls
+    let hideControlsTimeout;
+    document.addEventListener('mousemove', (e) => {
+      // Don't hide if over controls
+      const controls = document.getElementById('controls');
+      const titleBar = document.getElementById('title-bar');
+      const urlOverlay = document.getElementById('url-overlay');
+      
+      // If overlay is open, don't hide
+      if (urlOverlay.classList.contains('active')) return;
+
+      controls.classList.remove('hidden');
+      if (!document.fullscreenElement) {
+          // If native fullscreen isn't active, rely on our IPC state check
+          // But here, we just want to ensure it shows up if NOT fullscreen or if we want it to show momentarily
+          // Actually, we should check a flag or just reset opacity if it's not supposed to be hidden
+          // But titleBar.style.display handles the permanent hiding in fullscreen
+          titleBar.style.opacity = '1';
+      }
+      
+      clearTimeout(hideControlsTimeout);
+      
+      // Only hide if playing and mouse is not over controls or title bar
+      const isOverControls = e.clientY > window.innerHeight - 80; // approximate height
+      const isOverTitle = e.clientY < 40;
+      
+      if (!isPaused && !isOverControls && !isOverTitle) {
+        hideControlsTimeout = setTimeout(() => {
+          controls.classList.add('hidden');
+          titleBar.style.opacity = '0';
+          
+          // Close menus on hide
+          document.getElementById('subtitleMenu').classList.remove('active');
+          document.getElementById('audioMenu').classList.remove('active');
+        }, 3000);
+      }
+    });
+    
+    // Click outside to close menus
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.menu-container')) {
+            document.getElementById('subtitleMenu').classList.remove('active');
+            document.getElementById('audioMenu').classList.remove('active');
+        }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      // If typing in input, ignore
+      if (e.target.tagName === 'INPUT') {
+          if (e.key === 'Enter') loadVideo();
+          return;
+      }
+      
+      switch(e.key) {
+        case ' ':
+          e.preventDefault();
+          togglePlayPause();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          window.mpv.seekRelative(-5);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          window.mpv.seekRelative(5);
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          window.mpv.setVolume(Math.min(100, currentVolume + 5));
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          window.mpv.setVolume(Math.max(0, currentVolume - 5));
+          break;
+        case 'f':
+        case 'F':
+            toggleFullscreen();
+            break;
+        case 'Escape':
+            if (isFullscreen) {
+                window.mpv.setFullscreen(false);
+            }
+            break;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -18036,14 +18036,12 @@ Your browser does not support the video tag.
             }
 
             async function handlePlayNowClick() {
-                // On Windows: Use mpv.js player
-                // On Mac/Linux: Use HTML5 player
+                // Use integrated MPV player on all platforms
                 if (!currentStreamUrl) {
                     showNotification('No file selected to play');
                     return;
                 }
                 
-                // Try to launch mpv.js player on Windows
                 try {
                     const tmdbId = currentContent?.id?.toString() || '';
                     let seasonNum = null;
@@ -18082,63 +18080,17 @@ Your browser does not support the video tag.
                         return;
                     }
                     
-                    // If mpv.js fails (not Windows), fall through to HTML5 player
-                    console.log('[Play Now] mpv.js not available, using HTML5 player');
+                    // If MPV fails to launch, show the error message (e.g., installation instructions)
+                    if (result.message) {
+                        // Using alert or a custom large notification because the install commands might be long
+                        alert(result.message);
+                    } else {
+                        showNotification('Failed to launch MPV player');
+                    }
                 } catch (err) {
-                    console.log('[Play Now] Using HTML5 player:', err.message);
+                    console.error('[Play Now] Error:', err.message);
+                    showNotification('Error launching player: ' + err.message);
                 }
-                
-                // Original HTML5 player logic for non-Windows or fallback
-                // Ensure we have latest resume info; fetch if not present
-                let res = resumeInfo;
-                if ((!res || typeof res.position !== 'number') && resumeKey) {
-                    try { res = await fetchResume(resumeKey); } catch(_) {}
-                }
-                if (res && typeof res.position === 'number' && res.position > 0) {
-                    resumeInfo = res; // keep in sync
-                    resumeTimeEl.textContent = formatResumeSeconds(res.position);
-                    showResumeModal();
-                    // Wire temp listeners
-                    const onCont = async () => {
-                        // Immediately persist current resume snapshot so a record exists right away
-                        try {
-                            if (resumeKey && resumeInfo && typeof resumeInfo.position === 'number') {
-                                const title = currentSelectedVideoName || (currentContent?.title || currentContent?.name || '');
-                                await fetch(`${API_BASE_URL}/resume`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: resumeKey, position: Math.floor(resumeInfo.position || 0), duration: Math.floor(resumeInfo.duration || 0), title }) });
-                            }
-                        } catch(_) {}
-                        hideResumeModal();
-                        openCustomPlayer();
-                        cleanup();
-                    };
-                    const onOver = async () => {
-                        try { if (resumeKey) await fetch(`${API_BASE_URL}/resume?key=${encodeURIComponent(resumeKey)}`, { method: 'DELETE' }); } catch(_){ }
-                        // Reset local resume so player starts at 0
-                        resumeInfo = null;
-                        hideResumeModal();
-                        openCustomPlayer();
-                        // As soon as playback begins, record fresh progress so quitting early is remembered
-                        try {
-                            const onFirst = () => { try { saveResumeThrottled(true); } catch(_) {} customVideo.removeEventListener('timeupdate', onFirst); };
-                            customVideo.addEventListener('timeupdate', onFirst);
-                        } catch(_) {}
-                        cleanup();
-                    };
-                    const cleanup = () => {
-                        resumeContinue.removeEventListener('click', onCont);
-                        resumeStartOver.removeEventListener('click', onOver);
-                        resumeClose.removeEventListener('click', onClose);
-                        document.removeEventListener('keydown', onEsc);
-                    };
-                    const onClose = () => { hideResumeModal(); cleanup(); };
-                    const onEsc = (e) => { if (e.key === 'Escape') { hideResumeModal(); cleanup(); } };
-                    resumeContinue.addEventListener('click', onCont);
-                    resumeStartOver.addEventListener('click', onOver);
-                    resumeClose.addEventListener('click', onClose);
-                    document.addEventListener('keydown', onEsc);
-                    return;
-                }
-                openCustomPlayer();
             }
 
             async function handleOpenMPVClick() {
@@ -25024,34 +24976,28 @@ Your browser does not support the video tag.
                         currentStreamUrl = url;
                         currentSelectedVideoName = name;
 
-                        // Attempt Windows mpv.js (with UI-provided S/E for TV)
-                        let launched = false;
-                        try {
-                            const tmdbId = currentContent?.id?.toString() || '';
-                            let seasonNum = null;
-                            let episodeNum = null;
-                            if (currentMediaType === 'tv' && lastSearchedSeason && lastSearchedEpisode) {
-                                seasonNum = String(lastSearchedSeason);
-                                episodeNum = String(lastSearchedEpisode);
-                            }
-                            const res = await window.electronAPI.spawnMpvjsPlayer({
-                                url,
-                                tmdbId,
-                                seasonNum,
-                                episodeNum
-                            });
-                            if (res?.success) {
-                                launched = true;
-                                showNotification('Player launched');
-                                return;
-                            }
-                        } catch (_) {}
-
-                        // Fallback to HTML5 player
-                        const title = currentContent?.title || currentContent?.name || 'Video';
-                        const sNum = (currentMediaType === 'tv' && currentSeason) ? currentSeason : null;
-                        updateDiscordForStreaming(title, 'Nuvio', sNum);
-                        openCustomPlayer();
+                        // Use Integrated MPV
+                        const tmdbId = currentContent?.id?.toString() || '';
+                        let seasonNum = null;
+                        let episodeNum = null;
+                        if (currentMediaType === 'tv' && lastSearchedSeason && lastSearchedEpisode) {
+                            seasonNum = String(lastSearchedSeason);
+                            episodeNum = String(lastSearchedEpisode);
+                        }
+                        const res = await window.electronAPI.spawnMpvjsPlayer({
+                            url,
+                            tmdbId,
+                            seasonNum,
+                            episodeNum
+                        });
+                        
+                        if (res?.success) {
+                            showNotification('Player launched');
+                        } else if (res?.message) {
+                            alert(res.message);
+                        } else {
+                            showNotification('Failed to launch MPV player');
+                        }
                     } catch (e) {
                         console.error('[Nuvio] Play Now error:', e);
                         showNotification('Failed to play stream', 'error');
@@ -25108,24 +25054,37 @@ Your browser does not support the video tag.
             });
         }
 
-        // Play Nuvio stream directly (not a torrent)
+        // Play Nuvio stream directly (Integrated MPV)
         async function playNuvioStream(url, name) {
             try {
-                console.log('[Nuvio] Playing stream in custom player:', url);
+                console.log('[Nuvio] Playing stream in MPV:', url);
                 
                 // Set current stream URL and name
                 currentStreamUrl = url;
                 currentSelectedVideoName = name;
                 
-                // Update player title
-                if (customPlayerTitle) {
-                    customPlayerTitle.innerHTML = `<span>${name}</span> <span class="source-badge direct-stream" title="Direct Stream">Nuvio</span>`;
+                const tmdbId = currentContent?.id?.toString() || '';
+                let seasonNum = null;
+                let episodeNum = null;
+                if (currentMediaType === 'tv' && lastSearchedSeason && lastSearchedEpisode) {
+                    seasonNum = String(lastSearchedSeason);
+                    episodeNum = String(lastSearchedEpisode);
                 }
-                
-                // Open in custom player
-                openCustomPlayer();
-                
-                showNotification('Playing in browser player', 'success');
+
+                const res = await window.electronAPI.spawnMpvjsPlayer({
+                    url,
+                    tmdbId,
+                    seasonNum,
+                    episodeNum
+                });
+
+                if (res?.success) {
+                    showNotification('Player launched');
+                } else if (res?.message) {
+                    alert(res.message);
+                } else {
+                    showNotification('Failed to launch MPV player');
+                }
             } catch (error) {
                 console.error('[Nuvio] Play error:', error);
                 showNotification('Failed to play stream', 'error');
@@ -25517,7 +25476,7 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
                 info.appendChild(title);
                 info.appendChild(meta);
 
-                // New: Play Now button (Windows mpv.js if available, otherwise HTML5 fallback)
+                // New: Play Now button (Integrated MPV)
                 const playNowBtn = document.createElement('button');
                 playNowBtn.className = 'btn';
                 playNowBtn.innerHTML = '<i class="fas fa-play"></i> Play Now';
@@ -25537,29 +25496,20 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
                             episodeNum = String(lastSearchedEpisode);
                         }
 
-                        // Try mpv.js (Windows-only)
-                        let launched = false;
-                        try {
-                            const res = await window.electronAPI.spawnMpvjsPlayer({
-                                url: file.url,
-                                tmdbId,
-                                seasonNum,
-                                episodeNum
-                            });
-                            if (res?.success) {
-                                launched = true;
-                                showNotification('Player launched');
-                            }
-                        } catch (_) {}
+                        // Use Integrated MPV
+                        const res = await window.electronAPI.spawnMpvjsPlayer({
+                            url: file.url,
+                            tmdbId,
+                            seasonNum,
+                            episodeNum
+                        });
 
-                        if (!launched) {
-                            // Fallback to HTML5 player
-                            currentStreamUrl = file.url;
-                            currentSelectedVideoName = file.name || 'Video';
-                            const title = currentContent?.title || currentContent?.name || 'Video';
-                            const sNum = (currentMediaType === 'tv' && currentSeason) ? currentSeason : null;
-                            updateDiscordForStreaming(title, '111477', sNum);
-                            openCustomPlayer();
+                        if (res?.success) {
+                            showNotification('Player launched');
+                        } else if (res?.message) {
+                            alert(res.message);
+                        } else {
+                            showNotification('Failed to launch MPV player');
                         }
                     } catch (err) {
                         console.error('[111477] Play Now error:', err);
@@ -25834,53 +25784,21 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
                                     // Update Discord presence for XDmovies streaming
                                     updateDiscordForStreaming(movieTitle, 'XDmovies', null);
                                     
-                                    // Use the same method as 111477
-                                    if (window.electronAPI.platform === 'darwin') {
-                                        // macOS: Use IINA
-                                        const result = await window.electronAPI.openInIINA({ 
-                                            streamUrl: server.url,
-                                            infoHash: null,
-                                            startSeconds: 0
-                                        });
-                                        if (result && result.success) {
-                                            showNotification('Opening in IINA...', 'success', 3000);
-                                        } else {
-                                            showNotification(`Failed to open in IINA: ${result?.message || 'Unknown error'}`, 'error');
-                                        }
-                                    } else if (window.electronAPI.platform === 'win32') {
-                                        // Windows: Try mpv.js first (like 111477 Play Now button)
-                                        const tmdbId = currentContent?.id?.toString() || '';
-                                        let launched = false;
-                                        try {
-                                            const res = await window.electronAPI.spawnMpvjsPlayer({
-                                                url: server.url,
-                                                tmdbId,
-                                                seasonNum: null,
-                                                episodeNum: null
-                                            });
-                                            if (res?.success) {
-                                                launched = true;
-                                                showNotification('Player launched', 'success', 3000);
-                                            }
-                                        } catch (_) {}
+                                    // Use Integrated MPV
+                                    const tmdbId = currentContent?.id?.toString() || '';
+                                    const res = await window.electronAPI.spawnMpvjsPlayer({
+                                        url: server.url,
+                                        tmdbId,
+                                        seasonNum: null,
+                                        episodeNum: null
+                                    });
 
-                                        if (!launched) {
-                                            // Fallback to openMPVDirect
-                                            const result = await window.electronAPI.openMPVDirect(server.url);
-                                            if (result && result.success) {
-                                                showNotification('Opening stream in MPV... Please Wait', 'success', 5000);
-                                            } else {
-                                                showNotification('Failed to open in MPV: ' + (result?.error || 'Unknown error'), 'error');
-                                            }
-                                        }
+                                    if (res?.success) {
+                                        showNotification('Player launched');
+                                    } else if (res?.message) {
+                                        alert(res.message);
                                     } else {
-                                        // Linux: Use MPV via openMPVDirect
-                                        const result = await window.electronAPI.openMPVDirect(server.url);
-                                        if (result && result.success) {
-                                            showNotification('Opening stream in MPV... Please Wait', 'success', 5000);
-                                        } else {
-                                            showNotification('Failed to open in MPV: ' + (result?.error || 'Unknown error'), 'error');
-                                        }
+                                        showNotification('Failed to launch MPV player');
                                     }
                                 } catch (error) {
                                     console.error('[XDmovies] Player error:', error);
@@ -26031,6 +25949,8 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
                 
                                                 if (res?.success) {
                                                     showNotification('Player launched');
+                                                } else if (res?.message) {
+                                                    alert(res.message);
                                                 } else {
                                                     showNotification('Failed to launch player', 'error');
                                                 }
@@ -26058,8 +25978,9 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
                                         openInBtn.onclick = async (e) => {
                                             e.stopPropagation();
                                             try {
-                                                 await window.electronAPI.openInMPV({
-                                                    url: stream.url,
+                                                const apiMethod = isMac ? 'openInIINA' : 'openInMPV';
+                                                await window.electronAPI[apiMethod]({
+                                                    streamUrl: stream.url,
                                                     title: stream.name
                                                 });
                                             } catch (err) {

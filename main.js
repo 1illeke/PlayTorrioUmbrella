@@ -10,8 +10,8 @@ import { pipeline as streamPipelineCb } from 'stream';
 import { promisify } from 'util';
 import dns from 'dns';
 import { createRequire } from 'module';
-const userDataPath = app.getPath("userData");
-
+// Disable hardware acceleration to allow transparent window embedding (MPV)
+app.disableHardwareAcceleration();
 
 // electron-updater is CommonJS; use default import + destructure for ESM
 import updaterPkg from 'electron-updater';
@@ -29,6 +29,7 @@ const dnsLookup = promisify(dns.lookup);
 const require = createRequire(import.meta.url);
 import qs from 'qs';
 import { execFile } from 'child_process';
+import { openPlayer, registerIPC, initPlayer } from './playerHandler.js';
 
 // Spotify Music Integration
 const SPOTIFY_CLIENT_ID = '6757e9618d9948b6b1f3312401bfcfa7';
@@ -42,6 +43,15 @@ const URL_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 // PLATFORM-SPECIFIC INITIALIZATION
 // ===================================================
 
+// Switches for transparent visuals and GPU compatibility (Integrated Player)
+if (process.platform === 'win32' || process.platform === 'linux') {
+    app.commandLine.appendSwitch('enable-transparent-visuals');
+    app.commandLine.appendSwitch('disable-gpu-compositing');
+}
+if (process.platform === 'darwin') {
+    app.commandLine.appendSwitch('disable-gpu-sandbox');
+}
+
 // --------------------------------------------------
 // LINUX APPIMAGE FIX (Electron < 9 compatible)
 // --------------------------------------------------
@@ -51,13 +61,13 @@ if (process.platform === "linux") {
     app.commandLine.appendSwitch("no-sandbox");
     app.commandLine.appendSwitch("disable-setuid-sandbox");
     app.commandLine.appendSwitch("disable-gpu-sandbox");
-    app.commandLine.appendSwitch("disable-gpu");
+    // app.commandLine.appendSwitch("disable-gpu"); // Removed to allow MPV hardware acceleration if possible
     app.commandLine.appendSwitch("no-zygote");
     app.commandLine.appendSwitch("ignore-gpu-blacklist");
 
     if (process.env.APPIMAGE) {
         console.log("[Linux] Detected AppImage mode");
-        app.commandLine.appendSwitch("disable-gpu");
+        // app.commandLine.appendSwitch("disable-gpu");
     }
 }
 
@@ -672,17 +682,15 @@ function resolveMpvExe() {
                 // Packaged app locations
                 candidates.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'mpv', 'mpv.app', 'Contents', 'MacOS', 'mpv'));
                 candidates.push(path.join(process.resourcesPath, 'mpv', 'mpv.app', 'Contents', 'MacOS', 'mpv'));
-                candidates.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'mpv', 'IINA.app', 'Contents', 'MacOS', 'IINA'));
-                candidates.push(path.join(process.resourcesPath, 'mpv', 'IINA.app', 'Contents', 'MacOS', 'IINA'));
             }
             // Development locations
             candidates.push(path.join(__dirname, 'mpv', 'mpv.app', 'Contents', 'MacOS', 'mpv'));
-            candidates.push(path.join(__dirname, 'mpv', 'IINA.app', 'Contents', 'MacOS', 'IINA'));
             candidates.push(path.join(path.dirname(process.execPath), 'mpv', 'mpv.app', 'Contents', 'MacOS', 'mpv'));
-            candidates.push(path.join(path.dirname(process.execPath), 'mpv', 'IINA.app', 'Contents', 'MacOS', 'IINA'));
+            
             // System-wide fallback
             candidates.push('/Applications/mpv.app/Contents/MacOS/mpv');
-            candidates.push('/Applications/IINA.app/Contents/MacOS/IINA');
+            candidates.push('/usr/local/bin/mpv');
+            candidates.push('/opt/homebrew/bin/mpv');
         } else if (process.platform === 'win32') {
             // Windows: Look for mpv.exe
             const execDir = path.dirname(process.execPath);
@@ -692,6 +700,7 @@ function resolveMpvExe() {
             if (resourcesPath) {
                 candidates.push(path.join(resourcesPath, 'app.asar.unpacked', 'mpv', 'mpv.exe'));
                 candidates.push(path.join(resourcesPath, 'mpv', 'mpv.exe'));
+                candidates.push(path.join(resourcesPath, '..', 'resources', 'mpv', 'mpv.exe'));
             }
             
             // extraResources to root
@@ -715,6 +724,17 @@ function resolveMpvExe() {
             // System-wide fallback for Linux (user installs via apt)
             candidates.push('/usr/bin/mpv');
             candidates.push('/usr/local/bin/mpv');
+            candidates.push('/snap/bin/mpv');
+        }
+
+        // Try to find via 'which' on Unix-like systems
+        if (process.platform !== 'win32') {
+            try {
+                const result = spawnSync('which', ['mpv'], { encoding: 'utf8' });
+                if (result.status === 0 && result.stdout.trim()) {
+                    candidates.push(result.stdout.trim());
+                }
+            } catch (e) {}
         }
 
         console.log('[MPV] Searching for MPV in', candidates.length, 'locations...');
@@ -733,7 +753,7 @@ function resolveMpvExe() {
     return null;
 }
 
-// Resolve bundled VLC executable path (cross-platform: Windows, macOS, Linux)
+// Resolve VLC executable path (system-wide only)
 function resolveVlcExe() {
     try {
         const candidates = [];
@@ -746,43 +766,14 @@ function resolveVlcExe() {
         }
         
         if (process.platform === 'darwin') {
-            // macOS: Look for VLC.app bundle
-            if (process.resourcesPath) {
-                // Packaged app locations
-                candidates.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'VLC', 'VLC.app', 'Contents', 'MacOS', 'VLC'));
-                candidates.push(path.join(process.resourcesPath, 'VLC', 'VLC.app', 'Contents', 'MacOS', 'VLC'));
-            }
-            // Development locations
-            candidates.push(path.join(__dirname, 'VLC', 'VLC.app', 'Contents', 'MacOS', 'VLC'));
-            candidates.push(path.join(path.dirname(process.execPath), 'VLC', 'VLC.app', 'Contents', 'MacOS', 'VLC'));
-            // System-wide fallback
+            // macOS: System-wide fallback
             candidates.push('/Applications/VLC.app/Contents/MacOS/VLC');
         } else if (process.platform === 'win32') {
-            // Windows: Consider portable, extraResources, system installs, PortableApps and user overrides
-            const execDir = path.dirname(process.execPath);
-            const resourcesPath = process.resourcesPath;
+            // Windows: System installs and PortableApps
             const programFiles = process.env['ProgramFiles'] || 'C:/Program Files';
             const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:/Program Files (x86)';
             const localAppData = process.env['LOCALAPPDATA'] || path.join(process.env['USERPROFILE'] || 'C:/Users/Default', 'AppData', 'Local');
             const portableAppsRoot = process.env['PORTABLEAPPS'] || path.join(process.env['USERPROFILE'] || 'C:/Users/Default', 'PortableApps');
-
-            // PACKAGED MODE - resource paths
-            if (resourcesPath) {
-                pushUnique(path.join(resourcesPath, 'app.asar.unpacked', 'VLC', 'App', 'vlc', 'vlc.exe'));
-                pushUnique(path.join(resourcesPath, 'VLC', 'App', 'vlc', 'vlc.exe'));
-                pushUnique(path.join(resourcesPath, 'app.asar.unpacked', 'vlc', 'vlc.exe'));
-                pushUnique(path.join(resourcesPath, 'vlc', 'vlc.exe'));
-            }
-            // extraResources near executable
-            pushUnique(path.join(execDir, 'VLC', 'App', 'vlc', 'vlc.exe'));
-            pushUnique(path.join(execDir, 'resources', 'VLC', 'App', 'vlc', 'vlc.exe'));
-            pushUnique(path.join(execDir, 'resources', 'app.asar.unpacked', 'VLC', 'App', 'vlc', 'vlc.exe'));
-            // Dev mode
-            pushUnique(path.join(__dirname, 'VLC', 'App', 'vlc', 'vlc.exe'));
-            pushUnique(path.join(__dirname, 'vlc', 'vlc.exe'));
-            // Additional relative fallbacks
-            pushUnique(path.join(execDir, '..', 'VLC', 'App', 'vlc', 'vlc.exe'));
-            pushUnique(path.join(execDir, 'vlc', 'vlc.exe'));
 
             // Standard installer locations (VLC official)
             pushUnique(path.join(programFiles, 'VideoLAN', 'VLC', 'vlc.exe'));
@@ -794,13 +785,7 @@ function resolveVlcExe() {
 
             // PortableApps structures
             pushUnique(path.join(portableAppsRoot, 'VLCPortable', 'App', 'vlc', 'vlc.exe'));
-            pushUnique(path.join(portableAppsRoot, 'VLCPortable', 'VLCPortable.exe')); // Portable launcher (we prefer direct VLC but fallback)
-
-            // Common user-downloaded unzip patterns
-            pushUnique(path.join(execDir, 'VideoLAN', 'VLC', 'vlc.exe'));
-            pushUnique(path.join(execDir, 'App', 'vlc', 'vlc.exe'));
-            pushUnique(path.join(execDir, 'bin', 'vlc.exe'));
-            pushUnique(path.join(execDir, 'vlc.exe'));
+            pushUnique(path.join(portableAppsRoot, 'VLCPortable', 'VLCPortable.exe')); // Portable launcher
 
             // Environment variable override already added (envVlc)
             if (envVlc && envVlc.toLowerCase().endsWith('vlcportable.exe')) {
@@ -808,14 +793,7 @@ function resolveVlcExe() {
                 pushUnique(path.join(path.dirname(envVlc), 'App', 'vlc', 'vlc.exe'));
             }
         } else {
-            // Linux: Look for vlc binary
-            if (process.resourcesPath) {
-                pushUnique(path.join(process.resourcesPath, 'app.asar.unpacked', 'vlc', 'vlc'));
-                pushUnique(path.join(process.resourcesPath, 'vlc', 'vlc'));
-            }
-            pushUnique(path.join(__dirname, 'vlc', 'vlc'));
-            pushUnique(path.join(path.dirname(process.execPath), 'vlc', 'vlc'));
-            // System-wide fallback for Linux
+            // Linux: System-wide fallback
             pushUnique('/usr/bin/vlc');
             pushUnique('/usr/local/bin/vlc');
             pushUnique('/snap/bin/vlc');
@@ -833,7 +811,6 @@ function resolveVlcExe() {
                             console.log('[VLC] ✓ Found VLCPortable launcher; using embedded binary instead:', real);
                             return real;
                         }
-                        console.warn('[VLC] Found VLCPortable.exe; using it as last resort. Consider bundling VLC/App/vlc/vlc.exe');
                         return p;
                     }
                     console.log('[VLC] ✓ Found executable at:', p);
@@ -1045,139 +1022,77 @@ async function getYouTubeAudioUrl(searchQuery, trackId) {
 }
 
 
-// Launch MPV and set up cleanup listeners
+// Helper to get platform-specific MPV install instructions
+function getMpvMissingMessage() {
+    if (process.platform === 'linux') {
+        return 'MPV player not found.\nPlease install it globally:\n\nDebian/Ubuntu: sudo apt install mpv\nArch: sudo pacman -S mpv\nFedora: sudo dnf install mpv';
+    } else if (process.platform === 'darwin') {
+        return 'MPV player not found.\nPlease install it globally:\nbrew install mpv --cask';
+    } else {
+        return 'Bundled MPV executable not found. Please try reinstalling the app.';
+    }
+}
+
+// Launch MPV (Embedded Version) - Used for "Play Now"
+async function openInEmbeddedPlayer(win, streamUrl, infoHash, startSeconds, metadata) {
+    try {
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('[MPV] LAUNCH ATTEMPT (EMBEDDED)');
+        console.log('[MPV] Stream URL:', streamUrl);
+        console.log('[MPV] InfoHash:', infoHash);
+        
+        const mpvPath = resolveMpvExe();
+        if (!mpvPath) {
+            return { success: false, message: getMpvMissingMessage() };
+        }
+        
+        // Use the new embedded player handler (pass mainWindow)
+        openPlayer(win || mainWindow, mpvPath, streamUrl, startSeconds, metadata);
+        
+        // Update Discord RPC
+        try {
+            if (discordRpc && discordRpcReady) {
+                discordRpc.setActivity({
+                    details: 'Watching Video (Embedded)',
+                    state: 'Playing',
+                    startTimestamp: new Date(),
+                    largeImageKey: 'icon',
+                    largeImageText: 'PlayTorrio Player',
+                });
+            }
+        } catch(e) {}
+
+        return { success: true, message: 'Embedded MPV launched' };
+    } catch (error) {
+        console.error('[MPV] Error launching embedded player:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+// Launch MPV (Standalone Version) - Used for "Open in MPV"
 async function openInMPV(win, streamUrl, infoHash, startSeconds) {
     try {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('[MPV] LAUNCH ATTEMPT');
+        console.log('[MPV] LAUNCH ATTEMPT (STANDALONE)');
         console.log('[MPV] Stream URL:', streamUrl);
-        console.log('[MPV] InfoHash:', infoHash);
-        console.log('[MPV] Start Time:', startSeconds || 0, 'seconds');
         
         const mpvPath = resolveMpvExe();
-        console.log('[MPV] Resolved MPV path:', mpvPath);
-        
         if (!mpvPath) {
-            let msg = 'Bundled MPV not found. ';
-            if (process.platform === 'darwin') {
-                msg += 'Place mpv.app or IINA.app under the app/mpv folder, or install MPV system-wide.';
-            } else if (process.platform === 'win32') {
-                msg += 'Place portable mpv.exe under the app/mpv folder.';
-            } else {
-                msg += 'Place mpv binary under the app/mpv folder.';
-            }
-            console.error('[MPV] ERROR: MPV executable not found!');
-            console.error('[MPV] Error message:', msg);
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            return { success: false, message: msg };
+            return { success: false, message: getMpvMissingMessage() };
         }
         
-        // Detect if this is a local torrent stream (file selector from Jackett/Torrentio/Comet/PlayTorrio)
-        const isLocalTorrentStream = streamUrl && (
-            streamUrl.includes('localhost:6987/api/stream-file') || 
-            streamUrl.includes('127.0.0.1:6987/api/stream-file') ||
-            streamUrl.includes('localhost:6987/stream') || 
-            streamUrl.includes('127.0.0.1:6987/stream')
-        );
-        
-        let args = [];
-        
-        if (isLocalTorrentStream) {
-            // Simple command for torrent streams - just open the URL
-            console.log('[MPV] Using SIMPLE mode (torrent stream from file selector)');
-            
-            // Add force-window to show MPV immediately
-            args.push('--force-window=immediate');
-            args.push(streamUrl);
-            
-            // Give WebTorrent 1 second to start buffering before launching MPV
-            // This prevents spam-clicking and ensures torrent is initializing
-            console.log('[MPV] Waiting 1s for WebTorrent to initialize...');
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        } else {
-            // Advanced buffering for debrid/direct HTTP/HLS streams
-            console.log('[MPV] Using ADVANCED mode (debrid/direct stream)');
-            const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
-            
-            args = [
-                '--cache=yes',
-                '--cache-secs=30',
-                '--demuxer-readahead-secs=20',
-                '--cache-pause=yes',
-                '--force-seekable=yes',
-                `--http-header-fields=User-Agent: ${userAgent}`,
-                '--vd-lavc-threads=4',
-                '--profile=fast',
-                '--cache-on-disk=yes'
-            ];
-            
-            // Platform-specific hardware acceleration
-            if (process.platform === 'darwin') {
-                // macOS: Use VideoToolbox hardware acceleration
-                args.push('--hwdec=videotoolbox');
-                args.push('--vo=libmpv');
-            } else if (process.platform === 'win32') {
-                // Windows: Use D3D11 hardware acceleration
-                args.push('--hwdec=d3d11va');
-                args.push('--gpu-context=d3d11');
-            } else {
-                // Linux: Use VAAPI or VDPAU
-                args.push('--hwdec=vaapi');
-            }
-            
-            const start = Number(startSeconds || 0);
-            if (!isNaN(start) && start > 10) {
-                args.push(`--start=${Math.floor(start)}`);
-            }
-            args.push(streamUrl);
+        const args = [];
+        const start = Number(startSeconds || 0);
+        if (!isNaN(start) && start > 10) {
+            args.push(`--start=${Math.floor(start)}`);
         }
+        args.push(streamUrl);
         
-        console.log('[MPV] Full command line arguments:');
-        args.forEach((arg, i) => console.log(`  [${i}]:`, arg));
-        console.log('[MPV] Complete command:', mpvPath, args.join(' '));
-        console.log('[MPV] Spawning process...');
-        
-        const mpvProcess = spawn(mpvPath, args, { 
-            stdio: ['ignore', 'pipe', 'pipe']  // Changed from 'ignore' to capture stdout/stderr
-        });
-        
-        console.log('[MPV] Process spawned with PID:', mpvProcess.pid);
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('[MPV] Spawning standalone MPV:', mpvPath, args);
+        const mpvProcess = spawn(mpvPath, args, { stdio: 'ignore', detached: true });
 
-        // Capture and log stdout
-        mpvProcess.stdout.on('data', (data) => {
-            const output = data.toString().trim();
-            if (output) {
-                console.log(`[MPV STDOUT] ${output}`);
-            }
-        });
-
-        // Capture and log stderr
-        mpvProcess.stderr.on('data', (data) => {
-            const error = data.toString().trim();
-            if (error) {
-                console.error(`[MPV STDERR] ${error}`);
-            }
-        });
-
-        mpvProcess.on('close', async (code, signal) => {
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log('[MPV] PROCESS CLOSED');
-            console.log('[MPV] Exit code:', code);
-            console.log('[MPV] Exit signal:', signal);
-            console.log('[MPV] InfoHash:', infoHash);
-            
-            if (code !== 0 && code !== null) {
-                console.error('[MPV] NON-ZERO EXIT CODE - POTENTIAL CRASH!');
-            }
-            if (signal) {
-                console.error('[MPV] TERMINATED BY SIGNAL:', signal);
-            }
-            
-            // By request: do not disconnect torrent or delete temp when MPV closes.
-            console.log('[MPV] Leaving torrent active and temp files intact.');
-            
-            // Clear Discord presence when MPV closes
+        mpvProcess.on('close', async (code) => {
+            console.log(`Standalone MPV closed with code ${code}.`);
             try {
                 if (discordRpc && discordRpcReady) {
                     await discordRpc.setActivity({
@@ -1193,37 +1108,32 @@ async function openInMPV(win, streamUrl, infoHash, startSeconds) {
             } catch (err) {
                 console.error('[Discord RPC] Failed to clear on MPV close:', err);
             }
-            
-            // Optionally inform renderer that MPV closed (no cleanup performed)
             try { win.webContents.send('mpv-closed', { infoHash, code }); } catch(_) {}
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         });
 
         mpvProcess.on('error', (err) => {
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.error('[MPV] PROCESS ERROR EVENT!');
-            console.error('[MPV] Error type:', err.name);
-            console.error('[MPV] Error message:', err.message);
-            console.error('[MPV] Error code:', err.code);
-            console.error('[MPV] Full error:', err);
-            console.error('[MPV] Stack trace:', err.stack);
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.error('Failed to start standalone MPV:', err);
         });
+        
+        mpvProcess.unref();
 
-        mpvProcess.on('exit', (code, signal) => {
-            console.log('[MPV] EXIT event - Code:', code, 'Signal:', signal);
-        });
+        // Update Discord RPC
+        try {
+            if (discordRpc && discordRpcReady) {
+                discordRpc.setActivity({
+                    details: 'Watching Video (External)',
+                    state: 'Playing',
+                    startTimestamp: new Date(),
+                    largeImageKey: 'icon',
+                    largeImageText: 'PlayTorrio Player',
+                });
+            }
+        } catch(e) {}
 
-        console.log('[MPV] All event handlers attached successfully');
-        return { success: true, message: 'MPV launched successfully' };
+        return { success: true, message: 'Standalone MPV launched' };
     } catch (error) {
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('[MPV] EXCEPTION IN openInMPV FUNCTION!');
-        console.error('[MPV] Exception type:', error.name);
-        console.error('[MPV] Exception message:', error.message);
-        console.error('[MPV] Exception stack:', error.stack);
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        return { success: false, message: 'Failed to launch MPV: ' + error.message };
+        console.error('[MPV] Error launching standalone player:', error);
+        return { success: false, message: error.message };
     }
 }
 
@@ -1296,14 +1206,7 @@ function openInVLC(win, streamUrl, infoHash, startSeconds) {
         console.log('Attempting to launch VLC with URL:', streamUrl);
         const vlcPath = resolveVlcExe();
         if (!vlcPath) {
-            let msg = 'Bundled VLC not found. ';
-            if (process.platform === 'darwin') {
-                msg += 'Place VLC.app under the app/VLC folder, or install VLC system-wide.';
-            } else if (process.platform === 'win32') {
-                msg += 'Place portable VLC under the app/VLC (PortableApps) or app/vlc folder.';
-            } else {
-                msg += 'Place vlc binary under the app/vlc folder.';
-            }
+            const msg = 'VLC not found. Please install VLC Media Player system-wide to use this feature.';
             console.error(msg);
             return { success: false, message: msg };
         }
@@ -1606,6 +1509,14 @@ function createWindow() {
             }
         }, 2000);
     });
+    
+    // Initialize embedded player (hidden, idle)
+    setTimeout(() => {
+        const mpvPath = resolveMpvExe();
+        if (mpvPath) {
+            initPlayer(win, mpvPath);
+        }
+    }, 2000);
 
     // Ensure closing the window triggers app shutdown
     win.on('close', (e) => {
@@ -2344,80 +2255,6 @@ function startTorrentio() {
     }
 }
 
-/**
- * Spawn mpv.js player (Windows only)
- * @param {string} url - Stream URL
- * @param {string} tmdbId - TMDB ID
- * @param {string} seasonNum - Season number (for shows)
- * @param {string} episodeNum - Episode number (for shows)
- */
-function spawnMpvJsPlayer(url, tmdbId, seasonNum = null, episodeNum = null, subtitles = null) {
-    if (process.platform !== 'win32') {
-        console.log('[MPV.js] Not Windows, skipping mpv.js player');
-        return { success: false, message: 'mpv.js player is only available on Windows' };
-    }
-    
-    try {
-        const __filename = fileURLToPath(import.meta.url);
-        const __dirname = path.dirname(__filename);
-        
-        const mpvJsPath = app.isPackaged
-            ? path.join(process.resourcesPath, 'mpv.js-master-updated')
-            : path.join(__dirname, 'mpv.js-master-updated');
-        
-        const electronPath = path.join(mpvJsPath, 'node_modules', 'electron', 'dist', 'electron.exe');
-        const indexPath = path.join(mpvJsPath, 'example', 'index.js');
-
-        if (!fs.existsSync(indexPath)) {
-            console.error('[MPV.js] example/index.js missing at', indexPath);
-            return { success: false, message: 'mpv.js example entry not found' };
-        }
-        if (!fs.existsSync(electronPath)) {
-            console.error('[MPV.js] electron.exe missing at', electronPath);
-            return { success: false, message: 'mpv.js electron runtime missing' };
-        }
-        
-        // Build args expected by example/index.js:
-        // Order: URL, TMDB ID (optional), Season (optional), Episode (optional), Subtitles JSON (optional)
-        // So:
-        // - Movies: [indexPath, url, tmdbId]
-        // - TV:     [indexPath, url, tmdbId, seasonNum, episodeNum]
-        // - Anime with subs: [indexPath, url, tmdbId, seasonNum, episodeNum, subtitlesJSON]
-        let args;
-        if (seasonNum && episodeNum) {
-            args = [indexPath, url, tmdbId || '', String(seasonNum), String(episodeNum)];
-            if (subtitles && Array.isArray(subtitles) && subtitles.length > 0) {
-                args.push(JSON.stringify(subtitles));
-            }
-        } else {
-            args = [indexPath, url, tmdbId || ''];
-            if (subtitles && Array.isArray(subtitles) && subtitles.length > 0) {
-                args.push('', '', JSON.stringify(subtitles)); // Empty season/episode for movies
-            }
-        }
-        
-        console.log('[MPV.js] Spawning player:', { electronPath, args, hasSubtitles: !!subtitles });
-        
-        const playerProcess = spawn(electronPath, args, {
-            stdio: 'ignore',
-            detached: false
-        });
-        
-        playerProcess.on('error', (err) => {
-            console.error('[MPV.js] Player error:', err);
-        });
-        
-        playerProcess.on('exit', (code) => {
-            console.log('[MPV.js] Player exited with code:', code);
-        });
-        
-        return { success: true, message: 'MPV.js player launched' };
-    } catch (err) {
-        console.error('[MPV.js] Failed to spawn player:', err);
-        return { success: false, message: err.message };
-    }
-}
-
 // Enforce single instance with a friendly error on second run
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -2523,15 +2360,19 @@ if (!gotLock) {
 global.manifestRead = (data) => ipcMain.invoke("manifestRead", data);
 global.manifestWrite = (data) => ipcMain.invoke("manifestWrite", data);
 
+    // Register embedded player IPC handlers
+    registerIPC();
+
     // IPC handler to open MPV from renderer
     ipcMain.handle('open-in-mpv', (event, data) => {
-        const { streamUrl, infoHash, startSeconds } = data || {};
+        const { streamUrl, url, infoHash, startSeconds } = data || {};
+        const finalUrl = streamUrl || url;
         console.log(`Received MPV open request for hash: ${infoHash}`);
-            return openInMPV(mainWindow, streamUrl, infoHash, startSeconds);
+        return openInMPV(mainWindow, finalUrl, infoHash, startSeconds);
     });
 ipcMain.handle("manifestWrite", async (event, manifestUrl) => {
     try {
-        const file = path.join(userDataPath, "manifest_url.json");
+        const file = path.join(app.getPath("userData"), "manifest_url.json");
         fs.writeFileSync(file, JSON.stringify({ manifestUrl }, null, 2));
         return { success: true };
     } catch (error) {
@@ -2542,7 +2383,7 @@ ipcMain.handle("manifestWrite", async (event, manifestUrl) => {
 
 ipcMain.handle("manifestRead", async () => {
     try {
-        const file = path.join(userDataPath, "manifest_url.json");
+        const file = path.join(app.getPath("userData"), "manifest_url.json");
         if (!fs.existsSync(file)) return { success: true, data: "" };
         
         const raw = fs.readFileSync(file, "utf8");
@@ -2572,7 +2413,7 @@ ipcMain.handle("manifestRead", async () => {
 
             const mpvPath = resolveMpvExe();
             if (!mpvPath) {
-                return { success: false, message: 'Bundled MPV not found' };
+                return { success: false, message: getMpvMissingMessage() };
             }
 
             const args = [];
@@ -2630,71 +2471,23 @@ ipcMain.handle("manifestRead", async () => {
         }
     });
 
-    // IPC handler to spawn mpv.js player (Windows only)
+    // IPC handler to spawn mpv.js player (Windows only) - REDIRECTED TO EMBEDDED PLAYER
     ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, seasonNum, episodeNum, subtitles }) => {
-        console.log('[MPV.js] Received spawn request:', { url, tmdbId, seasonNum, episodeNum, hasSubtitles: !!subtitles });
-        return spawnMpvJsPlayer(url, tmdbId, seasonNum, episodeNum, subtitles);
+        console.log('[MPV] Redirecting spawn-mpvjs-player request to embedded player:', { url });
+        try {
+             const type = (seasonNum && episodeNum) ? 'tv' : 'movie';
+             return openInEmbeddedPlayer(mainWindow, url, null, null, { tmdbId, seasonNum, episodeNum, type });
+        } catch(e) {
+             console.error('Error redirecting to embedded player:', e);
+             return { success: false, message: e.message };
+        }
     });
 
     // Direct MPV launch for external URLs (111477, etc.)
     ipcMain.handle('open-mpv-direct', async (event, url) => {
         try {
-            console.log('Opening URL in MPV (direct):', url);
-            const mpvPath = resolveMpvExe();
-            if (!mpvPath) {
-                throw new Error('MPV not found');
-            }
-
-            // Performance-friendly defaults and UA header for direct HTTP playback (111477, etc.)
-            const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
-            
-            // Platform-specific hardware acceleration
-            const hwdecArgs = process.platform === 'darwin' 
-                ? ['--hwdec=videotoolbox']  // macOS hardware acceleration
-                : process.platform === 'win32'
-                ? ['--hwdec=d3d11va', '--gpu-context=d3d11']  // Windows hardware acceleration
-                : ['--hwdec=auto'];  // Linux auto-detect
-            
-            const args = [
-                // Ensure MPV window opens immediately and waits while the connection/buffer starts
-                '--force-window=immediate',
-                '--cache=yes',
-                '--cache-secs=30',
-                '--demuxer-readahead-secs=20',
-                '--cache-pause=yes',
-                '--force-seekable=yes',
-                `--http-header-fields=User-Agent: ${userAgent}`,
-                '--vd-lavc-threads=4',
-                ...hwdecArgs,
-                '--profile=fast',
-                '--cache-on-disk=yes',
-                url
-            ];
-
-            const mpvProcess = spawn(mpvPath, args, { stdio: 'ignore', detached: true });
-            
-            // Listen for process close to clear Discord presence
-            mpvProcess.on('close', async (code) => {
-                console.log(`MPV (direct) closed with code ${code}`);
-                try {
-                    if (discordRpc && discordRpcReady) {
-                        await discordRpc.setActivity({
-                            details: 'Browsing PlayTorrio',
-                            startTimestamp: new Date(),
-                            largeImageKey: 'icon',
-                            largeImageText: 'PlayTorrio App',
-                            buttons: [
-                                { label: 'Download App', url: 'https://github.com/ayman708-UX/PlayTorrio' }
-                            ]
-                        });
-                    }
-                } catch (err) {
-                    console.error('[Discord RPC] Failed to clear on MPV direct close:', err);
-                }
-            });
-            
-            mpvProcess.unref();
-            return { success: true };
+            console.log('Opening URL in MPV (standalone):', url);
+            return openInMPV(mainWindow, url, null, null);
         } catch (error) {
             console.error('Error opening MPV:', error);
             return { success: false, error: error.message };
@@ -2703,9 +2496,10 @@ ipcMain.handle("manifestRead", async () => {
 
     // IPC handler to open IINA from renderer (macOS only)
     ipcMain.handle('open-in-iina', (event, data) => {
-        const { streamUrl, infoHash, startSeconds } = data || {};
+        const { streamUrl, url, infoHash, startSeconds } = data || {};
+        const finalUrl = streamUrl || url;
         console.log(`Received IINA open request for hash: ${infoHash}`);
-        return openInIINA(mainWindow, streamUrl, infoHash, startSeconds);
+        return openInIINA(mainWindow, finalUrl, infoHash, startSeconds);
     });
 
     // IPC handler to open VLC from renderer
@@ -2770,11 +2564,15 @@ ipcMain.handle("manifestRead", async () => {
     // XDMOVIES PLAY HANDLERS
     // ============================================================================
 
-    // Play XDmovies link on PC (opens in MPV)
+    // Play XDmovies link on PC (Windows uses embedded, others standalone)
     ipcMain.handle('play-xdmovies-mpv', (event, data) => {
         const { streamUrl, movieTitle, startSeconds } = data || {};
         console.log(`[XDmovies] Opening in MPV: ${movieTitle}`);
-        return openInMPV(mainWindow, streamUrl, movieTitle || 'xdmovies', startSeconds);
+        if (process.platform === 'win32') {
+            return openInEmbeddedPlayer(mainWindow, streamUrl, movieTitle || 'xdmovies', startSeconds);
+        } else {
+            return openInMPV(mainWindow, streamUrl, movieTitle || 'xdmovies', startSeconds);
+        }
     });
 
     // Play XDmovies link on Mac (opens in IINA)
@@ -2784,82 +2582,28 @@ ipcMain.handle("manifestRead", async () => {
         return openInIINA(mainWindow, streamUrl, movieTitle || 'xdmovies', startSeconds);
     });
 
-    // Play XDmovies link on Linux (opens in MPV)
+    // Play XDmovies link on Linux (standalone MPV)
     ipcMain.handle('play-xdmovies-linux', (event, data) => {
         const { streamUrl, movieTitle, startSeconds } = data || {};
         console.log(`[XDmovies] Opening in MPV (Linux): ${movieTitle}`);
         return openInMPV(mainWindow, streamUrl, movieTitle || 'xdmovies', startSeconds);
     });
 
-    // Generic XDmovies play handler (selects player based on platform)
+    // Generic XDmovies play handler
     ipcMain.handle('play-xdmovies', (event, data) => {
         const { streamUrl, movieTitle, startSeconds } = data || {};
-        console.log(`[XDmovies] Playing on platform: ${process.platform}`);
+        console.log(`[XDmovies] Playing on: ${process.platform}`);
         
         if (!streamUrl) {
             return { success: false, message: 'Stream URL is required' };
         }
 
-        if (process.platform === 'darwin') {
-            // macOS: Use IINA
+        if (process.platform === 'win32') {
+            return openInEmbeddedPlayer(mainWindow, streamUrl, movieTitle || 'xdmovies', startSeconds);
+        } else if (process.platform === 'darwin') {
             return openInIINA(mainWindow, streamUrl, movieTitle || 'xdmovies', startSeconds);
-        } else if (process.platform === 'linux') {
-            // Linux: Use openMPVDirect (same as 111477)
-            return new Promise(async (resolve) => {
-                try {
-                    const mpvPath = resolveMpvExe();
-                    if (!mpvPath) {
-                        resolve({ success: false, message: 'MPV not found' });
-                        return;
-                    }
-                    const args = [];
-                    const start = Number(startSeconds || 0);
-                    if (!isNaN(start) && start > 10) {
-                        args.push(`--start=${Math.floor(start)}`);
-                    }
-                    args.push(streamUrl);
-                    const mpvProcess = spawn(mpvPath, args, { stdio: 'ignore' });
-                    mpvProcess.on('close', () => {
-                        console.log('[XDmovies] MPV closed');
-                    });
-                    resolve({ success: true, message: 'MPV launched' });
-                } catch (error) {
-                    console.error('[XDmovies] Error:', error);
-                    resolve({ success: false, message: error.message });
-                }
-            });
         } else {
-            // Windows: Use openMPVDirect (same as 111477) - this uses the system/global mpv
-            return new Promise(async (resolve) => {
-                try {
-                    const mpvPath = resolveMpvExe();
-                    if (!mpvPath) {
-                        // Fallback: try using system mpv or just launch with the URL directly
-                        try {
-                            shell.openExternal(streamUrl);
-                            resolve({ success: true, message: 'Opening in default player' });
-                            return;
-                        } catch (_) {
-                            resolve({ success: false, message: 'MPV not found and cannot open externally' });
-                            return;
-                        }
-                    }
-                    const args = [];
-                    const start = Number(startSeconds || 0);
-                    if (!isNaN(start) && start > 10) {
-                        args.push(`--start=${Math.floor(start)}`);
-                    }
-                    args.push(streamUrl);
-                    const mpvProcess = spawn(mpvPath, args, { stdio: 'ignore' });
-                    mpvProcess.on('close', () => {
-                        console.log('[XDmovies] MPV closed');
-                    });
-                    resolve({ success: true, message: 'MPV launched' });
-                } catch (error) {
-                    console.error('[XDmovies] Error:', error);
-                    resolve({ success: false, message: error.message });
-                }
-            });
+            return openInMPV(mainWindow, streamUrl, movieTitle || 'xdmovies', startSeconds);
         }
     });
 

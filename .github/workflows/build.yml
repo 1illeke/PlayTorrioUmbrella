@@ -25,8 +25,6 @@ jobs:
       - name: Setup Windows Players
         run: |
           if (Test-Path "mpv.rar") { 7z x mpv.rar -y }
-          if (Test-Path "mpv.js-master-updated.rar") { 7z x mpv.js-master-updated.rar -y }
-          if (Test-Path "vlc.rar") { 7z x vlc.rar -y }
 
           if (Test-Path "yt.zip") {
             7z x yt.zip -y

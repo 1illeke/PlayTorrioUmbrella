@@ -1,6 +1,6 @@
 {
   "name": "playtorrio",
-  "version": "2.2.5",
+  "version": "2.2.6",
   "description": "Ayman's PlayTorrio an all in one media center",
   "author": {
     "name": "Ayman",
@@ -65,20 +65,19 @@
       "server.mjs",
       "api.cjs",
       "chromecast.mjs",
+      "playerHandler.js",
+      "Player/**",
       "jackett_api_key.json",
       "src/**/*",
       "public/**/*",
       "node_modules/**/*",
       "mpv/**",
-      "VLC/**",
-      "!mpv.js-master-updated/**",
       "yt/**",
       "linyt/**",
       "macyt/**"
     ],
     "asarUnpack": [
       "mpv/**",
-      "VLC/**",
       "node_modules/ffmpeg-static/**",
       "yt/**",
       "linyt/**",
@@ -95,20 +94,6 @@
         {
           "from": "mpv",
           "to": "mpv",
-          "filter": [
-            "**/*"
-          ]
-        },
-        {
-          "from": "VLC",
-          "to": "VLC",
-          "filter": [
-            "**/*"
-          ]
-        },
-        {
-          "from": "mpv.js-master-updated",
-          "to": "mpv.js-master-updated",
           "filter": [
             "**/*"
           ]
