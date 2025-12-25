@@ -1109,6 +1109,7 @@ function openInHtml5Player(win, streamUrl, startSeconds, metadata = {}) {
         if (streamUrl) params.append('url', streamUrl);
         if (startSeconds) params.append('t', startSeconds);
         if (metadata.tmdbId) params.append('tmdbId', metadata.tmdbId);
+        if (metadata.imdbId) params.append('imdbId', metadata.imdbId);
         if (metadata.seasonNum) params.append('season', metadata.seasonNum);
         if (metadata.episodeNum) params.append('episode', metadata.episodeNum);
         if (metadata.type) params.append('type', metadata.type);
@@ -2446,8 +2447,20 @@ ipcMain.handle("manifestRead", async () => {
 // Stremio Addon Management
 const getAddonsFilePath = () => path.join(app.getPath("userData"), "addons.json");
 
-ipcMain.handle("addonInstall", async (event, manifestUrl) => {
-    try {
+    ipcMain.handle('get-installed-addons', async () => {
+        try {
+            const addonsPath = path.join(app.getPath('userData'), 'addons.json');
+            if (fs.existsSync(addonsPath)) {
+                return JSON.parse(fs.readFileSync(addonsPath, 'utf8'));
+            }
+            return [];
+        } catch (error) {
+            console.error('Failed to read addons.json:', error);
+            return [];
+        }
+    });
+
+    ipcMain.handle('addonInstall', async (event, manifestUrl) => {    try {
         // Fetch manifest to validate and get details
         const response = await got(manifestUrl);
         const manifest = JSON.parse(response.body);
@@ -2529,15 +2542,32 @@ ipcMain.handle("addonRemove", async (event, addonId) => {
     });
 
     // IPC handler to spawn player (formerly mpv.js, now HTML5)
-    ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, seasonNum, episodeNum, subtitles, isDebrid }) => {
-        console.log('[Player] Spawn request (HTML5):', { url, tmdbId, isDebrid });
+ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, seasonNum, episodeNum, subtitles, isDebrid }) => {
+    // return openPlayer(url, { tmdbId, seasonNum, episodeNum, subtitles, isDebrid }); // Old player
+    
+    let finalImdbId = imdbId;
+    // Auto-fetch IMDB ID if missing
+    if (!finalImdbId && tmdbId) {
         try {
-             return openInHtml5Player(mainWindow, url, null, { tmdbId, seasonNum, episodeNum, isDebrid, type: (seasonNum ? 'tv' : 'movie') });
+            const type = seasonNum ? 'tv' : 'movie';
+            const apiKey = 'b3556f3b206e16f82df4d1f6fd4545e6'; 
+            const tmdbUrl = `https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=${apiKey}`;
+            
+            const response = await fetch(tmdbUrl);
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.imdb_id) {
+                    finalImdbId = data.imdb_id;
+                    console.log('[Main] Fetched IMDB ID from TMDB:', finalImdbId);
+                }
+            }
         } catch(e) {
-             console.error('Error spawning HTML5 player:', e);
-             return { success: false, message: e.message };
+            console.warn('[Main] Failed to fetch IMDB ID from TMDB:', e.message);
         }
-    });
+    }
+
+    return openInHtml5Player(mainWindow, url, null, { tmdbId, imdbId: finalImdbId, seasonNum, episodeNum, isDebrid, type: (seasonNum ? 'tv' : 'movie') });
+});
 
     // Direct MPV launch for external URLs (111477, etc.)
     ipcMain.handle('open-mpv-direct', async (event, url) => {

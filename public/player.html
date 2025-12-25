@@ -291,6 +291,7 @@
         const videoUrl = params.get('url');
         const initialTime = parseFloat(params.get('t') || 0);
         const tmdbId = params.get('tmdbId');
+        const imdbId = params.get('imdbId');
         const season = params.get('season');
         const episode = params.get('episode');
         const type = params.get('type');
@@ -328,8 +329,8 @@
             initPlayer(videoUrl, initialTime);
         }
         
-        if (tmdbId) {
-            fetchSubtitles(tmdbId, season, episode);
+        if (tmdbId || imdbId) {
+            initSubtitles(tmdbId, imdbId, season, episode, type);
         }
 
         async function initPlayer(url, start) {
@@ -629,43 +630,160 @@
             }
         }
 
-        async function fetchSubtitles(id, s, e) {
-            let url = `https://sub.wyzie.ru/search?id=${id}`;
-            if (s && e) url += `&season=${s}&episode=${e}`;
+        async function initSubtitles(tmdbId, imdbId, season, episode, type) {
+            const list = document.getElementById('subs-list');
+            list.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">Searching subtitles...</div>';
+            
+            // Standard "None" option
+            const noneItem = document.createElement('div');
+            noneItem.className = 'list-item';
+            noneItem.innerHTML = '<span>None</span>';
+            noneItem.onclick = () => {
+                subtitles = []; overlay.innerHTML = '';
+                document.querySelectorAll('#subs-list .list-item').forEach(el => el.classList.remove('active'));
+                noneItem.classList.add('active'); subsMenu.classList.remove('visible');
+            };
+
+            const allItems = [noneItem];
+
+            // 1. Fetch Wyzie
             try {
-                const res = await fetch(url);
-                const data = await res.json();
-                const list = document.getElementById('subs-list');
-                list.innerHTML = '';
-                if (!data || data.length === 0) {
-                    list.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">No subtitles found</div>';
-                    return;
+                let wyzieUrl = `https://sub.wyzie.ru/search?id=${tmdbId}`;
+                if (season && episode) wyzieUrl += `&season=${season}&episode=${episode}`;
+                
+                const res = await fetch(wyzieUrl);
+                const wyzieData = await res.json();
+                
+                if (wyzieData && wyzieData.length > 0) {
+                    const sep = document.createElement('div');
+                    sep.style.padding = '10px 15px';
+                    sep.style.fontSize = '12px';
+                    sep.style.color = 'var(--accent-purple)';
+                    sep.style.fontWeight = 'bold';
+                    sep.style.textTransform = 'uppercase';
+                    sep.style.letterSpacing = '1px';
+                    sep.innerText = 'Wyzie Subtitles';
+                    allItems.push(sep);
+
+                    wyzieData.forEach(sub => {
+                        const el = document.createElement('div');
+                        el.className = 'list-item';
+                        el.innerHTML = `<img src="${sub.flagUrl || ''}" class="sub-flag" onerror="this.style.display='none'"><span>${sub.display}</span>`;
+                        el.onclick = async () => {
+                            document.querySelectorAll('#subs-list .list-item').forEach(x => x.classList.remove('active'));
+                            el.classList.add('active');
+                            try {
+                                const txtRes = await fetch(sub.url);
+                                const txt = await txtRes.text();
+                                subtitles = parseSRT(txt); subsMenu.classList.remove('visible');
+                            } catch(err) {}
+                        };
+                        allItems.push(el);
+                    });
                 }
-                const offItem = document.createElement('div');
-                offItem.className = 'list-item';
-                offItem.innerHTML = '<span>None</span>';
-                offItem.onclick = () => {
-                    subtitles = []; overlay.innerHTML = '';
-                    document.querySelectorAll('#subs-list .list-item').forEach(el => el.classList.remove('active'));
-                    offItem.classList.add('active'); subsMenu.classList.remove('visible');
-                };
-                list.appendChild(offItem);
-                data.forEach(sub => {
-                    const el = document.createElement('div');
-                    el.className = 'list-item';
-                    el.innerHTML = `<img src="${sub.flagUrl || ''}" class="sub-flag" onerror="this.style.display='none'"><span>${sub.display}</span>`;
-                    el.onclick = async () => {
-                        document.querySelectorAll('#subs-list .list-item').forEach(x => x.classList.remove('active'));
-                        el.classList.add('active');
-                        try {
-                            const txtRes = await fetch(sub.url);
-                            const txt = await txtRes.text();
-                            subtitles = parseSRT(txt); subsMenu.classList.remove('visible');
-                        } catch(err) {}
-                    };
-                    list.appendChild(el);
-                });
-            } catch (err) {}
+            } catch (e) { console.error('Wyzie fetch error', e); }
+
+            // 2. Fetch from Stremio Addons
+            try {
+                // Get addons from main process (reads addons.json)
+                const addons = await ipcRenderer.invoke('get-installed-addons');
+                
+                if (addons && Array.isArray(addons)) {
+                    for (const addon of addons) {
+                        // Check if it supports subtitles? The user just said "when a user places a subtitles addon"
+                        // We will try to fetch subtitles from it.
+                        if (!imdbId) continue; // Stremio addons need IMDB ID (mostly) or Kitsu/etc. We have IMDB.
+
+                        // addon.url contains the manifest URL based on user provided structure
+                        const manifestUrl = addon.url || addon.manifestUrl; 
+                        if (!manifestUrl) continue;
+
+                        const addonSubs = await fetchAddonSubtitles(manifestUrl, imdbId, season, episode, type);
+                        if (addonSubs && addonSubs.length > 0) {
+                            const sep = document.createElement('div');
+                            sep.style.padding = '10px 15px';
+                            sep.style.fontSize = '12px';
+                            sep.style.color = 'var(--accent-purple)';
+                            sep.style.fontWeight = 'bold';
+                            sep.style.textTransform = 'uppercase';
+                            sep.style.letterSpacing = '1px';
+                            // Use manifest name if available
+                            const addonName = (addon.manifest && addon.manifest.name) ? addon.manifest.name : 'Addon Subtitles';
+                            sep.innerText = addonName;
+                            allItems.push(sep);
+
+                            addonSubs.forEach(sub => {
+                                const el = document.createElement('div');
+                                el.className = 'list-item';
+                                // User request: "display the ar en not the title, just the lang or lang code"
+                                // Prefer short code if available (e.g. "ar"), else lang (e.g. "ara")
+                                const langLabel = (sub.lang_code || sub.lang || 'Unknown').toUpperCase();
+                                
+                                el.innerHTML = `<span>${langLabel}</span>`;
+                                
+                                // Add title/id as tooltip so user can still distinguish if needed (hover)
+                                if (sub.title || sub.id) {
+                                    el.title = sub.title || sub.id;
+                                }
+
+                                el.onclick = async () => {
+                                    document.querySelectorAll('#subs-list .list-item').forEach(x => x.classList.remove('active'));
+                                    el.classList.add('active');
+                                    try {
+                                        // Stremio subs can be url or externalUrl
+                                        const targetUrl = sub.url || sub.externalUrl;
+                                        if (targetUrl) {
+                                            const txtRes = await fetch(targetUrl);
+                                            const txt = await txtRes.text();
+                                            subtitles = parseSRT(txt); 
+                                            subsMenu.classList.remove('visible');
+                                        }
+                                    } catch(err) { console.error(err); }
+                                };
+                                allItems.push(el);
+                            });
+                        }
+                    }
+                }
+            } catch (e) { console.error('Addon fetch error', e); }
+
+            // Render
+            list.innerHTML = '';
+            if (allItems.length <= 1) {
+                list.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">No subtitles found</div>';
+            } else {
+                allItems.forEach(item => list.appendChild(item));
+            }
+        }
+
+        async function fetchAddonSubtitles(manifestUrl, imdbId, season, episode, type) {
+            try {
+                // 1. Get Manifest to resolve ID prefix (usually not needed if we just assume standard /subtitles/resource/id.json)
+                // But properly we should read manifest resources. For now, assuming standard Stremio protocol.
+                // Protocol: [base]/subtitles/[type]/[id].json
+                // id for movies: tt1234567
+                // id for series: tt1234567:1:1
+                
+                // Clean manifest URL (remove manifest.json if present to get base)
+                let baseUrl = manifestUrl.replace('/manifest.json', '');
+                
+                // Construct ID
+                let resourceId = imdbId;
+                if (type !== 'movie' && season && episode) {
+                    resourceId = `${imdbId}:${season}:${episode}`;
+                }
+
+                const endpoint = `${baseUrl}/subtitles/${type}/${encodeURIComponent(resourceId)}.json`;
+                
+                const res = await fetch(endpoint);
+                if (!res.ok) return [];
+                const data = await res.json();
+                
+                return data.subtitles || [];
+            } catch (e) {
+                console.warn('Failed to fetch from addon:', manifestUrl, e);
+                return [];
+            }
         }
 
         function formatTime(s) {
