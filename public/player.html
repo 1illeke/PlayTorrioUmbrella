@@ -34,7 +34,9 @@
             padding: 25px 35px; display: flex; align-items: center; gap: 20px;
             background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
             z-index: 100; -webkit-app-region: drag;
+            opacity: 0; transition: opacity 0.4s ease;
         }
+        #player-container.show-controls .top-bar { opacity: 1; }
         .top-bar button, .top-bar span { -webkit-app-region: no-drag; }
 
         #video-title {
@@ -323,6 +325,8 @@
         let currentAudioTrack = 0;
         let audioTracks = [];
         let currentQuality = 'mid';
+        let retryCount = 0;
+        const MAX_RETRIES = 10;
 
         // --- Initialization ---
         if (videoUrl) {
@@ -465,12 +469,38 @@
         video.onplay = () => { playIcon.textContent = 'pause'; document.getElementById('loading-spinner').style.display = 'none'; };
         video.onpause = () => { playIcon.textContent = 'play_arrow'; };
         video.onwaiting = () => { document.getElementById('loading-spinner').style.display = 'block'; };
-        video.onplaying = () => { document.getElementById('loading-spinner').style.display = 'none'; };
+        video.onplaying = () => { 
+            document.getElementById('loading-spinner').style.display = 'none';
+            retryCount = 0;
+        };
 
         video.onerror = () => {
+            const err = video.error;
+            console.warn('Video error:', err);
+            
             if (!isTranscoding) {
                 console.warn('Video error occurred, falling back to transcoder');
                 fallbackToTranscoder(videoUrl, video.currentTime);
+            } else {
+                // Transcoder stream failed - Immediate Retry Logic
+                if (retryCount < MAX_RETRIES) {
+                    retryCount++;
+                    // Calculate correct resume time (start offset + played duration)
+                    const resumeTime = getCurrentRealTime();
+                    console.log(`Transcoder error (code ${err?.code}). Retrying (${retryCount}/${MAX_RETRIES}) from ${resumeTime}s...`);
+                    
+                    // Show spinner
+                    document.getElementById('loading-spinner').style.display = 'block';
+                    
+                    // Small delay to prevent tight loop and allow server cleanup
+                    setTimeout(() => {
+                        loadTranscodedStream(videoUrl, resumeTime);
+                    }, 1000);
+                } else {
+                    console.error('Max retries reached for transcoder.');
+                    document.getElementById('loading-spinner').style.display = 'none';
+                    // Optional: could show a UI message here
+                }
             }
         };
 

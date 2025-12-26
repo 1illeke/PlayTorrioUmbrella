@@ -453,7 +453,11 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         const args = [
             '-ss', start.toString(),
             '-i', targetUrl,
-            '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5',
+            '-reconnect', '1', 
+            '-reconnect_streamed', '1', 
+            '-reconnect_on_network_error', '1',
+            '-reconnect_at_eof', '1',
+            '-reconnect_delay_max', '5',
             '-map', '0:v:0',
             '-map', `0:a:${audioTrack}`,
             '-c:v', 'libx264', '-preset', preset, '-tune', 'zerolatency',
@@ -3981,77 +3985,9 @@ for (let i = 0; i < 10; i++) {
     }));
 
     const client = new WebTorrent({
-        // ============ ULTIMATE PEER DISCOVERY & CONNECTION OPTIMIZATION ============
-        maxConns: 500,           // Massive connection pool for maximum peers (5x default)
-        
-        // DHT Configuration - Distributed Hash Table for decentralized peer discovery
-        dht: {
-            bootstrap: [
-                // Primary DHT routers
-                'router.bittorrent.com:6881',
-                'router.utorrent.com:6881',
-                'dht.transmissionbt.com:6881',
-                'dht.aelitis.com:6881',
-                'dht.libtorrent.org:25401',
-                // Additional high-performance DHT nodes
-                'router.silotis.us:6881',
-                'dht.anacrolix.link:42069',
-                'router.bitcomet.com:6881'
-            ],
-            maxTables: 10000,        // MASSIVE DHT routing table (2x increase)
-            concurrency: 16,         // Parallel DHT lookups for faster peer discovery
-            bootstrap_interval: 30000 // Re-bootstrap every 30s to maintain connections
-        },
-        
-        // Tracker Configuration - Centralized peer discovery from top-tier trackers
-        tracker: {
-            announce: [
-                // Tier 1: Ultra-fast UDP trackers with high uptime
-                'udp://tracker.opentrackr.org:1337/announce',
-                'udp://open.tracker.cl:1337/announce',
-                'udp://tracker.torrent.eu.org:451/announce',
-                'udp://exodus.desync.com:6969/announce',
-                'udp://tracker.moeking.me:6969/announce',
-                'udp://explodie.org:6969/announce',
-                'udp://tracker.openbittorrent.com:6969/announce',
-                'udp://open.demonii.com:1337/announce',
-                'udp://tracker.theoks.net:6969/announce',
-                'udp://tracker.dler.org:6969/announce',
-                
-                // Tier 2: Additional reliable trackers
-                'udp://tracker1.bt.moack.co.kr:80/announce',
-                'udp://bt1.archive.org:6969/announce',
-                'udp://bt2.archive.org:6969/announce',
-                'udp://retracker.lanta-net.ru:2710/announce',
-                'udp://open.stealth.si:80/announce',
-                'udp://tracker.cyberia.is:6969/announce',
-                'udp://tracker.tiny-vps.com:6969/announce',
-                'udp://tracker.0x.tf:6969/announce',
-                'udp://ipv4.tracker.harry.lu:80/announce',
-                
-                // Tier 3: HTTP/WebSocket fallbacks for restricted networks
-                'http://tracker.openbittorrent.com:80/announce',
-                'http://nyaa.tracker.wf:7777/announce',
-                'http://tracker.opentrackr.org:1337/announce',
-                'wss://tracker.openwebtorrent.com',
-                'wss://tracker.btorrent.xyz',
-                'wss://tracker.webtorrent.dev'
-            ],
-            getAnnounceOpts: function () {
-                return { 
-                    numwant: 500,        // Request MAXIMUM peers per announce (5x increase)
-                    compact: 1,          // Use compact peer format for efficiency
-                    no_peer_id: 1        // Reduce bandwidth usage
-                }
-            },
-            rtcConfig: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' }
-                ]
-            },
-            wrtc: false              // Disable WebRTC for Electron (native TCP faster)
-        },
+        // ============ OPTIMIZED PEER SETTINGS ============
+        maxConns: 55,           // Reduced from 500 to 55 to prevent UI freezing
+        // Default DHT and Tracker settings are sufficient and more stable,
         
         // ============ PERFORMANCE OPTIMIZATIONS ============
         webSeeds: true,              // Enable HTTP web seeds for faster initial download
@@ -4334,7 +4270,7 @@ for (let i = 0; i < 10; i++) {
         // ============ AGGRESSIVE PEER WIRE OPTIMIZATION ============
         // Optimize each peer connection for maximum throughput
         torrent.on('wire', (wire, addr) => {
-            console.log(`[Peer Connected] ${addr} for ${infoHash.substring(0, 8)}...`);
+            // console.log(`[Peer Connected] ${addr} for ${infoHash.substring(0, 8)}...`);
             
             // Enable fast extension for faster piece exchange
             try {
@@ -4356,9 +4292,9 @@ for (let i = 0; i < 10; i++) {
         });
         
         // Monitor peer discovery progress
-        torrent.on('peer', (peer) => {
-            console.log(`[Peer Discovered] ${peer} for ${infoHash.substring(0, 8)}...`);
-        });
+        // torrent.on('peer', (peer) => {
+        //    console.log(`[Peer Discovered] ${peer} for ${infoHash.substring(0, 8)}...`);
+        // });
         
         // Log when we get our first data to track buffering speed
         let firstDataLogged = false;
