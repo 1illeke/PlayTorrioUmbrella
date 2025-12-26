@@ -14,6 +14,7 @@ import crypto from 'crypto';
 import { createRequire } from 'module';
 import { spawn, execSync } from 'child_process';
 import parseTorrent from 'parse-torrent';
+import { filterTorrents } from './torrent_filter.mjs';
 
 
 // Import the CommonJS api.cjs module
@@ -4704,7 +4705,7 @@ for (let i = 0; i < 10; i++) {
 
 
     app.get('/api/torrents', async (req, res) => {
-        const { q: query, page } = req.query;
+        const { q: query, page, season, episode, title } = req.query;
         if (!query) return res.status(400).json({ error: 'Missing query' });
         const s = readSettings();
         const useTorrentless = !!s.useTorrentless;
@@ -4763,7 +4764,7 @@ for (let i = 0; i < 10; i++) {
             const xml = await response.text();
             const result = await xml2js.parseStringPromise(xml, { mergeAttrs: true, explicitArray: false });
             const items = result.rss.channel.item || [];
-            const torrents = (Array.isArray(items) ? items : [items])
+            let torrents = (Array.isArray(items) ? items : [items])
                 .map(item => {
                     if (!item || (!item.link && !item.guid)) return null;
                     
@@ -4806,6 +4807,16 @@ for (let i = 0; i < 10; i++) {
                     return { title: item.title, magnet, torrentFileUrl, seeders: +seeders, size: +(item.enclosure?.length || 0) };
                 })
                 .filter(Boolean);
+
+            // Apply strict filtering
+            if (season || episode || title) {
+                console.log(`[Filter] Applying strict filter: Title="${title}", S=${season}, E=${episode}`);
+                // Use provided title or fallback to query (cleaned)
+                const showTitle = title || query.replace(/s\d+e\d+.*$/i, '').replace(/s\d+.*$/i, '').trim();
+                torrents = filterTorrents(torrents, showTitle, season, episode);
+                console.log(`[Filter] Remaining torrents: ${torrents.length}`);
+            }
+
             res.json(torrents);
         } catch (error) {
             console.error('[Jackett] Error fetching torrents:', error);

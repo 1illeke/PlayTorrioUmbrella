@@ -26416,7 +26416,8 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/torrents?q=${encodeURIComponent(query)}`);
+                const showTitle = currentContent.title || currentContent.name;
+                const response = await fetch(`${API_BASE_URL}/torrents?q=${encodeURIComponent(query)}&title=${encodeURIComponent(showTitle)}&season=${season||''}&episode=${episode||''}`);
                 if (!response.ok) {
                     const errorData = await response.json();
                     throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
