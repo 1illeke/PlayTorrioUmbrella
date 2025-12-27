@@ -222,12 +222,32 @@
                     </div>
 
                     <div class="right-controls">
+                        <button class="icon-btn" id="external-player-btn" title="External Player" style="display:none;"><i class="material-icons">link</i></button>
                         <button class="icon-btn" id="audio-btn" title="Audio Tracks"><i class="material-icons">audiotrack</i></button>
                         <button class="icon-btn" id="settings-btn" title="Quality Settings"><i class="material-icons">settings</i></button>
                         <button class="icon-btn" id="subs-btn" title="Subtitles"><i class="material-icons">subtitles</i></button>
                         <button class="icon-btn" id="fullscreen-btn" title="Fullscreen"><i class="material-icons">fullscreen</i></button>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- External Player Menu -->
+        <div id="external-menu" class="menu-popup">
+            <div class="menu-header">
+                <span>EXTERNAL PLAYER</span>
+                <button class="icon-btn" id="close-external" style="padding:4px;"><i class="material-icons">close</i></button>
+            </div>
+            <div class="p-8 text-center" style="padding: 30px;">
+                <p class="text-sm text-gray-300 mb-6" style="margin-bottom: 20px; font-size: 14px; line-height: 1.5;">
+                    Copy the URL below to open this video in your preferred external player (VLC, MPV, etc.).
+                    <br><br>
+                    <span style="color: var(--primary-purple); font-weight: bold;">⚠️ IMPORTANT:</span> Please keep this player active for the stream to stay live.
+                </p>
+                <button id="copy-stream-url" class="list-item active" style="width: 100%; justify-content: center; border: none; outline: none;">
+                    <i class="material-icons" style="font-size: 20px;">content_copy</i>
+                    <span>Copy Stream URL</span>
+                </button>
             </div>
         </div>
 
@@ -298,6 +318,7 @@
         const episode = params.get('episode');
         const type = params.get('type');
         const isDebrid = params.get('isDebrid') === '1';
+        const isBasicMode = params.get('isBasicMode') === '1';
 
         const titleEl = document.getElementById('video-title');
         titleEl.textContent = (season && episode) ? `S${season}:E${episode}` : (type === 'movie' ? 'Movie' : 'Video');
@@ -307,7 +328,15 @@
         function updateTranscodeUI() {
             const badge = document.getElementById('transcode-badge');
             const settingsBtn = document.getElementById('settings-btn');
+            const externalBtn = document.getElementById('external-player-btn');
+            
             settingsBtn.style.display = 'flex';
+            if (isBasicMode) {
+                externalBtn.style.display = 'flex';
+            } else {
+                externalBtn.style.display = 'none';
+            }
+
             if (isTranscoding) {
                 badge.style.display = 'inline-block';
             } else {
@@ -341,32 +370,27 @@
 
         async function initPlayer(url, start) {
             document.getElementById('loading-spinner').style.display = 'block';
-            lastAbsoluteTime = start || 0; // Initialize
+            lastAbsoluteTime = start || 0; 
             
+            // Start streaming immediately - Always Transcode per user request
+            console.log('Player: Starting stream immediately (Always Transcoding)');
+            isTranscoding = true;
+            updateTranscodeUI();
+            loadTranscodedStream(url, start);
+
+            // Fetch metadata in background for UI details (audio tracks, duration)
             try {
-                // Fetch metadata (required for audio tracks/duration in transcoding mode)
                 const metaRes = await fetch(`http://127.0.0.1:6987/api/transcode/metadata?url=${encodeURIComponent(url)}`);
-                const metadata = await metaRes.json();
-                
-                if (metadata.duration) videoDuration = metadata.duration;
-                if (metadata.audioTracks) {
-                    audioTracks = metadata.audioTracks;
-                    renderAudioTracks();
+                if (metaRes.ok) {
+                    const metadata = await metaRes.json();
+                    if (metadata.duration) videoDuration = metadata.duration;
+                    if (metadata.audioTracks) {
+                        audioTracks = metadata.audioTracks;
+                        renderAudioTracks();
+                    }
                 }
-
-                // Always Transcode per user request
-                console.log('Player: Transcoding enforced (Always On)');
-                isTranscoding = true;
-                updateTranscodeUI();
-                loadTranscodedStream(url, start);
-
             } catch (e) {
-                console.error('Metadata fetch failed, falling back to native play', e);
-                isTranscoding = false;
-                updateTranscodeUI();
-                video.src = url;
-                if (start > 0) video.currentTime = start;
-                video.play();
+                console.error('Background metadata fetch failed:', e);
             }
         }
 
@@ -425,10 +449,45 @@
         const audioBtn = document.getElementById('audio-btn');
         const audioMenu = document.getElementById('audio-menu');
         const closeAudio = document.getElementById('close-audio');
+        
+        // --- External Player Logic ---
+        const externalBtn = document.getElementById('external-player-btn');
+        const externalMenu = document.getElementById('external-menu');
+        const closeExternal = document.getElementById('close-external');
+        const copyUrlBtn = document.getElementById('copy-stream-url');
+
+        externalBtn.onclick = (e) => {
+            e.stopPropagation();
+            audioMenu.classList.remove('visible');
+            subsMenu.classList.remove('visible');
+            settingsMenu.classList.remove('visible');
+            externalMenu.classList.toggle('visible');
+        };
+        closeExternal.onclick = () => externalMenu.classList.remove('visible');
+
+        copyUrlBtn.onclick = () => {
+            const currentUrl = videoUrl;
+            if (currentUrl) {
+                navigator.clipboard.writeText(currentUrl).then(() => {
+                    const originalText = copyUrlBtn.querySelector('span').textContent;
+                    const originalIcon = copyUrlBtn.querySelector('i').textContent;
+                    
+                    copyUrlBtn.querySelector('span').textContent = 'Copied!';
+                    copyUrlBtn.querySelector('i').textContent = 'check';
+                    
+                    setTimeout(() => {
+                        copyUrlBtn.querySelector('span').textContent = originalText;
+                        copyUrlBtn.querySelector('i').textContent = originalIcon;
+                    }, 2000);
+                });
+            }
+        };
+
         audioBtn.onclick = (e) => {
             e.stopPropagation();
             subsMenu.classList.remove('visible');
             settingsMenu.classList.remove('visible');
+            externalMenu.classList.remove('visible');
             audioMenu.classList.toggle('visible');
         };
         closeAudio.onclick = () => audioMenu.classList.remove('visible');

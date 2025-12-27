@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   minimizeWindow: () => ipcRenderer.invoke("window-minimize"),
   maximizeWindow: () => ipcRenderer.invoke("window-maximize-toggle"),
   closeWindow: () => ipcRenderer.invoke("window-close"),
+  toggleDevTools: () => ipcRenderer.invoke("toggle-devtools"),
   onMaximizeChanged: (cb) => ipcRenderer.on("window-maximize-changed", (_e, payload) => cb && cb(payload)),
 
   // Player Launchers
@@ -72,6 +73,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Fullscreen
   setFullscreen: (isFullscreen) => ipcRenderer.invoke("set-fullscreen", isFullscreen),
   getFullscreen: () => ipcRenderer.invoke("get-fullscreen"),
+  setPreferredMode: (mode) => ipcRenderer.invoke("set-preferred-mode", mode),
 
   // Discord Rich Presence
   updateDiscordPresence: (data) => ipcRenderer.invoke("update-discord-presence", data),

@@ -239,6 +239,64 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
     app.use('/audiobooks', express.static(path.join(__dirname, 'AudioBooks', 'public')));
     app.use(express.json());
     
+    // ============================================================================
+    // TMDB PROXY (Added for Basic Mode)
+    // ============================================================================
+    app.use('/api/tmdb', async (req, res) => {
+        const endpoint = req.url; 
+        const query = req.query;
+        const API_KEY = 'b3556f3b206e16f82df4d1f6fd4545e6';
+        const BASE_URL = 'https://api.themoviedb.org/3';
+        
+        const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+        const url = new URL(`${BASE_URL}${cleanEndpoint.split('?')[0]}`);
+        url.searchParams.append('api_key', API_KEY);
+        Object.entries(query).forEach(([key, value]) => {
+            url.searchParams.append(key, value);
+        });
+
+        console.log(`[TMDB PROXY] Fetching: ${url.toString()}`);
+
+        try {
+            const response = await fetch(url.toString());
+            if (!response.ok) {
+                console.error(`[TMDB PROXY] Error: ${response.status} ${response.statusText}`);
+                return res.status(response.status).json({ error: `TMDB API Error: ${response.status}` });
+            }
+            const data = await response.json();
+            res.json(data);
+        } catch (error) {
+            console.error('[TMDB PROXY] Error:', error.message);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Proxy for Jackett (Added for Basic Mode)
+    app.get('/api/jackett', async (req, res) => {
+        let { apikey, q, t } = req.query;
+        const JACKETT_API_URL = 'http://127.0.0.1:9117/api/v2.0/indexers/all/results/torznab';
+        
+        // If apikey is masked (contains *) or missing, use the internal API_KEY
+        if (!apikey || apikey.includes('*')) {
+            apikey = API_KEY;
+        }
+
+        const url = new URL(JACKETT_API_URL);
+        if (apikey) url.searchParams.append('apikey', apikey);
+        if (q) url.searchParams.append('q', q);
+        if (t) url.searchParams.append('t', t);
+
+        try {
+            const response = await fetch(url.toString());
+            const data = await response.text(); // Jackett returns XML
+            res.header('Content-Type', 'application/xml');
+            res.status(response.status).send(data);
+        } catch (error) {
+            console.error('Jackett Proxy Error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     // Apply cache middleware to all API routes
     app.use('/anime/api', cacheMiddleware);
     app.use('/torrentio/api', cacheMiddleware);
@@ -302,12 +360,14 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         
         // Use 127.0.0.1 instead of localhost for internal requests to avoid DNS/IPv6 issues
         const targetUrl = videoUrl.replace('localhost', '127.0.0.1');
+        const isLocal = targetUrl.includes('127.0.0.1');
         
-        return new Promise((resolve, reject) => {
+        const runProbe = () => new Promise((resolve, reject) => {
             // Added reconnection flags and reduced analysis duration for stability
             const args = [
                 '-hide_banner',
                 '-loglevel', 'error',
+                '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 '-print_format', 'json',
                 '-show_format',
                 '-show_streams',
@@ -315,9 +375,15 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                 '-reconnect_streamed', '1',
                 '-reconnect_delay_max', '5',
                 '-analyzeduration', '5000000', 
-                '-probesize', '5000000',
-                targetUrl
+                '-probesize', '5000000'
             ];
+
+            // Only add TorBox Referer for external links
+            if (!isLocal) {
+                args.push('-headers', 'Referer: https://torbox.app/\r\n');
+            }
+
+            args.push(targetUrl);
             
             console.log(`[FFprobe] Spawning: ${resolvedFfprobePath} ${args.join(' ')}`);
             
@@ -333,10 +399,8 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
 
             ffprobe.on('close', (code, signal) => {
                 if (code !== 0) {
-                    console.error(`[FFprobe] Process failed for ${targetUrl}`);
-                    console.error(`[FFprobe] Exit Code: ${code}, Signal: ${signal}`);
-                    console.error(`[FFprobe] Stderr: ${stderr}`);
-                    return reject(new Error(`ffprobe failed: ${stderr || 'Unknown error'}`));
+                    const errorMsg = stderr || stdout || 'Unknown error';
+                    return reject(new Error(`ffprobe failed (code ${code}): ${errorMsg}`));
                 }
                 try {
                     const data = JSON.parse(stdout);
@@ -359,19 +423,40 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                     metadataCache.set(videoUrl, meta);
                     resolve(meta);
                 } catch (e) { 
-                    console.error('[FFprobe] Parse Error:', e.message, 'Stdout:', stdout);
-                    reject(e); 
+                    reject(new Error(`ffprobe JSON parse error: ${e.message} | Stdout: ${stdout.substring(0, 200)}`)); 
                 }
             });
 
             const timeout = setTimeout(() => { 
-                console.warn('[FFprobe] Operation timed out, killing process');
                 ffprobe.kill('SIGKILL'); 
                 reject(new Error('ffprobe timeout')); 
             }, 30000); 
 
             ffprobe.on('close', () => clearTimeout(timeout));
         });
+
+        // Retry logic for WebTorrent or slow starts
+        let lastError = null;
+        for (let i = 0; i < 20; i++) {
+            try {
+                const meta = await runProbe();
+                console.log(`[FFprobe] Success after ${i+1} attempts`);
+                return meta;
+            } catch (err) {
+                lastError = err;
+                const msg = err.message || '';
+                // If 404, 403 or Invalid Data, it means the stream is not ready yet (common in WebTorrent)
+                if (msg.includes('404') || msg.includes('403') || msg.includes('Invalid data') || msg.includes('ffprobe failed')) {
+                    console.log(`[FFprobe] Stream not ready (Attempt ${i+1}/20), waiting 3s... Error: ${msg.substring(0, 100)}`);
+                    await new Promise(r => setTimeout(r, 3000));
+                } else {
+                    console.error('[FFprobe] Terminal error:', msg);
+                    throw err; // Terminal error
+                }
+            }
+        }
+        console.error(`[FFprobe] Failed after maximum retries. Last error: ${lastError.message}`);
+        throw lastError;
     }
 
     app.get('/api/transcode/metadata', async (req, res) => {
@@ -395,21 +480,17 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         console.log(`[Transcoder] Request: ${targetUrl} from ${start}s [Quality: ${quality}]`);
         console.log(`[Transcoder] Using binary: ${resolvedFfmpegPath}`);
 
-        // Fetch metadata to get duration if not cached
-        let duration = 0;
-        try {
-            const meta = await getVideoMetadata(videoUrl);
-            duration = meta.duration;
-        } catch (e) {
-            console.warn('[Transcoder] Could not fetch duration for stream headers');
-        }
-
         res.writeHead(200, {
             'Content-Type': 'video/mp4',
             'Cache-Control': 'no-cache',
             'Connection': 'keep-alive',
             'Accept-Ranges': 'bytes',
             'Transfer-Encoding': 'chunked'
+        });
+
+        // Trigger metadata fetch in background (don't await)
+        getVideoMetadata(videoUrl).catch(e => {
+            console.warn('[Transcoder] Background metadata fetch failed:', e.message);
         });
 
         // Quality Presets
@@ -452,6 +533,7 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         }
 
         const args = [
+            '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             '-ss', start.toString(),
             '-i', targetUrl,
             '-reconnect', '1', 
@@ -464,6 +546,11 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
             '-c:v', 'libx264', '-preset', preset, '-tune', 'zerolatency',
             '-pix_fmt', 'yuv420p'
         ];
+
+        // Only add TorBox Referer for external links
+        if (!targetUrl.includes('127.0.0.1')) {
+            args.splice(2, 0, '-headers', 'Referer: https://torbox.app/\r\n');
+        }
 
         // Only apply scale filter if defined (not native)
         if (scaleFilter) {
@@ -1865,6 +1952,15 @@ async function tbGetStreamUrl(torrentId, timeout = 30_000) {
                 // Fetch latest info (should now have links for cached items)
                 let info = await rdFetch(`/torrents/info/${id}`);
                 
+                // Server-side logging of files for immediate visibility in terminal
+                if (info && info.files) {
+                    console.log(`--- FILES FOUND IN RD TORRENT: ${info.filename || 'Torrent'} ---`);
+                    info.files.forEach((file, i) => {
+                        console.log(`  [File ${i+1}] ${file.path || file.filename || 'Unknown'} (${(file.bytes / 1024 / 1024).toFixed(2)} MB)`);
+                    });
+                    console.log(`--------------------------------------------------`);
+                }
+
                 return res.json({ id, info });
             } else if (provider === 'alldebrid') {
                 console.log('[AD][prepare] magnet/upload');
@@ -1929,6 +2025,14 @@ async function tbGetStreamUrl(torrentId, timeout = 30_000) {
                 };
                 if (record?.files) walk(record.files, '');
                 const info = { id, filename: filename || (first?.name || 'Magnet'), files: outFiles };
+
+                // Server-side logging for AllDebrid
+                console.log(`--- FILES FOUND IN AD TORRENT: ${info.filename} ---`);
+                info.files.forEach((file, i) => {
+                    console.log(`  [File ${i+1}] ${file.filename || file.path} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+                });
+                console.log(`--------------------------------------------------`);
+
                 return res.json({ id, info });
             } else if (provider === 'torbox') {
                 console.log('[TB][prepare] createtorrent');
@@ -2000,7 +2104,15 @@ for (let i = 0; i < 10; i++) {
             infoObj = { id: String(tor.id || id), filename: tor.name || tor.filename || 'TorBox Torrent', files };
         }
 
-        if (infoObj && infoObj.files && infoObj.files.length) break;
+        if (infoObj && infoObj.files && infoObj.files.length) {
+            // Server-side logging for TorBox
+            console.log(`--- FILES FOUND IN TORBOX TORRENT: ${infoObj.filename} ---`);
+            infoObj.files.forEach((file, i) => {
+                console.log(`  [File ${i+1}] ${file.filename || file.path} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+            });
+            console.log(`--------------------------------------------------`);
+            break;
+        }
 
     } catch {}
 
@@ -2091,6 +2203,14 @@ for (let i = 0; i < 10; i++) {
                     };
                     
                     console.log('[PM][prepare] directdl success, returning', files.length, 'files');
+
+                    // Server-side logging for Premiumize (Direct DL)
+                    console.log(`--- FILES FOUND IN PM DIRECT DOWNLOAD: ${infoObj.filename} ---`);
+                    infoObj.files.forEach((file, i) => {
+                        console.log(`  [File ${i+1}] ${file.filename || file.path} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+                    });
+                    console.log(`--------------------------------------------------`);
+
                     return res.json({ id: 'directdl', info: infoObj });
                 }
                 
@@ -2191,6 +2311,13 @@ for (let i = 0; i < 10; i++) {
                         };
                         
                         console.log('[PM][prepare] folder fetched successfully, returning', files.length, 'files');
+
+                        // Server-side logging for Premiumize (Transfer)
+                        console.log(`--- FILES FOUND IN PM TRANSFER: ${infoObj.filename} ---`);
+                        infoObj.files.forEach((file, i) => {
+                            console.log(`  [File ${i+1}] ${file.filename || file.path} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+                        });
+                        console.log(`--------------------------------------------------`);
                     }
                 } catch (e) {
                     console.error('[PM][prepare] error fetching folder:', e.message);
@@ -4391,14 +4518,29 @@ for (let i = 0; i < 10; i++) {
         // As soon as metadata is available, deselect everything to prevent auto-download
         torrent.on('metadata', () => {
             console.log(`[Metadata] Received for ${torrent.name} | Peers: ${torrent.numPeers} | Pieces: ${torrent.pieces.length}`);
-            try { torrent.files.forEach(f => f.deselect()); } catch {}
-            try { torrent.deselect(0, Math.max(0, torrent.pieces.length - 1), false); } catch {}
+            try { 
+                torrent.deselect(0, torrent.pieces.length - 1, false);
+                torrent.files.forEach(f => f.deselect()); 
+                // Pause the torrent to stop all piece requests immediately
+                torrent.pause();
+                console.log(`[Protection] Torrent ${infoHash} paused after metadata retrieval`);
+            } catch (err) {
+                console.warn('[Protection] Error during initial deselect:', err.message);
+            }
         });
 
         const handleReady = (t) => {
             // Build list preserving original torrent.files index
             const all = t.files.map((file, idx) => ({ index: idx, name: file.name, size: file.length }));
             const filtered = all.filter(f => /\.(mp4|mkv|avi|mov|srt|vtt|ass)$/i.test(f.name));
+            
+            // Server-side logging of files for immediate visibility in terminal
+            console.log(`--- FILES FOUND IN: ${t.name} ---`);
+            t.files.forEach((file, i) => {
+                console.log(`  [File ${i+1}] ${file.name} (${(file.length / 1024 / 1024).toFixed(2)} MB)`);
+            });
+            console.log(`-----------------------------------------------`);
+
             res.json({
                 infoHash,
                 name: t.name,
@@ -4406,13 +4548,14 @@ for (let i = 0; i < 10; i++) {
                 subtitleFiles: filtered.filter(f => f.name.match(/\.(srt|vtt|ass)$/i)),
             });
             
-            // NOW deselect everything after sending the response - prevent downloading until user selects
+            // Re-verify deselect after sending the response
             setTimeout(() => {
                 try { 
+                    t.deselect(0, t.pieces.length - 1, false);
                     t.files.forEach(f => f.deselect()); 
-                    console.log(`[Protection] Deselected all files for ${infoHash} after sending file list`);
+                    t.pause();
+                    console.log(`[Protection] Verified pause/deselect for ${infoHash}`);
                 } catch {}
-                try { t.deselect(0, Math.max(0, t.pieces.length - 1), false); } catch {}
             }, 100);
         };
 
@@ -4431,6 +4574,9 @@ for (let i = 0; i < 10; i++) {
             const stream = () => {
             const file = torrent.files[fileIndex];
             if (!file) return res.status(404).send('File not found');
+
+            // Resume the torrent before selecting files/pieces
+            try { torrent.resume(); } catch {}
 
             // Ensure only the selected video file is downloaded (STRICT file-only mode)
             try {

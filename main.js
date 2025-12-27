@@ -1102,6 +1102,21 @@ function openInHtml5Player(win, streamUrl, startSeconds, metadata = {}) {
         playerWindow.on('closed', () => {
             mainWindow.removeListener('move', syncToPlayer);
             mainWindow.removeListener('resize', syncToPlayer);
+            
+            // Cleanup WebTorrent ONLY if it was a local stream AND in Basic Mode
+            if (metadata.isBasicMode && streamUrl && streamUrl.includes('/api/stream-file')) {
+                try {
+                    const urlObj = new URL(streamUrl);
+                    const hash = urlObj.searchParams.get('hash');
+                    if (hash) {
+                        console.log(`[Cleanup] Basic Mode player closed, stopping local stream: ${hash}`);
+                        fetch(`http://localhost:6987/api/stop-stream?hash=${hash}`).catch(() => {});
+                    }
+                } catch (e) {
+                    console.error('[Cleanup] Failed to parse streamUrl for cleanup:', e.message);
+                }
+            }
+
             playerWindow = null;
         });
 
@@ -1114,6 +1129,7 @@ function openInHtml5Player(win, streamUrl, startSeconds, metadata = {}) {
         if (metadata.episodeNum) params.append('episode', metadata.episodeNum);
         if (metadata.type) params.append('type', metadata.type);
         if (metadata.isDebrid) params.append('isDebrid', '1');
+        if (metadata.isBasicMode) params.append('isBasicMode', '1');
 
         const playerUrl = `http://localhost:6987/player.html?${params.toString()}`;
         console.log('[HTML5] Loading:', playerUrl);
@@ -1335,6 +1351,30 @@ async function migrateLocalStorageIfNeeded() {
     }
 }
 
+function getStartUrl() {
+    let startUrl = 'http://localhost:6987/basicmode/index.html'; // Default to Basic Mode
+    try {
+        const userDataPath = app.getPath('userData');
+        const settingsPath = path.join(userDataPath, 'settings.json');
+        if (fs.existsSync(settingsPath)) {
+            const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+            if (settings.preferredMode === 'advanced') {
+                startUrl = 'http://localhost:6987/index.html';
+            } else {
+                startUrl = 'http://localhost:6987/basicmode/index.html';
+            }
+        } else {
+            // If settings don't exist, create default with basic mode
+            const defaultSettings = { preferredMode: 'basic' };
+            fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
+            console.log('[Settings] Created default settings with Basic Mode');
+        }
+    } catch (e) {
+        console.error('[Settings] Error reading preferred mode:', e.message);
+    }
+    return startUrl;
+}
+
 function createWindow() {
     const isMac = process.platform === 'darwin';
     const win = new BrowserWindow({
@@ -1360,6 +1400,19 @@ function createWindow() {
         },
         backgroundColor: '#120a1f',
     });
+
+    // Add keyboard shortcut for DevTools
+    win.webContents.on('before-input-event', (event, input) => {
+        if ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i') {
+            win.webContents.toggleDevTools();
+            event.preventDefault();
+        }
+        if (input.key === 'F12') {
+            win.webContents.toggleDevTools();
+            event.preventDefault();
+        }
+    });
+
     // Remove default application menu (File/Edit/View/Help)
     try { Menu.setApplicationMenu(null); } catch(_) {}
 
@@ -1445,7 +1498,7 @@ function createWindow() {
             setTimeout(() => {
                 if (win && !win.isDestroyed()) {
                     console.log('[Window] Retrying load after failure...');
-                    win.loadURL('http://localhost:6987').catch(e => {
+                    win.loadURL(getStartUrl()).catch(e => {
                         console.error('[Window] Retry failed:', e);
                     });
                 }
@@ -1460,6 +1513,9 @@ function createWindow() {
         
         console.log('[Window] Waiting for server to be ready...');
         
+        const startUrl = getStartUrl();
+        console.log('[Window] Target Start URL:', startUrl);
+        
         for (let i = 0; i < maxAttempts; i++) {
             try {
                 const response = await got('http://localhost:6987', { 
@@ -1473,14 +1529,14 @@ function createWindow() {
                     // Ensure window is ready to load
                     if (win && !win.isDestroyed()) {
                         try {
-                            await win.loadURL('http://localhost:6987');
+                            await win.loadURL(startUrl);
                             console.log('[Window] UI loaded successfully');
                             return;
                         } catch (loadErr) {
                             console.error('[Window] Failed to load URL:', loadErr);
                             // Retry once
                             await new Promise(resolve => setTimeout(resolve, 1000));
-                            await win.loadURL('http://localhost:6987');
+                            await win.loadURL(startUrl);
                             return;
                         }
                     } else {
@@ -1500,7 +1556,7 @@ function createWindow() {
         console.warn('[Window] Server did not respond after 15s, attempting to load anyway...');
         if (win && !win.isDestroyed()) {
             try {
-                await win.loadURL('http://localhost:6987');
+                await win.loadURL(startUrl);
             } catch (err) {
                 console.error('[Window] Failed to load URL in fallback:', err);
             }
@@ -1514,7 +1570,7 @@ function createWindow() {
         setTimeout(() => {
             if (win && !win.isDestroyed()) {
                 console.log('[Window] Final attempt to load URL...');
-                win.loadURL('http://localhost:6987').catch(e => {
+                win.loadURL(getStartUrl()).catch(e => {
                     console.error('[Window] Final load attempt failed:', e);
                 });
             }
@@ -2542,16 +2598,16 @@ ipcMain.handle("addonRemove", async (event, addonId) => {
     });
 
     // IPC handler to spawn player (formerly mpv.js, now HTML5)
-ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, seasonNum, episodeNum, subtitles, isDebrid }) => {
+ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, seasonNum, episodeNum, subtitles, isDebrid, type, isBasicMode }) => {
     // return openPlayer(url, { tmdbId, seasonNum, episodeNum, subtitles, isDebrid }); // Old player
     
     let finalImdbId = imdbId;
     // Auto-fetch IMDB ID if missing
     if (!finalImdbId && tmdbId) {
         try {
-            const type = seasonNum ? 'tv' : 'movie';
+            const useType = (seasonNum || type === 'tv') ? 'tv' : 'movie';
             const apiKey = 'b3556f3b206e16f82df4d1f6fd4545e6'; 
-            const tmdbUrl = `https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=${apiKey}`;
+            const tmdbUrl = `https://api.themoviedb.org/3/${useType}/${tmdbId}/external_ids?api_key=${apiKey}`;
             
             const response = await fetch(tmdbUrl);
             if (response.ok) {
@@ -2566,7 +2622,7 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
         }
     }
 
-    return openInHtml5Player(mainWindow, url, null, { tmdbId, imdbId: finalImdbId, seasonNum, episodeNum, isDebrid, type: (seasonNum ? 'tv' : 'movie') });
+    return openInHtml5Player(mainWindow, url, null, { tmdbId, imdbId: finalImdbId, seasonNum, episodeNum, isDebrid, type: (seasonNum || type === 'tv' ? 'tv' : 'movie'), isBasicMode });
 });
 
     // Direct MPV launch for external URLs (111477, etc.)
@@ -3078,6 +3134,12 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
         }
     });
 
+    ipcMain.handle('toggle-devtools', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.toggleDevTools();
+        }
+    });
+
     // Discord Rich Presence handlers
     ipcMain.handle('update-discord-presence', async (event, presenceData) => {
         try {
@@ -3406,20 +3468,39 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
             return { success: false, error: e?.message || String(e) };
         }
     });
-    ipcMain.handle('set-user-pref', async (event, key, value) => {
-        try {
-            const settings = readMainSettings();
-            if (!settings.userPrefs) settings.userPrefs = {};
-            settings.userPrefs[key] = value;
-            writeMainSettings(settings);
-            console.log('[UserPrefs] Saved', key, '=', value);
-            return { success: true };
-        } catch (e) {
-            console.error('[UserPrefs] Failed to save', key, ':', e?.message);
-            console.error('[UserPrefs] Failed to save', key, ':', e?.message);
-            return { success: false, error: e?.message || String(e) };
+ipcMain.handle('set-user-pref', async (event, key, value) => {
+    try {
+        const userDataPath = app.getPath('userData');
+        const settingsPath = path.join(userDataPath, 'user_settings.json');
+        let settings = {};
+        if (fs.existsSync(settingsPath)) {
+            settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
         }
-    });
+        settings[key] = value;
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('set-preferred-mode', async (event, mode) => {
+    try {
+        const userDataPath = app.getPath('userData');
+        const settingsPath = path.join(userDataPath, 'settings.json');
+        let settings = {};
+        if (fs.existsSync(settingsPath)) {
+            settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        }
+        settings.preferredMode = mode;
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+        console.log('[Settings] Preferred mode updated to:', mode);
+        return { success: true };
+    } catch (error) {
+        console.error('[Settings] Error saving preferred mode:', error.message);
+        return { success: false, error: error.message };
+    }
+});
 
     // ===================================================
     // MUSIC IPC HANDLERS

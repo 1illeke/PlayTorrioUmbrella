@@ -9593,6 +9593,11 @@
                                     <input type="radio" name="uiMode" value="old" id="uiModeOld" />
                                     <label for="uiModeOld"><strong>OLD UI</strong> - Classic website layout</label>
                                 </div>
+                                <div style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.05);">
+                                    <button onclick="if(window.electronAPI?.setPreferredMode) window.electronAPI.setPreferredMode('basic'); window.location.href='basicmode/index.html'" class="btn btn-outline" style="width:100%; justify-content:center;">
+                                        <i class="fas fa-bolt"></i> Switch to Basic Mode
+                                    </button>
+                                </div>
                                 <div style="margin-top:0.5rem; color:var(--secondary); font-size:0.9rem;">
                                     <i class="fas fa-info-circle"></i> Changes will apply immediately after saving
                                 </div>

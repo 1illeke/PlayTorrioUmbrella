@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlayTorrio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'primary-purple': '#7c3aed',
+              'primary-blue': '#3b82f6',
+              'bg-dark': '#0a0a0f',
+              'bg-card': '#14141f',
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body class="bg-bg-dark text-white edge-glow min-h-screen pb-12 pt-8">
+    <!-- Custom Title Bar -->
+    <div class="custom-title-bar fixed top-0 left-0 right-0 h-8 flex items-center justify-between px-3 z-[999999] select-none bg-[#0a0a0f] border-b border-white/5" style="-webkit-app-region: drag;">
+        <div class="flex items-center gap-2 text-xs font-semibold text-gray-300">
+            <svg class="w-4 h-4 text-primary-purple opacity-90" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+            </svg>
+            <span class="opacity-90">PlayTorrio <span class="text-xs text-gray-500 font-normal ml-1">Basic Mode</span></span>
+        </div>
+        <div class="flex items-center gap-1" style="-webkit-app-region: no-drag;">
+            <button id="min-btn" class="w-10 h-8 flex items-center justify-center text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+            </button>
+            <button id="max-btn" class="w-10 h-8 flex items-center justify-center text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h18v18H3z"/></svg>
+            </button>
+            <button id="close-btn" class="w-10 h-8 flex items-center justify-center text-gray-400 hover:bg-red-500 hover:text-white transition-colors">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Title Bar Logic
+        if (window.electronAPI) {
+            document.getElementById('min-btn').addEventListener('click', () => window.electronAPI.minimizeWindow());
+            document.getElementById('max-btn').addEventListener('click', () => window.electronAPI.maximizeWindow());
+            document.getElementById('close-btn').addEventListener('click', () => window.electronAPI.closeWindow());
+        }
+    </script>
+
+    <!-- Hero Header -->
+    <header class="absolute inset-x-0 top-0 z-[100] pt-16 pb-12 px-6 md:px-12 bg-gradient-to-b from-black/90 via-black/40 to-transparent pointer-events-none">
+        <div class="flex items-center justify-between transition-all duration-500 ease-out transform translate-y-0 opacity-100 pointer-events-auto" id="header-content">
+            <a href="index.html" class="flex items-center gap-4 group cursor-pointer flex-shrink-0">
+                <div class="relative w-14 h-14">
+                    <!-- Glow effect -->
+                    <div class="absolute inset-0 bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl blur-lg opacity-40 group-hover:opacity-60 transition-opacity duration-500"></div>
+                    
+                    <!-- Icon Container -->
+                    <div class="relative w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl flex items-center justify-center shadow-xl border border-white/10 overflow-hidden">
+                        <!-- Decorative inner light -->
+                        <div class="absolute -top-4 -left-4 w-12 h-12 bg-white/20 rounded-full blur-xl"></div>
+                        
+                        <svg class="w-8 h-8 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)] transform transition-transform duration-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"/>
+                            <path d="M12 18C15.3137 18 18 15.3137 18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M10.5 9.5L14.5 12L10.5 14.5V9.5Z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="hidden md:block">
+                    <h1 class="text-2xl md:text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent transition-all duration-500">
+                        PlayTorrio
+                    </h1>
+                    <p class="text-gray-500 text-sm font-medium tracking-wide">Stream anything, anywhere</p>
+                </div>
+            </a>
+
+            <div class="flex items-center gap-4 ml-auto">
+                <!-- Search Bar -->
+                <div class="relative group w-full max-w-md">
+                    <input type="text" 
+                           id="search-input"
+                           class="block w-64 md:w-80 lg:w-96 pl-12 pr-4 py-2.5 bg-gray-800/60 border border-gray-700/50 rounded-full text-sm placeholder-gray-500 text-white focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/10 transition-all duration-300 backdrop-blur-md hover:bg-gray-800/70 shadow-inner" 
+                           placeholder="Search movies, TV shows...">
+                    
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <svg class="h-5 w-5 text-gray-300 group-focus-within:text-purple-400 transition-colors" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Settings Button -->
+                <button id="settings-btn" class="w-10 h-10 bg-gray-800/80 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors active:scale-95 border border-gray-700/50">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Decorative gradient blur -->
+        <div class="absolute top-0 left-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute top-0 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
+    </header>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-95 transition-transform duration-300" id="settings-content">
+            <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+                <svg class="w-6 h-6 text-primary-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Settings
+            </h2>
+            
+            <div class="mb-6">
+                <label class="block text-gray-400 text-sm font-medium mb-2">Jackett API Key</label>
+                <input type="password" id="jackett-api-input" class="w-full bg-black/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary-purple focus:ring-1 focus:ring-primary-purple transition-all" placeholder="Enter your Jackett API key">
+                <p class="text-gray-500 text-xs mt-2">Required for fetching sources via Jackett.</p>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-gray-400 text-sm font-medium mb-2">Stremio Addons</label>
+                <div class="flex gap-2 mb-3">
+                    <input type="text" id="addon-manifest-input" class="flex-1 bg-black/50 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-primary-purple transition-all" placeholder="https://addon.com/manifest.json">
+                    <button id="install-addon-btn" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-lg transition-colors">Install</button>
+                </div>
+                <div id="installed-addons-list" class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                    <!-- Addons go here -->
+                </div>
+            </div>
+
+            <!-- Debrid Configuration -->
+            <div class="mb-6 pt-4 border-t border-gray-800">
+                <h3 class="text-white font-semibold mb-3 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    Debrid Settings
+                </h3>
+                
+                <div class="mb-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="use-debrid-toggle" class="form-checkbox bg-gray-800 border-gray-700 text-purple-600 rounded focus:ring-purple-500 transition-colors">
+                        <span class="text-gray-300 text-sm">Use Debrid for streams</span>
+                    </label>
+                </div>
+
+                <div id="debrid-config-container" class="space-y-4 opacity-50 pointer-events-none transition-opacity duration-300">
+                    <div>
+                        <label class="block text-gray-400 text-xs font-medium mb-1">Provider</label>
+                        <select id="debrid-provider-select" class="w-full bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary-purple transition-all">
+                            <option value="realdebrid">Real-Debrid</option>
+                            <option value="alldebrid">AllDebrid</option>
+                            <option value="torbox">TorBox</option>
+                            <option value="premiumize">Premiumize</option>
+                        </select>
+                    </div>
+
+                    <div id="rd-auth-section">
+                        <div class="flex items-center justify-between mb-2">
+                            <span id="rd-status" class="text-xs text-red-400">Not logged in</span>
+                            <button id="rd-login-btn" class="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white text-xs font-bold rounded transition-colors">
+                                Login with Real-Debrid
+                            </button>
+                        </div>
+                        <p class="text-gray-500 text-[10px]">No password needed. Authenticate via device code.</p>
+                    </div>
+
+                    <div id="api-key-section" class="hidden">
+                        <label class="block text-gray-400 text-xs font-medium mb-1">API Key</label>
+                        <input type="password" id="debrid-api-input" class="w-full bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary-purple transition-all" placeholder="Enter API Key">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-6 pt-4 border-t border-gray-800">
+                <label class="block text-gray-400 text-sm font-medium mb-2">Application Mode</label>
+                <button onclick="if(window.electronAPI?.setPreferredMode) window.electronAPI.setPreferredMode('advanced'); window.location.href='../index.html'" class="w-full py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 border border-gray-700">
+                    <svg class="w-5 h-5 text-primary-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                    Switch to Advanced Mode (Main App)
+                </button>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button id="close-settings" class="px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-800 transition-colors">Cancel</button>
+                <button id="save-settings" class="px-6 py-2 rounded-lg bg-primary-purple text-white font-medium hover:bg-purple-600 shadow-lg shadow-purple-500/25 transition-all">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hero Section -->
+    <div id="hero-section" class="relative h-screen w-full overflow-hidden opacity-0 transition-opacity duration-1000">
+        <!-- Hero Background -->
+        <div id="hero-backdrop" class="absolute inset-0 bg-cover bg-center transition-all duration-1000 scale-105"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-bg-dark via-bg-dark/40 to-transparent"></div>
+        <div class="absolute inset-0 bg-gradient-to-r from-bg-dark via-bg-dark/20 to-transparent"></div>
+        
+        <!-- Hero Content -->
+        <div class="relative z-10 h-full flex flex-col justify-end px-6 md:px-12 pb-24 max-w-4xl">
+            <div id="hero-badge" class="inline-flex items-center gap-2 px-3 py-1 bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-full text-xs font-bold tracking-widest uppercase mb-4 w-fit backdrop-blur-md">
+                <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                </span>
+                Trending Now
+            </div>
+            <h1 id="hero-title" class="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-4 drop-shadow-2xl"></h1>
+            <p id="hero-overview" class="text-gray-300 text-base md:text-lg mb-8 line-clamp-3 max-w-2xl drop-shadow-lg font-medium"></p>
+            
+            <div class="flex items-center gap-4">
+                <a id="hero-info-btn" href="#" class="px-8 py-3 bg-white text-black font-bold rounded-full hover:bg-gray-200 transition-all transform hover:scale-105 flex items-center gap-2 shadow-xl">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                    </svg>
+                    More Info
+                </a>
+            </div>
+        </div>
+
+        <!-- Scroll Indicator -->
+        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 animate-bounce opacity-50">
+            <span class="text-[10px] font-bold tracking-[0.2em] uppercase text-white">Scroll Down</span>
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 13l-7 7-7-7m14-8l-7 7-7-7" />
+            </svg>
+        </div>
+    </div>
+
+    <!-- Welcome Popup -->
+    <div id="welcome-popup" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-[#14141f] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl transform scale-95 transition-transform duration-300" id="welcome-content">
+            <div class="w-16 h-16 bg-primary-purple/20 rounded-full flex items-center justify-center mb-6 mx-auto">
+                <svg class="w-8 h-8 text-primary-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-white text-center mb-4">Basic Mode is Here!</h2>
+            <p class="text-gray-400 text-center mb-8 leading-relaxed">
+                Welcome to the new experience. Basic Mode is designed to be <span class="text-white font-medium">simpler and easier to use</span>. 
+                <br><br>
+                Need more features? You can switch back to the <span class="text-primary-purple font-medium">Advanced Mode</span> (Main App) anytime from the settings menu at the top right.
+            </p>
+            <div class="flex flex-col gap-3">
+                <button id="close-welcome" class="w-full py-3 bg-primary-purple hover:bg-purple-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-purple-500/20">
+                    Got it!
+                </button>
+                <button id="dont-show-welcome" class="w-full py-2 text-gray-500 hover:text-gray-300 text-sm font-medium transition-colors">
+                    Don't show this again
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav id="main-nav" class="fixed top-12 left-0 right-0 z-[101] flex justify-center py-4 pointer-events-none">
+        <div class="bg-black/50 backdrop-blur-md border border-white/10 rounded-full px-6 py-2 pointer-events-auto flex items-center gap-6">
+            <a href="#" onclick="showSection('home'); return false;" class="nav-link text-white/70 hover:text-white transition-colors text-sm font-medium active">Home</a>
+            <a href="#" onclick="showSection('comics'); return false;" class="nav-link text-white/70 hover:text-white transition-colors text-sm font-medium">Comics</a>
+        </div>
+    </nav>
+
+    <!-- Comics Section -->
+    <div id="comics-section" class="hidden relative z-[70] px-6 min-h-screen pt-32 pointer-events-auto">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div class="flex items-center gap-4">
+                <button id="comics-back-btn" class="hidden w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                </button>
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3">
+                    <span class="w-1 h-6 bg-gradient-to-b from-orange-500 to-red-500 rounded-full"></span>
+                    Comics Library
+                </h2>
+            </div>
+            
+            <div class="flex items-center gap-3 bg-gray-800/50 backdrop-blur-sm rounded-full p-1 border border-gray-700/50">
+                <div class="relative group">
+                    <input type="text" id="comics-search-input" placeholder="Search comics..." class="bg-transparent border-none text-sm text-white px-4 py-1.5 w-48 focus:w-64 transition-all focus:ring-0 placeholder-gray-500">
+                </div>
+                <select id="comics-genre-select" class="bg-transparent border-l border-white/10 text-sm text-gray-300 px-3 py-1.5 focus:text-white outline-none cursor-pointer">
+                    <option value="">All Genres</option>
+                </select>
+                <button id="comics-saved-btn" class="px-3 py-1.5 rounded-full text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all">
+                    Saved
+                </button>
+            </div>
+        </div>
+
+        <div id="comics-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <!-- Comics will be loaded here -->
+        </div>
+        
+        <div id="comics-loading" class="hidden flex justify-center py-20">
+            <div class="w-12 h-12 border-4 border-orange-500/30 border-t-orange-500 rounded-full animate-spin"></div>
+        </div>
+    </div>
+
+    <!-- Comics Reader Overlay -->
+    <div id="comics-reader-overlay" class="fixed inset-0 z-[100] bg-black hidden flex-col pt-8">
+        <div class="h-12 bg-gray-900/90 border-b border-white/10 flex items-center justify-between px-4 select-none">
+            <div class="flex items-center gap-4">
+                <button id="comics-reader-close" class="text-gray-400 hover:text-white transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+                <div>
+                    <h3 id="comics-reader-title" class="text-sm font-bold text-white truncate max-w-[200px] md:max-w-md">Comic Title</h3>
+                    <p id="comics-reader-chapter" class="text-xs text-gray-400">Chapter 1</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="comics-zoom-out" class="p-2 text-gray-400 hover:text-white transition-colors" title="Zoom Out">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7"/></svg>
+                </button>
+                <button id="comics-zoom-in" class="p-2 text-gray-400 hover:text-white transition-colors" title="Zoom In">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                </button>
+                <button id="comics-fullscreen" class="p-2 text-gray-400 hover:text-white transition-colors" title="Toggle Fullscreen">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 4l-5-5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                </button>
+            </div>
+        </div>
+        <div id="comics-reader-pages" class="flex-1 overflow-y-auto overflow-x-auto custom-scrollbar bg-[#1a1a1a] p-4">
+            <!-- Pages go here -->
+        </div>
+    </div>
+
+    <!-- Search Results (Hidden by default) -->
+    <div id="search-results-container" class="hidden relative z-[70] px-6 min-h-screen bg-bg-dark pt-32 pointer-events-auto">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <h2 class="text-2xl font-bold text-white flex items-center gap-3">
+                Search Results
+            </h2>
+            
+            <!-- Filter Buttons -->
+            <div class="flex items-center bg-gray-800/50 backdrop-blur-sm rounded-full p-1 border border-gray-700/50" id="search-filters">
+                <button data-filter="all" class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-300 bg-primary-purple text-white shadow-lg shadow-purple-500/25">
+                    All
+                </button>
+                <button data-filter="movie" class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium text-gray-400 hover:text-white transition-all duration-300 hover:bg-white/5">
+                    Movies
+                </button>
+                <button data-filter="tv" class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium text-gray-400 hover:text-white transition-all duration-300 hover:bg-white/5">
+                    TV Shows
+                </button>
+            </div>
+        </div>
+
+        <div id="search-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <!-- Search results will be injected here -->
+        </div>
+        <div id="no-results" class="hidden text-center text-gray-400 py-12">
+            <p class="text-xl">No results found matching your search.</p>
+        </div>
+    </div>
+
+    <!-- Content Rows -->
+    <div id="content-rows" class="relative z-10 space-y-6 min-h-[50vh]">
+        <!-- Rows will be injected here -->
+         <div id="loading-indicator" class="flex justify-center items-center py-20">
+            <div class="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
+         </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-16 px-6 py-8 text-center">
+    </footer>
+
+    <!-- Templates -->
+    <template id="addon-item-template">
+        <div class="flex items-center justify-between p-2 bg-black/30 rounded-lg border border-gray-800">
+            <div class="flex items-center gap-2 overflow-hidden">
+                <img class="addon-logo w-6 h-6 rounded flex-shrink-0 object-contain bg-gray-900" src="" alt="">
+                <span class="addon-name text-xs text-gray-200 truncate"></span>
+            </div>
+            <button class="remove-addon-btn p-1.5 text-gray-500 hover:text-red-400 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+            </button>
+        </div>
+    </template>
+
+    <template id="poster-row-template">
+        <div class="mb-4 relative group/row row-container opacity-0 translate-y-4 transition-all duration-500">
+            <h2 class="text-xl md:text-2xl font-bold text-white mb-4 px-6 flex items-center gap-3">
+                <span class="w-1 h-6 bg-gradient-to-b from-purple-500 to-blue-500 rounded-full"></span>
+                <span class="row-title">Title</span>
+            </h2>
+            
+            <div class="relative">
+                <button class="scroll-left absolute left-0 top-1/2 -translate-y-1/2 z-20 w-12 h-12 bg-black/80 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all duration-300 hover:bg-purple-600 opacity-0 pointer-events-none">
+                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                
+                <button class="scroll-right absolute right-0 top-1/2 -translate-y-1/2 z-20 w-12 h-12 bg-black/80 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all duration-300 hover:bg-purple-600 opacity-0 pointer-events-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+
+                <div class="row-posters flex gap-4 px-6 overflow-x-hidden hide-scrollbar scroll-smooth">
+                    <!-- Posters go here -->
+                </div>
+
+                <div class="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-[#0a0a0f] to-transparent pointer-events-none z-10"></div>
+                <div class="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-[#0a0a0f] to-transparent pointer-events-none z-10"></div>
+            </div>
+        </div>
+    </template>
+
+    <template id="poster-card-template">
+        <a href="#" class="poster-link block flex-shrink-0 w-[160px] md:w-[180px] lg:w-[200px] group relative">
+            <div class="aspect-[2/3] rounded-xl overflow-hidden mb-2 relative poster-shadow transition-all duration-300 group-hover:shadow-purple-500/40 group-hover:shadow-2xl border border-transparent group-hover:border-purple-500/30">
+                <img src="" alt="" loading="lazy" class="poster-img w-full h-full object-cover">
+                <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center p-4 text-center">
+                    <span class="text-white font-bold mb-2 poster-rating flex items-center gap-1">
+                         <svg class="w-4 h-4 text-yellow-400 fill-current" viewBox="0 0 20 20">
+                            <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                         </svg>
+                         <span class="rating-value"></span>
+                    </span>
+                    <button class="bg-primary-purple text-white px-4 py-2 rounded-full text-sm font-medium transform scale-0 group-hover:scale-100 transition-transform duration-300 delay-100">
+                        View Details
+                    </button>
+                </div>
+            </div>
+            <h3 class="poster-title text-white font-medium truncate group-hover:text-primary-purple transition-colors"></h3>
+            <p class="poster-date text-gray-500 text-sm"></p>
+        </a>
+    </template>
+
+    <script type="module" src="js/home.js"></script>
+</body>
+</html>

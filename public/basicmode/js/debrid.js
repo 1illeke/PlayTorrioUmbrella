@@ -1,0 +1,254 @@
+const API_BASE = '/api';
+
+export const getDebridSettings = async () => {
+    try {
+        const response = await fetch(`${API_BASE}/settings`);
+        if (response.ok) {
+            return await response.json();
+        }
+    } catch (e) {
+        console.error("Failed to fetch settings", e);
+    }
+    return {};
+};
+
+export const saveDebridSettings = async (settings) => {
+    try {
+        const response = await fetch(`${API_BASE}/settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        });
+        return response.ok;
+    } catch (e) {
+        console.error("Failed to save settings", e);
+        return false;
+    }
+};
+
+export const initDebridUI = async () => {
+    const useDebridToggle = document.getElementById('use-debrid-toggle');
+    const debridConfigContainer = document.getElementById('debrid-config-container');
+    const providerSelect = document.getElementById('debrid-provider-select');
+    const rdAuthSection = document.getElementById('rd-auth-section');
+    const apiKeySection = document.getElementById('api-key-section');
+    const rdLoginBtn = document.getElementById('rd-login-btn');
+    const rdStatus = document.getElementById('rd-status');
+    const debridApiInput = document.getElementById('debrid-api-input');
+
+    if (!useDebridToggle) return;
+
+    // Load initial state
+    const settings = await getDebridSettings();
+    const useDebrid = !!settings.useDebrid;
+    useDebridToggle.checked = useDebrid;
+    
+    if (useDebrid) {
+        debridConfigContainer.classList.remove('opacity-50', 'pointer-events-none');
+    }
+
+    if (settings.debridProvider) {
+        providerSelect.value = settings.debridProvider;
+    }
+
+    const updateUI = (provider) => {
+        // Reset specific UI elements
+        rdAuthSection.classList.add('hidden');
+        apiKeySection.classList.add('hidden');
+        rdStatus.textContent = 'Not logged in';
+        rdStatus.className = 'text-xs text-red-400';
+        debridApiInput.value = ''; // Clear input as we can't retrieve actual keys
+
+        if (provider === 'realdebrid') {
+            rdAuthSection.classList.remove('hidden');
+            if (settings.debridAuth && settings.debridProvider === 'realdebrid') {
+                rdStatus.textContent = 'Logged in';
+                rdStatus.className = 'text-xs text-green-400';
+                rdLoginBtn.textContent = 'Logout';
+                rdLoginBtn.classList.replace('bg-green-600', 'bg-red-600');
+                rdLoginBtn.classList.replace('hover:bg-green-500', 'hover:bg-red-500');
+            } else {
+                rdLoginBtn.textContent = 'Login with Real-Debrid';
+                rdLoginBtn.classList.replace('bg-red-600', 'bg-green-600');
+                rdLoginBtn.classList.replace('hover:bg-red-500', 'hover:bg-green-500');
+            }
+        } else {
+            apiKeySection.classList.remove('hidden');
+            if (settings.debridAuth && settings.debridProvider === provider) {
+                debridApiInput.placeholder = 'Saved (Enter new to overwrite)';
+            } else {
+                debridApiInput.placeholder = 'Enter API Key';
+            }
+        }
+    };
+
+    // Event Listeners
+    useDebridToggle.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            debridConfigContainer.classList.remove('opacity-50', 'pointer-events-none');
+        } else {
+            debridConfigContainer.classList.add('opacity-50', 'pointer-events-none');
+        }
+        saveDebridSettings({ useDebrid: e.target.checked });
+    });
+
+    providerSelect.addEventListener('change', (e) => {
+        const provider = e.target.value;
+        // Temporarily update UI; real state update happens after save/reload or if auth is persistent
+        // For simple switching, we assume not-authed until confirmed
+        settings.debridProvider = provider;
+        settings.debridAuth = false; // Reset view auth for new provider until confirmed
+        updateUI(provider);
+        saveDebridSettings({ debridProvider: provider });
+        
+        // Refresh settings to check if we are actually authed with this new provider
+        getDebridSettings().then(newS => {
+            Object.assign(settings, newS);
+            updateUI(provider);
+        });
+    });
+
+    debridApiInput.addEventListener('change', async (e) => {
+        const provider = providerSelect.value;
+        const key = e.target.value.trim();
+        if (!key) return;
+
+        let endpoint = '';
+        let body = {};
+
+        if (provider === 'alldebrid') {
+            endpoint = '/api/debrid/ad/apikey';
+            body = { apikey: key };
+        } else if (provider === 'torbox') {
+            endpoint = '/api/debrid/tb/token';
+            body = { token: key };
+        } else if (provider === 'premiumize') {
+            endpoint = '/api/debrid/pm/apikey';
+            body = { apikey: key };
+        }
+
+        if (endpoint) {
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (res.ok) {
+                    debridApiInput.value = '';
+                    debridApiInput.placeholder = 'Saved!';
+                    // Refresh settings to update debridAuth status
+                    const newS = await getDebridSettings();
+                    Object.assign(settings, newS);
+                } else {
+                    alert('Failed to save API key');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error saving API key');
+            }
+        }
+    });
+
+    rdLoginBtn.addEventListener('click', async () => {
+        if (rdLoginBtn.textContent === 'Logout') {
+            await saveDebridSettings({ rdToken: null, rdRefreshToken: null }); 
+            // Note: generic settings save might not clear token if server ignores it.
+            // But we don't have a specific logout endpoint for RD in server.mjs visible here?
+            // Actually, sending garbage to /api/debrid/token clears it.
+            await fetch('/api/debrid/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: '' }) // Empty token triggers clear
+            });
+            
+            settings.debridAuth = false;
+            updateUI('realdebrid');
+        } else {
+            startRDDeviceFlow();
+        }
+    });
+
+    const startRDDeviceFlow = async () => {
+        rdLoginBtn.disabled = true;
+        rdLoginBtn.textContent = 'Connecting...';
+        try {
+            const res = await fetch(`${API_BASE}/debrid/rd/device-code`);
+            const data = await res.json();
+            
+            if (data.user_code) {
+                // Copy code to clipboard
+                if (window.electronAPI?.copyToClipboard) {
+                    window.electronAPI.copyToClipboard(data.user_code);
+                } else {
+                    navigator.clipboard.writeText(data.user_code);
+                }
+                
+                // Open verification URL
+                if (window.electronAPI?.openExternal) {
+                    window.electronAPI.openExternal(`https://real-debrid.com/device?code=${data.user_code}`);
+                } else {
+                    window.open(`https://real-debrid.com/device?code=${data.user_code}`, '_blank');
+                }
+
+                rdStatus.textContent = `Code: ${data.user_code} (Copied)`;
+                rdLoginBtn.textContent = 'Waiting...';
+
+                // Poll for token
+                pollRDToken(data.device_code, data.interval);
+            }
+        } catch (e) {
+            console.error("RD Login failed", e);
+            rdLoginBtn.textContent = 'Error';
+            rdLoginBtn.disabled = false;
+        }
+    };
+
+    const pollRDToken = async (deviceCode, interval) => {
+        const pollInterval = setInterval(async () => {
+            try {
+                const res = await fetch(`${API_BASE}/debrid/rd/poll`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_code: deviceCode })
+                });
+                
+                // If the response is not OK, it might be a pending state or an error
+                // We attempt to parse JSON regardless of status
+                let data = {};
+                try {
+                    data = await res.json();
+                } catch (e) {
+                    // Non-JSON response (e.g. server error HTML), ignore this poll tick
+                    return;
+                }
+                
+                if (data.success || (res.ok && !data.error)) {
+                    clearInterval(pollInterval);
+                    // Settings are saved by backend, but we refresh local state
+                    const newSettings = await getDebridSettings();
+                    Object.assign(settings, newSettings);
+                    
+                    updateUI('realdebrid');
+                    rdLoginBtn.disabled = false;
+                } else if (data.error) {
+                    // Check for terminal errors
+                    const errStr = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+                    if (/expired|invalid|access_denied/i.test(errStr)) {
+                        clearInterval(pollInterval);
+                        rdLoginBtn.textContent = 'Login Failed';
+                        rdLoginBtn.disabled = false;
+                        rdStatus.textContent = 'Code expired or invalid';
+                        rdStatus.className = 'text-xs text-red-400';
+                    }
+                    // For other errors (including the weird null error), we assume pending/transient and KEEP POLLING
+                }
+            } catch (e) {
+                // Network error, keep polling
+            }
+        }, interval * 1000);
+    };
+
+    // Initial UI Setup
+    updateUI(settings.debridProvider || 'realdebrid');
+};
