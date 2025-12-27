@@ -500,6 +500,18 @@ const matchEpisodeFile = (files, season, episode) => {
     return null;
 };
 
+const resolveTorrent = async (url, title) => {
+    if (!url || !url.startsWith('http')) return url;
+    try {
+        const res = await fetch(`/api/resolve-torrent-file?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`);
+        const data = await res.json();
+        return data.magnet || url;
+    } catch (err) {
+        console.error('Failed to resolve torrent:', err);
+        return url;
+    }
+};
+
 const displaySources = (sources) => {
     sourcesList.innerHTML = '';
     if (sources.length === 0) {
@@ -540,10 +552,17 @@ const displaySources = (sources) => {
 
         // Copy button logic
         const copyBtn = clone.querySelector('.copy-btn');
-        copyBtn.onclick = (e) => {
+        copyBtn.onclick = async (e) => {
             e.stopPropagation();
             if (link) {
-                navigator.clipboard.writeText(link).then(() => {
+                let finalLink = link;
+                if (link.startsWith('http')) {
+                    const originalIcon = copyBtn.innerHTML;
+                    copyBtn.innerHTML = '<div class="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>';
+                    finalLink = await resolveTorrent(link, source.title);
+                    copyBtn.innerHTML = originalIcon;
+                }
+                navigator.clipboard.writeText(finalLink).then(() => {
                     const originalIcon = copyBtn.innerHTML;
                     copyBtn.innerHTML = '<svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>';
                     setTimeout(() => copyBtn.innerHTML = originalIcon, 2000);
@@ -555,6 +574,16 @@ const displaySources = (sources) => {
         const playBtn = clone.querySelector('.play-btn');
         playBtn.onclick = async () => {
             if (!link) return;
+
+            let activeLink = link;
+            if (link.startsWith('http')) {
+                const originalContent = playBtn.innerHTML;
+                playBtn.innerHTML = '<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
+                playBtn.disabled = true;
+                activeLink = await resolveTorrent(link, source.title);
+                playBtn.innerHTML = originalContent;
+                playBtn.disabled = false;
+            }
 
             // Check if we should use Debrid or WebTorrent
             const debridSettings = await getDebridSettings();
@@ -579,7 +608,7 @@ const displaySources = (sources) => {
                     const res = await fetch('/api/debrid/prepare', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ magnet: link })
+                        body: JSON.stringify({ magnet: activeLink })
                     });
                     const data = await res.json();
                     
@@ -678,7 +707,7 @@ const displaySources = (sources) => {
                 // WebTorrent Path: Fetch metadata and list files
                 console.log(`[WebTorrent] Fetching metadata for: ${source.title}`);
                 try {
-                    const res = await fetch(`/api/torrent-files?magnet=${encodeURIComponent(link)}`);
+                    const res = await fetch(`/api/torrent-files?magnet=${encodeURIComponent(activeLink)}`);
                     const data = await res.json();
                     
                     if (data) {
