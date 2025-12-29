@@ -13,6 +13,48 @@ import { searchJackett, getJackettKey, setJackettKey, getJackettSettings } from 
 import { getInstalledAddons, installAddon, removeAddon, fetchAddonStreams, parseAddonStream } from './addons.js';
 import { initDebridUI, getDebridSettings } from './debrid.js';
 
+// Helper functions for parsing torrent/stream info
+const detectQuality = (title) => {
+    const t = title.toLowerCase();
+    if (t.includes('2160p') || t.includes('4k')) return '4K';
+    if (t.includes('1080p')) return '1080p';
+    if (t.includes('720p')) return '720p';
+    if (t.includes('480p')) return '480p';
+    return 'Unknown';
+};
+
+const detectCodec = (title) => {
+    const t = title.toLowerCase();
+    if (t.includes('x265') || t.includes('hevc')) return 'HEVC';
+    if (t.includes('x264') || t.includes('avc')) return 'x264';
+    if (t.includes('av1')) return 'AV1';
+    return 'h264';
+};
+
+const detectHDR = (title) => {
+    const t = title.toLowerCase();
+    if (t.includes('dv') || t.includes('dolby vision')) return 'Dolby Vision';
+    if (t.includes('hdr10+')) return 'HDR10+';
+    if (t.includes('hdr')) return 'HDR';
+    return null;
+};
+
+const parseSize = (sizeStr) => {
+    if (!sizeStr || sizeStr === 'Unknown') return 0;
+    const str = sizeStr.toLowerCase();
+    const match = str.match(/([\d.]+)\s*(gb|mb|kb|tb)/i);
+    if (!match) return 0;
+    const num = parseFloat(match[1]);
+    const unit = match[2].toLowerCase();
+    switch (unit) {
+        case 'tb': return num * 1024 * 1024 * 1024 * 1024;
+        case 'gb': return num * 1024 * 1024 * 1024;
+        case 'mb': return num * 1024 * 1024;
+        case 'kb': return num * 1024;
+        default: return num;
+    }
+};
+
 const params = new URLSearchParams(window.location.search);
 const type = params.get('type');
 const id = params.get('id');
@@ -43,6 +85,31 @@ const screenshotsGrid = document.getElementById('screenshots-grid');
 const imageModal = document.getElementById('image-modal');
 const modalImage = document.getElementById('modal-image');
 const closeImageModal = document.getElementById('close-image-modal');
+
+// Play Loading Overlay functions
+const playLoadingOverlay = document.getElementById('play-loading-overlay');
+const playLoadingText = document.getElementById('play-loading-text');
+
+function showPlayLoading(text = 'Preparing stream...') {
+    if (playLoadingOverlay) {
+        playLoadingText.textContent = text;
+        playLoadingOverlay.classList.remove('hidden');
+    }
+}
+
+function hidePlayLoading() {
+    if (playLoadingOverlay) {
+        playLoadingOverlay.classList.add('hidden');
+    }
+}
+
+// Listen for player window opening to hide the loading overlay
+if (window.electronAPI) {
+    // When player opens successfully, hide the loading
+    window.electronAPI.onPlayerOpened?.(() => {
+        hidePlayLoading();
+    });
+}
 
 const hideImageModal = () => {
     imageModal.classList.add('opacity-0');
@@ -107,6 +174,7 @@ const renderAddonTabs = async () => {
         );
     });
     
+    // Jackett tab
     const jackettTab = document.createElement('button');
     jackettTab.className = `px-4 py-1.5 rounded-full text-xs font-bold transition-all ${currentProvider === 'jackett' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:text-white'}`;
     jackettTab.textContent = 'Jackett';
@@ -116,6 +184,28 @@ const renderAddonTabs = async () => {
         await renderSources();
     };
     addonTabsContainer.appendChild(jackettTab);
+
+    // 111477 tab (native source)
+    const tab111477 = document.createElement('button');
+    tab111477.className = `px-4 py-1.5 rounded-full text-xs font-bold transition-all ${currentProvider === '111477' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:text-white'}`;
+    tab111477.textContent = '111477';
+    tab111477.onclick = async () => {
+        currentProvider = '111477';
+        await renderAddonTabs();
+        await renderSources();
+    };
+    addonTabsContainer.appendChild(tab111477);
+
+    // PlayTorrio (Torrentless) tab (native source)
+    const torrentlessTab = document.createElement('button');
+    torrentlessTab.className = `px-4 py-1.5 rounded-full text-xs font-bold transition-all ${currentProvider === 'torrentless' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:text-white'}`;
+    torrentlessTab.textContent = 'PlayTorrio';
+    torrentlessTab.onclick = async () => {
+        currentProvider = 'torrentless';
+        await renderAddonTabs();
+        await renderSources();
+    };
+    addonTabsContainer.appendChild(torrentlessTab);
 
     addons.forEach(addon => {
         const tab = document.createElement('button');
@@ -289,6 +379,170 @@ const renderSources = async () => {
                     return;
                 }
                 throw err; // Re-throw if it's a different error
+            }
+        } else if (currentProvider === '111477') {
+            // 111477 native source - direct streaming links
+            console.log('[Sources] Fetching from 111477...');
+            
+            try {
+                const tmdbId = id;
+                
+                if (!tmdbId) {
+                    sourcesList.innerHTML = '<div class="text-center py-12 text-gray-500">No TMDB ID available.</div>';
+                    return;
+                }
+                
+                let apiUrl;
+                
+                if (isTV) {
+                    if (currentEpisode) {
+                        apiUrl = `http://localhost:6987/111477/api/tmdb/tv/${encodeURIComponent(tmdbId)}/season/${encodeURIComponent(currentSeason)}/episode/${encodeURIComponent(currentEpisode)}`;
+                    } else {
+                        sourcesList.innerHTML = '<div class="text-center py-12 text-gray-500">Please select an episode to view sources.</div>';
+                        return;
+                    }
+                } else {
+                    apiUrl = `http://localhost:6987/111477/api/tmdb/movie/${encodeURIComponent(tmdbId)}`;
+                }
+                
+                console.log('[111477] Fetching from:', apiUrl);
+                
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    console.error('[111477] API returned error:', response.status, response.statusText);
+                    sourcesList.innerHTML = `<div class="text-center py-12 text-red-400">111477 search failed (${response.status}). Try again later.</div>`;
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error('[111477] API error:', data.error);
+                    sourcesList.innerHTML = `<div class="text-center py-12 text-red-400">111477: ${data.error}</div>`;
+                    return;
+                }
+                
+                // Handle multi-result format from 111477 API
+                let allFiles = [];
+                if (Array.isArray(data?.results)) {
+                    data.results.forEach(result => {
+                        if (result.files && Array.isArray(result.files)) {
+                            allFiles = allFiles.concat(result.files.map(f => ({ ...f, source: result.source || '111477' })));
+                        }
+                    });
+                } else if (data?.files && Array.isArray(data.files)) {
+                    allFiles = data.files.map(f => ({ ...f, source: '111477' }));
+                }
+                
+                console.log('[111477] Found', allFiles.length, 'files');
+                
+                if (allFiles.length === 0) {
+                    allSources = [];
+                } else {
+                    // Convert 111477 files to standard source format
+                    allSources = allFiles.map(file => {
+                        const fileTitle = file.filename || file.name || 'Unknown';
+                        const quality = detectQuality(fileTitle);
+                        const codec = detectCodec(fileTitle);
+                        const size = file.size || 'Unknown';
+                        
+                        return {
+                            title: fileTitle,
+                            quality: quality,
+                            codec: codec,
+                            size: size,
+                            sizeBytes: parseSize(size),
+                            seeders: 0, // Direct links don't have seeders
+                            indexer: file.source || '111477',
+                            link: file.url || file.link,
+                            magnet: null,
+                            hdr: detectHDR(fileTitle)
+                        };
+                    });
+                }
+            } catch (err) {
+                console.error('[111477] Error:', err);
+                allSources = [];
+                sourcesList.innerHTML = `<div class="text-center py-12 text-red-400">111477 connection failed. Make sure the app server is running.</div>`;
+                return;
+            }
+        } else if (currentProvider === 'torrentless') {
+            // PlayTorrio (Torrentless) native source - torrent search via UIndex & Knaben
+            console.log('[Sources] Fetching from Torrentless (PlayTorrio)...');
+            
+            try {
+                const title = currentDetails?.title || currentDetails?.name || '';
+                const year = (currentDetails?.release_date || currentDetails?.first_air_date || '').split('-')[0];
+                
+                if (!title) {
+                    sourcesList.innerHTML = '<div class="text-center py-12 text-gray-500">No title available for search.</div>';
+                    return;
+                }
+                
+                let query;
+                if (isTV) {
+                    const s = String(currentSeason).padStart(2, '0');
+                    const e = currentEpisode ? String(currentEpisode).padStart(2, '0') : '';
+                    query = currentEpisode ? `${title} S${s}E${e}` : `${title} S${s}`;
+                } else {
+                    query = `${title} ${year}`;
+                }
+                
+                const torrentlessUrl = `http://localhost:6987/torrentless/api/search?q=${encodeURIComponent(query)}&page=1`;
+                console.log('[Torrentless] Query:', query);
+                console.log('[Torrentless] Fetching from:', torrentlessUrl);
+                
+                const response = await fetch(torrentlessUrl);
+                
+                if (!response.ok) {
+                    console.error('[Torrentless] API returned error:', response.status, response.statusText);
+                    sourcesList.innerHTML = `<div class="text-center py-12 text-red-400">PlayTorrio search failed (${response.status}). Try again later.</div>`;
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error('[Torrentless] API error:', data.error);
+                    sourcesList.innerHTML = `<div class="text-center py-12 text-red-400">PlayTorrio: ${data.error}</div>`;
+                    return;
+                }
+                
+                const items = data.items || [];
+                console.log('[Torrentless] Found', items.length, 'results');
+                
+                if (items.length === 0) {
+                    allSources = [];
+                } else {
+                    // Convert torrentless items to standard source format
+                    // API returns: { name, magnet, size, seeds (string with commas), leech }
+                    allSources = items.map(item => {
+                        const itemTitle = item.name || item.title || 'Unknown';
+                        const quality = detectQuality(itemTitle);
+                        const codec = detectCodec(itemTitle);
+                        // Parse seeds - API returns formatted string like "1,234"
+                        const seeders = parseInt((item.seeds || '0').toString().replace(/,/g, ''), 10) || 0;
+                        
+                        return {
+                            title: itemTitle,
+                            quality: quality,
+                            codec: codec,
+                            size: item.size || 'Unknown',
+                            sizeBytes: parseSize(item.size || '0'),
+                            seeders: seeders,
+                            indexer: 'PlayTorrio',
+                            link: null,
+                            magnet: item.magnet,
+                            hdr: detectHDR(itemTitle)
+                        };
+                    });
+                }
+            } catch (err) {
+                console.error('[Torrentless] Error:', err);
+                allSources = [];
+                sourcesList.innerHTML = `<div class="text-center py-12 text-red-400">PlayTorrio connection failed. Make sure the app server is running.</div>`;
+                return;
             }
         } else {
             console.log(`[Sources] Fetching for addon provider: ${currentProvider}`);
@@ -596,13 +850,17 @@ const displaySources = (sources) => {
         playBtn.onclick = async () => {
             if (!link) return;
 
-            // Check if this is a direct streaming URL (not a magnet or torrent file)
-            const isDirectUrl = link.startsWith('http') && !link.includes('.torrent') && !link.startsWith('magnet:');
-            const isMagnet = link.startsWith('magnet:');
-            
-            // For direct URLs from addons like Nuvio, play directly through transcoder
-            if (isDirectUrl && !isMagnet) {
-                console.log(`[Direct Stream] Playing direct URL: ${link.substring(0, 80)}...`);
+            // Show loading overlay immediately
+            showPlayLoading('Preparing stream...');
+
+            try {
+                // Check if this is a direct streaming URL (not a magnet or torrent file)
+                const isDirectUrl = link.startsWith('http') && !link.includes('.torrent') && !link.startsWith('magnet:');
+                const isMagnet = link.startsWith('magnet:');
+                
+                // For direct URLs from addons like Nuvio, play directly through transcoder
+                if (isDirectUrl && !isMagnet) {
+                    console.log(`[Direct Stream] Playing direct URL: ${link.substring(0, 80)}...`);
                 
                 // Get provider info for Next Episode feature
                 let providerUrl = '';
@@ -657,9 +915,12 @@ const displaySources = (sources) => {
                         providerUrl: providerUrl,
                         quality: source.quality
                     });
+                    // Hide loading after a short delay (player window opening)
+                    setTimeout(hidePlayLoading, 500);
                 } else {
                     // Fallback: open in new tab
                     window.open(link, '_blank');
+                    hidePlayLoading();
                 }
                 return;
             }
@@ -667,12 +928,12 @@ const displaySources = (sources) => {
             // For torrent files or magnets, continue with existing logic
             let activeLink = link;
             if (link.startsWith('http') && link.includes('.torrent')) {
-                const originalContent = playBtn.innerHTML;
-                playBtn.innerHTML = '<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
-                playBtn.disabled = true;
+                showPlayLoading('Resolving torrent...');
                 activeLink = await resolveTorrent(link, source.title);
-                playBtn.innerHTML = originalContent;
-                playBtn.disabled = false;
+                if (!activeLink) {
+                    hidePlayLoading();
+                    return;
+                }
             }
 
             // Check if we should use Debrid or WebTorrent
@@ -718,6 +979,7 @@ const displaySources = (sources) => {
 
             if (debridSettings.useDebrid && debridSettings.debridAuth) {
                 console.log(`[Debrid] Preparing magnet: ${source.title}`);
+                showPlayLoading('Preparing debrid...');
                 try {
                     const res = await fetch('/api/debrid/prepare', {
                         method: 'POST',
@@ -764,6 +1026,7 @@ const displaySources = (sources) => {
                             }
 
                             if (fileLink) {
+                                showPlayLoading('Getting stream link...');
                                 console.log('[Debrid] Unrestricting target file link...');
                                 const unres = await fetch('/api/debrid/link', {
                                     method: 'POST',
@@ -788,20 +1051,26 @@ const displaySources = (sources) => {
                                                                         providerUrl: providerUrl,
                                                                         quality: source.quality
                                                                     });
+                                                                    setTimeout(hidePlayLoading, 500);
                                                                 } else if (window.electronAPI?.openMPVDirect) {                                        window.electronAPI.openMPVDirect(unresData.url);
+                                        hidePlayLoading();
                                     } else {
                                         window.open(unresData.url, '_blank');
+                                        hidePlayLoading();
                                     }
                                 } else {
                                     console.error('[Debrid] Failed to unrestrict link:', unresData.error);
+                                    hidePlayLoading();
                                     alert('Failed to get stream link: ' + (unresData.error || 'Unknown error'));
                                 }
                             } else {
                                 console.warn('[Debrid] No direct link available for this file yet.');
+                                hidePlayLoading();
                                 alert('This file is not yet ready for streaming on the debrid provider.');
                             }
                         } else {
                             console.error('[Debrid] No matching file found in torrent.');
+                            hidePlayLoading();
                             alert('Could not find the correct episode in this torrent.');
                         }
 
@@ -814,14 +1083,17 @@ const displaySources = (sources) => {
                         console.log(`-------------------------------------------`);
                     } else if (data.error) {
                         console.error('[Debrid] Error:', data.error);
+                        hidePlayLoading();
                         alert('Debrid error: ' + data.error);
                     }
                 } catch (err) {
                     console.error('[Debrid] Error preparing torrent:', err);
+                    hidePlayLoading();
                     alert('Error preparing torrent: ' + err.message);
                 }
             } else {
                 // WebTorrent Path: Fetch metadata and list files
+                showPlayLoading('Fetching torrent metadata...');
                 console.log(`[WebTorrent] Fetching metadata for: ${source.title}`);
                 try {
                     const res = await fetch(`/api/torrent-files?magnet=${encodeURIComponent(activeLink)}`);
@@ -839,6 +1111,7 @@ const displaySources = (sources) => {
                         }
 
                         if (targetFile) {
+                            showPlayLoading('Starting stream...');
                             console.log(`[TARGET MATCHED] ${targetFile.name} (${(targetFile.size / 1024 / 1024).toFixed(2)} MB)`);
                             console.log(`[WebTorrent] Starting stream for file index: ${targetFile.index}`);
                             
@@ -861,11 +1134,18 @@ const displaySources = (sources) => {
                                     providerUrl: providerUrl,
                                     quality: source.quality
                                 });
+                                setTimeout(hidePlayLoading, 500);
                             } else if (window.electronAPI?.openMPVDirect) {
                                 window.electronAPI.openMPVDirect(streamUrl);
+                                hidePlayLoading();
                             } else {
                                 window.open(streamUrl, '_blank');
+                                hidePlayLoading();
                             }
+                        } else {
+                            // No matching file found
+                            hidePlayLoading();
+                            alert('Could not find a matching video file in this torrent.');
                         }
 
                         if (data.videoFiles) {
@@ -874,10 +1154,20 @@ const displaySources = (sources) => {
                             });
                         }
                         console.log(`-------------------------------------------`);
+                    } else {
+                        hidePlayLoading();
+                        alert('Failed to get torrent info.');
                     }
                 } catch (err) {
                     console.error('[WebTorrent] Error fetching torrent info:', err);
+                    hidePlayLoading();
+                    alert('Error fetching torrent: ' + err.message);
                 }
+            }
+            } catch (err) {
+                // Catch-all for any unexpected errors
+                console.error('[Play] Unexpected error:', err);
+                hidePlayLoading();
             }
         };
 

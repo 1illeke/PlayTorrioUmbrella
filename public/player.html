@@ -140,6 +140,32 @@
         }
         @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
 
+        /* Subtitle Loading Spinners */
+        .sub-loading-spinner {
+            width: 24px; height: 24px;
+            border: 3px solid rgba(157, 78, 221, 0.2);
+            border-top: 3px solid var(--primary-purple);
+            border-radius: 50%;
+            animation: subSpin 0.8s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        .sub-item-loading {
+            width: 16px; height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: subSpin 0.6s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes subSpin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+        }
+
         /* Menus */
         .menu-popup {
             position: absolute; bottom: 120px; right: 40px;
@@ -992,6 +1018,11 @@
             if (typeof checkShowNextEpisodeButton === 'function') {
                 checkShowNextEpisodeButton();
             }
+            
+            // Smart buffer update for WebTorrent streams
+            if (typeof updateStreamBuffer === 'function') {
+                updateStreamBuffer();
+            }
         };
         
         video.onprogress = () => {
@@ -1123,130 +1154,154 @@
 
         async function initSubtitles(tmdbId, imdbId, season, episode, type) {
             const list = document.getElementById('subs-list');
-            list.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">Searching subtitles...</div>';
+            list.innerHTML = '<div style="padding:20px; text-align:center; color:#666;"><div class="sub-loading-spinner"></div>Searching subtitles...</div>';
             
             // Standard "None" option
             const noneItem = document.createElement('div');
             noneItem.className = 'list-item';
             noneItem.innerHTML = '<span>None</span>';
             noneItem.onclick = () => {
-                subtitles = []; overlay.innerHTML = '';
+                subtitles = []; overlay.innerHTML = ''; activeSub = null;
                 document.querySelectorAll('#subs-list .list-item').forEach(el => el.classList.remove('active'));
                 noneItem.classList.add('active'); subsMenu.classList.remove('visible');
             };
 
-            const allItems = [noneItem];
-
-            // 1. Fetch Wyzie (requires TMDB ID)
-            if (tmdbId) {
-                try {
-                    let wyzieUrl = `https://sub.wyzie.ru/search?id=${tmdbId}`;
-                    if (season && episode) wyzieUrl += `&season=${season}&episode=${episode}`;
-                    
-                    const res = await fetch(wyzieUrl);
-                    const wyzieData = await res.json();
-                    
-                    if (wyzieData && wyzieData.length > 0) {
-                        const sep = document.createElement('div');
-                        sep.style.padding = '10px 15px';
-                        sep.style.fontSize = '12px';
-                        sep.style.color = 'var(--accent-purple)';
-                        sep.style.fontWeight = 'bold';
-                        sep.style.textTransform = 'uppercase';
-                        sep.style.letterSpacing = '1px';
-                        sep.innerText = 'Wyzie Subtitles';
-                        allItems.push(sep);
-
-                        wyzieData.forEach(sub => {
-                            const el = document.createElement('div');
-                            el.className = 'list-item';
-                        el.innerHTML = `<img src="${sub.flagUrl || ''}" class="sub-flag" onerror="this.style.display='none'"><span>${sub.display}</span>`;
-                        el.onclick = async () => {
-                            document.querySelectorAll('#subs-list .list-item').forEach(x => x.classList.remove('active'));
-                            el.classList.add('active');
-                            try {
-                                const txtRes = await fetch(sub.url);
-                                const txt = await txtRes.text();
-                                subtitles = parseSRT(txt); subsMenu.classList.remove('visible');
-                            } catch(err) {}
-                        };
-                        allItems.push(el);
-                    });
+            // Start with None option immediately
+            list.innerHTML = '';
+            list.appendChild(noneItem);
+            
+            // Helper to create subtitle item with loading indicator
+            function createSubItem(sub, sourceName) {
+                const el = document.createElement('div');
+                el.className = 'list-item';
+                
+                // Determine label based on source
+                let label = '';
+                if (sub.display) {
+                    // Wyzie format
+                    label = `<img src="${sub.flagUrl || ''}" class="sub-flag" onerror="this.style.display='none'"><span>${sub.display}</span>`;
+                } else {
+                    // Addon format - show language code
+                    const langLabel = (sub.lang_code || sub.lang || 'Unknown').toUpperCase();
+                    label = `<span>${langLabel}</span>`;
+                    if (sub.title || sub.id) {
+                        el.title = sub.title || sub.id;
+                    }
                 }
-            } catch (e) { console.error('Wyzie fetch error', e); }
-            } // End of if (tmdbId) for Wyzie
+                
+                el.innerHTML = label;
+                
+                el.onclick = async () => {
+                    document.querySelectorAll('#subs-list .list-item').forEach(x => x.classList.remove('active'));
+                    el.classList.add('active');
+                    
+                    // Show loading indicator on the clicked item
+                    const originalContent = el.innerHTML;
+                    el.innerHTML = `<span class="sub-item-loading"></span>${originalContent}`;
+                    el.style.pointerEvents = 'none';
+                    
+                    try {
+                        const targetUrl = sub.url || sub.externalUrl;
+                        if (targetUrl) {
+                            const txtRes = await fetch(targetUrl);
+                            const txt = await txtRes.text();
+                            subtitles = parseSRT(txt);
+                            activeSub = sub;
+                            subsMenu.classList.remove('visible');
+                        }
+                    } catch(err) {
+                        console.error('Failed to load subtitle:', err);
+                        subtitles = [];
+                    } finally {
+                        // Restore original content and re-enable
+                        el.innerHTML = originalContent;
+                        el.style.pointerEvents = '';
+                    }
+                };
+                return el;
+            }
+            
+            // Helper to add a section header
+            function addSectionHeader(name) {
+                const sep = document.createElement('div');
+                sep.style.padding = '10px 15px';
+                sep.style.fontSize = '12px';
+                sep.style.color = 'var(--accent-purple)';
+                sep.style.fontWeight = 'bold';
+                sep.style.textTransform = 'uppercase';
+                sep.style.letterSpacing = '1px';
+                sep.innerText = name;
+                list.appendChild(sep);
+            }
 
-            // 2. Fetch from Stremio Addons
+            // 1. Fetch Wyzie (requires TMDB ID) - don't block on this
+            if (tmdbId) {
+                (async () => {
+                    try {
+                        let wyzieUrl = `https://sub.wyzie.ru/search?id=${tmdbId}`;
+                        if (season && episode) wyzieUrl += `&season=${season}&episode=${episode}`;
+                        
+                        const res = await fetch(wyzieUrl);
+                        const wyzieData = await res.json();
+                        
+                        if (wyzieData && wyzieData.length > 0) {
+                            addSectionHeader('Wyzie Subtitles');
+                            wyzieData.forEach(sub => {
+                                list.appendChild(createSubItem(sub, 'Wyzie'));
+                            });
+                        }
+                    } catch (e) { 
+                        console.warn('Wyzie fetch error', e); 
+                    }
+                })();
+            }
+
+            // 2. Fetch from Stremio Addons - each addon independently (non-blocking)
             try {
-                // Get addons from main process (reads addons.json)
                 const addons = await ipcRenderer.invoke('get-installed-addons');
                 
                 if (addons && Array.isArray(addons)) {
+                    // Fetch from each addon independently - don't wait for all
                     for (const addon of addons) {
-                        // Check if it supports subtitles? The user just said "when a user places a subtitles addon"
-                        // We will try to fetch subtitles from it.
-                        if (!imdbId) continue; // Stremio addons need IMDB ID (mostly) or Kitsu/etc. We have IMDB.
-
-                        // addon.url contains the manifest URL based on user provided structure
+                        if (!imdbId) continue;
+                        
                         const manifestUrl = addon.url || addon.manifestUrl; 
                         if (!manifestUrl) continue;
-
-                        const addonSubs = await fetchAddonSubtitles(manifestUrl, imdbId, season, episode, type);
-                        if (addonSubs && addonSubs.length > 0) {
-                            const sep = document.createElement('div');
-                            sep.style.padding = '10px 15px';
-                            sep.style.fontSize = '12px';
-                            sep.style.color = 'var(--accent-purple)';
-                            sep.style.fontWeight = 'bold';
-                            sep.style.textTransform = 'uppercase';
-                            sep.style.letterSpacing = '1px';
-                            // Use manifest name if available
-                            const addonName = (addon.manifest && addon.manifest.name) ? addon.manifest.name : 'Addon Subtitles';
-                            sep.innerText = addonName;
-                            allItems.push(sep);
-
-                            addonSubs.forEach(sub => {
-                                const el = document.createElement('div');
-                                el.className = 'list-item';
-                                // User request: "display the ar en not the title, just the lang or lang code"
-                                // Prefer short code if available (e.g. "ar"), else lang (e.g. "ara")
-                                const langLabel = (sub.lang_code || sub.lang || 'Unknown').toUpperCase();
-                                
-                                el.innerHTML = `<span>${langLabel}</span>`;
-                                
-                                // Add title/id as tooltip so user can still distinguish if needed (hover)
-                                if (sub.title || sub.id) {
-                                    el.title = sub.title || sub.id;
+                        
+                        // Fetch each addon in its own async context (non-blocking)
+                        (async () => {
+                            try {
+                                const addonSubs = await fetchAddonSubtitles(manifestUrl, imdbId, season, episode, type);
+                                if (addonSubs && addonSubs.length > 0) {
+                                    const addonName = (addon.manifest && addon.manifest.name) ? addon.manifest.name : 'Addon Subtitles';
+                                    addSectionHeader(addonName);
+                                    
+                                    addonSubs.forEach(sub => {
+                                        list.appendChild(createSubItem(sub, addonName));
+                                    });
                                 }
-
-                                el.onclick = async () => {
-                                    document.querySelectorAll('#subs-list .list-item').forEach(x => x.classList.remove('active'));
-                                    el.classList.add('active');
-                                    try {
-                                        // Stremio subs can be url or externalUrl
-                                        const targetUrl = sub.url || sub.externalUrl;
-                                        if (targetUrl) {
-                                            const txtRes = await fetch(targetUrl);
-                                            const txt = await txtRes.text();
-                                            subtitles = parseSRT(txt); 
-                                            subsMenu.classList.remove('visible');
-                                        }
-                                    } catch(err) { console.error(err); }
-                                };
-                                allItems.push(el);
-                            });
-                        }
+                            } catch (e) {
+                                console.warn('Addon subtitle fetch failed:', manifestUrl, e);
+                                // Don't block other addons - just skip this one
+                            }
+                        })();
                     }
                 }
-            } catch (e) { console.error('Addon fetch error', e); }
-
-            // Render
-            list.innerHTML = '';
-            if (allItems.length <= 1) {
-                list.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">No subtitles found</div>';
-            } else {
-                allItems.forEach(item => list.appendChild(item));
+            } catch (e) { 
+                console.warn('Failed to get addons list:', e); 
             }
+            
+            // After a timeout, if still only "None" option, show "No subtitles found"
+            setTimeout(() => {
+                if (list.children.length <= 1) {
+                    const noSubs = document.createElement('div');
+                    noSubs.style.padding = '20px';
+                    noSubs.style.textAlign = 'center';
+                    noSubs.style.color = '#666';
+                    noSubs.innerText = 'No subtitles found';
+                    list.appendChild(noSubs);
+                }
+            }, 8000); // 8 second timeout for all sources
         }
 
         async function fetchAddonSubtitles(manifestUrl, imdbId, season, episode, type) {
@@ -1335,9 +1390,54 @@
             }
         }
         
+        // Extract file index from WebTorrent stream URL
+        function extractTorrentFileIndex(url) {
+            if (!url) return null;
+            try {
+                const urlObj = new URL(url);
+                return urlObj.searchParams.get('file');
+            } catch (e) {
+                return null;
+            }
+        }
+        
         // Check if we're streaming via WebTorrent (local stream)
         function isWebTorrentStream(url) {
             return url && url.includes('/api/stream-file');
+        }
+        
+        // ============ SMART BUFFER UPDATE - Report playback position to server ============
+        let lastBufferUpdate = 0;
+        const BUFFER_UPDATE_INTERVAL = 5000; // Update every 5 seconds
+        
+        async function updateStreamBuffer() {
+            if (!isWebTorrentStream(videoUrl)) return;
+            
+            const now = Date.now();
+            if (now - lastBufferUpdate < BUFFER_UPDATE_INTERVAL) return;
+            lastBufferUpdate = now;
+            
+            const hash = extractTorrentHash(videoUrl);
+            const fileIndex = extractTorrentFileIndex(videoUrl);
+            const currentDuration = (isTranscoding && videoDuration > 0) ? videoDuration : video.duration;
+            const currentTime = getCurrentRealTime();
+            
+            if (!hash || fileIndex === null || !isFinite(currentDuration) || currentDuration <= 0) return;
+            
+            try {
+                await fetch('/api/stream-buffer-update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        hash,
+                        fileIndex: parseInt(fileIndex),
+                        position: currentTime,
+                        duration: currentDuration
+                    })
+                });
+            } catch (e) {
+                // Silent fail - buffer updates are non-critical
+            }
         }
         
         // Initialize next episode detection for Basic Mode TV shows

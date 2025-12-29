@@ -4679,64 +4679,131 @@ for (let i = 0; i < 10; i++) {
     }));
 
     const client = new WebTorrent({
-        // ============ OPTIMIZED PEER SETTINGS ============
-        maxConns: 55,           // Reduced from 500 to 55 to prevent UI freezing
-        // Default DHT and Tracker settings are sufficient and more stable,
+        // ============ OPTIMIZED FOR STREAMING - FAST & STABLE ============
         
-        // ============ PERFORMANCE OPTIMIZATIONS ============
-        webSeeds: true,              // Enable HTTP web seeds for faster initial download
-        uploadLimit: -1,             // Unlimited upload for better peer relationships
-        downloadLimit: -1,           // Unlimited download for maximum speed
+        // Connection limits - balanced for speed without overwhelming the system
+        maxConns: 100,              // More connections = more potential speed
         
-        // Advanced Protocol Features
-        utp: true,                   // Micro Transport Protocol - better NAT traversal & less congestion
-        lsd: true,                   // Local Service Discovery - find peers on LAN instantly
-        natUpnp: true,               // UPnP for automatic port forwarding
-        natPmp: true,                // NAT-PMP for automatic port forwarding (Apple devices)
+        // Protocol features for maximum peer discovery
+        webSeeds: true,             // HTTP seeds for instant data when available
+        utp: true,                  // µTP - better NAT traversal, less congestion
+        lsd: true,                  // Local Service Discovery - instant LAN peers
+        natUpnp: true,              // UPnP port forwarding
+        natPmp: true,               // NAT-PMP port forwarding (Apple/routers)
+        dht: true,                  // DHT for decentralized peer discovery
         
-        // Download Strategy
-        pieceTimeout: 20000,         // 20s timeout for pieces (faster retry)
-        blocklist: [],               // No blocklist for maximum peer pool
+        // Speed settings - unlimited
+        uploadLimit: -1,            // Unlimited upload = better peer relationships = more download
+        downloadLimit: -1,          // Unlimited download
         
-        // Connection Optimization
-        handshakeTimeout: 10000      // 10s handshake timeout (faster connection establishment)
+        // Timeouts - aggressive for fast startup
+        handshakeTimeout: 8000,     // 8s handshake (fast fail on bad peers)
+        pieceTimeout: 15000,        // 15s piece timeout (quick retry)
+        
+        // DHT bootstrap nodes for faster peer discovery
+        dhtBootstrap: [
+            'router.bittorrent.com:6881',
+            'router.utorrent.com:6881',
+            'dht.transmissionbt.com:6881',
+            'dht.aelitis.com:6881'
+        ],
+        
+        // Tracker settings
+        tracker: {
+            announce: [],           // Will be set per-torrent
+            rtcConfig: {            // WebRTC optimization
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' }
+                ]
+            }
+        }
     });
     
-    // Handle WebTorrent client errors to prevent crashes
+    // Handle WebTorrent client errors gracefully - NEVER crash
     client.on('error', (err) => {
-        console.error('[WebTorrent] Client error (non-fatal):', err.message || err);
-        // Don't crash the server, just log the error
+        console.error('[WebTorrent] Client error (handled):', err.message || err);
     });
 
-    // ============ ADVANCED PEER DISCOVERY MONITORING ============
-    // Log DHT stats for debugging and optimization
+    // ============ PEER THROTTLING - Prevent UI freeze from too many connections ============
+    let peerConnectionQueue = [];
+    let isProcessingPeers = false;
+    const MAX_PEERS_PER_TICK = 5; // Process max 5 peer connections per tick
+    
+    function processPeerQueue() {
+        if (isProcessingPeers || peerConnectionQueue.length === 0) return;
+        isProcessingPeers = true;
+        
+        const batch = peerConnectionQueue.splice(0, MAX_PEERS_PER_TICK);
+        batch.forEach(fn => {
+            try { fn(); } catch {}
+        });
+        
+        isProcessingPeers = false;
+        if (peerConnectionQueue.length > 0) {
+            setImmediate(processPeerQueue);
+        }
+    }
+
+    // Stats logging - less frequent to reduce overhead
     setInterval(() => {
         try {
             if (client.torrents.length > 0) {
                 const stats = {
-                    activeTorrents: client.torrents.length,
-                    totalPeers: client.torrents.reduce((sum, t) => sum + (t.numPeers || 0), 0),
-                    totalDownloadSpeed: (client.downloadSpeed / 1024 / 1024).toFixed(2) + ' MB/s',
-                    totalUploadSpeed: (client.uploadSpeed / 1024 / 1024).toFixed(2) + ' MB/s'
+                    torrents: client.torrents.length,
+                    peers: client.torrents.reduce((sum, t) => sum + (t.numPeers || 0), 0),
+                    down: (client.downloadSpeed / 1024 / 1024).toFixed(2) + ' MB/s',
+                    up: (client.uploadSpeed / 1024 / 1024).toFixed(2) + ' MB/s'
                 };
-                console.log(`[WebTorrent Stats] ${JSON.stringify(stats)}`);
-                
-                // Log individual torrent stats
-                client.torrents.forEach(t => {
-                    if (t.name) {
-                        console.log(`  └─ ${t.name.substring(0, 40)}... | Peers: ${t.numPeers} | Down: ${(t.downloadSpeed / 1024).toFixed(0)} KB/s | Progress: ${(t.progress * 100).toFixed(1)}%`);
-                    }
-                });
+                console.log(`[WebTorrent] ${JSON.stringify(stats)}`);
             }
-        } catch (err) {
-            // Silent fail - stats are optional
-        }
-    }, 30000); // Log every 30 seconds
+        } catch {}
+    }, 60000); // Log every 60 seconds (reduced from 30)
 
     const activeTorrents = new Map();
-    const torrentTimestamps = new Map(); // Track last access time for cleanup
+    const torrentTimestamps = new Map();
+    const selectedFiles = new Map(); // Track which file is selected per torrent
+    const streamingState = new Map(); // Track streaming state per torrent (playback position, etc.)
     
-    // Auto-cleanup inactive torrents every 30 minutes
+    // ============ SMART BUFFER MANAGEMENT ============
+    // Dynamically adjust piece priorities based on playback position
+    function updateStreamingPriorities(hash, fileIndex, playbackPosition, duration) {
+        const torrent = activeTorrents.get(hash);
+        if (!torrent || !torrent.ready) return;
+        
+        const file = torrent.files[fileIndex];
+        if (!file) return;
+        
+        const pieceLength = torrent.pieceLength;
+        const fileStart = Math.floor(file.offset / pieceLength);
+        const fileEnd = Math.floor((file.offset + file.length - 1) / pieceLength);
+        
+        // Calculate current piece based on playback position
+        const playbackRatio = Math.max(0, Math.min(1, playbackPosition / duration));
+        const currentPiece = Math.floor(fileStart + (fileEnd - fileStart) * playbackRatio);
+        
+        // Prioritize pieces ahead of playback (look-ahead buffer)
+        const lookAheadBytes = 30 * 1024 * 1024; // 30MB look-ahead
+        const lookAheadPieces = Math.ceil(lookAheadBytes / pieceLength);
+        const lookAheadEnd = Math.min(currentPiece + lookAheadPieces, fileEnd);
+        
+        // Critical: pieces immediately ahead of playback
+        for (let i = currentPiece; i <= Math.min(currentPiece + 10, fileEnd); i++) {
+            try { torrent.critical(i, i); } catch {}
+        }
+        
+        // High priority: look-ahead buffer
+        for (let i = currentPiece + 11; i <= lookAheadEnd; i++) {
+            try { torrent.select(i, i, 3); } catch {}
+        }
+        
+        // Store state for this stream
+        streamingState.set(hash, { fileIndex, playbackPosition, duration, lastUpdate: Date.now() });
+    }
+    
+    // Auto-cleanup inactive torrents
     const TORRENT_TIMEOUT = 30 * 60 * 1000; // 30 minutes
     setInterval(() => {
         const now = Date.now();
@@ -4744,18 +4811,18 @@ for (let i = 0; i < 10; i++) {
             if (now - timestamp > TORRENT_TIMEOUT) {
                 const torrent = activeTorrents.get(hash);
                 if (torrent) {
-                    console.log(`[Cleanup] Removing inactive torrent: ${hash}`);
+                    console.log(`[Cleanup] Removing inactive torrent: ${hash.substring(0, 8)}...`);
                     try {
-                        client.remove(torrent, () => {});
+                        torrent.destroy();
                         activeTorrents.delete(hash);
                         torrentTimestamps.delete(hash);
-                    } catch (err) {
-                        console.error(`[Cleanup] Error removing torrent ${hash}:`, err);
-                    }
+                        selectedFiles.delete(hash);
+                        streamingState.delete(hash);
+                    } catch {}
                 }
             }
         }
-    }, 10 * 60 * 1000); // Check every 10 minutes
+    }, 10 * 60 * 1000);
 
     // OpenSubtitles API key (provided by user for this app)
     const OPEN_SUBTITLES_API_KEY = 'bAYQ53sQ01tx14QcOrPjGkdnTOUMjMC0';
@@ -4931,140 +4998,148 @@ for (let i = 0; i < 10; i++) {
 
         if (activeTorrents.has(infoHash)) {
             const torrent = activeTorrents.get(infoHash);
+            torrentTimestamps.set(infoHash, Date.now());
             if (torrent.ready) return handleReady(torrent);
             else return torrent.once('ready', () => handleReady(torrent));
         }
 
         const torrentDownloadPath = path.join(CACHE_LOCATION, 'webtorrent', infoHash);
         fs.mkdirSync(torrentDownloadPath, { recursive: true });
+        
+        // ============ OPTIMIZED TORRENT OPTIONS FOR STREAMING ============
         const torrentOptions = { 
             path: torrentDownloadPath, 
             destroyStoreOnDestroy: true,
             
-            // ============ PER-TORRENT OPTIMIZATIONS ============
-            announce: [  // Aggressive tracker list per torrent
-                // Primary high-performance trackers
+            // Aggressive tracker list for fast peer discovery
+            announce: [
+                // Tier 1: Fastest, most reliable trackers
                 'udp://tracker.opentrackr.org:1337/announce',
                 'udp://open.tracker.cl:1337/announce',
-                'udp://tracker.torrent.eu.org:451/announce',
+                'udp://tracker.openbittorrent.com:6969/announce',
                 'udp://exodus.desync.com:6969/announce',
+                'udp://open.demonii.com:1337/announce',
+                // Tier 2: Good backup trackers
+                'udp://tracker.torrent.eu.org:451/announce',
                 'udp://tracker.moeking.me:6969/announce',
                 'udp://explodie.org:6969/announce',
-                'udp://tracker.openbittorrent.com:6969/announce',
-                'udp://open.demonii.com:1337/announce',
                 'udp://tracker.theoks.net:6969/announce',
-                'udp://tracker.cyberia.is:6969/announce',
-                // Backup trackers
-                'udp://retracker.lanta-net.ru:2710/announce',
+                // Tier 3: Additional sources
                 'udp://bt1.archive.org:6969/announce',
                 'http://tracker.openbittorrent.com:80/announce',
-                'wss://tracker.openwebtorrent.com'
+                // WebRTC tracker for browser peers
+                'wss://tracker.openwebtorrent.com',
+                'wss://tracker.btorrent.xyz'
             ],
-            maxWebConns: 20,          // Increased web seed connections for faster download
-            strategy: 'sequential',   // Sequential downloading optimized for streaming
-            skipVerify: false,        // Always verify pieces for data integrity
-            storeCacheSlots: 20       // Cache more pieces in memory for smoother playback
+            
+            // Connection settings
+            maxWebConns: 30,          // More web seed connections
+            
+            // Download strategy - SEQUENTIAL for streaming
+            strategy: 'sequential',
+            
+            // Piece verification
+            skipVerify: false,        // Always verify for data integrity
+            
+            // Memory optimization
+            storeCacheSlots: 50       // More cache = smoother playback
         };
+        
         const torrent = client.add(magnet, torrentOptions);
         activeTorrents.set(infoHash, torrent);
-        torrentTimestamps.set(infoHash, Date.now()); // Track access time
+        torrentTimestamps.set(infoHash, Date.now());
 
-        // ============ AGGRESSIVE PEER WIRE OPTIMIZATION ============
-        // Optimize each peer connection for maximum throughput
+        // ============ OPTIMIZED WIRE HANDLING - NON-BLOCKING ============
         torrent.on('wire', (wire, addr) => {
-            // console.log(`[Peer Connected] ${addr} for ${infoHash.substring(0, 8)}...`);
-            
-            // Enable fast extension for faster piece exchange
-            try {
-                if (wire.peerExtensions && wire.peerExtensions.extended) {
-                    // Peer supports extensions - great for performance
-                }
-                
-                // Unchoke peer immediately to start downloading
-                if (wire.peerChoking) {
-                    // We're choked, request unchoke
-                }
-                
-                // Set aggressive request queue size for faster downloads
-                wire.setKeepAlive(true);  // Keep connection alive
-                
-            } catch (err) {
-                // Silent fail - wire optimization is optional
-            }
+            // Queue wire optimization to prevent UI freeze
+            peerConnectionQueue.push(() => {
+                try {
+                    // Keep connection alive for better peer relationships
+                    wire.setKeepAlive(true);
+                    
+                    // Increase request queue for faster piece downloads
+                    // Default is usually 5, we want more parallel requests
+                    if (wire.requests) {
+                        wire._requestsMax = 16; // More parallel piece requests
+                    }
+                    
+                    // Set timeout for unresponsive peers
+                    wire.setTimeout(30000, () => {
+                        try { wire.destroy(); } catch {}
+                    });
+                } catch {}
+            });
+            processPeerQueue();
         });
         
-        // Monitor peer discovery progress
-        // torrent.on('peer', (peer) => {
-        //    console.log(`[Peer Discovered] ${peer} for ${infoHash.substring(0, 8)}...`);
-        // });
-        
-        // Log when we get our first data to track buffering speed
+        // Track first data for debugging
         let firstDataLogged = false;
         torrent.on('download', () => {
             if (!firstDataLogged && torrent.downloaded > 0) {
                 firstDataLogged = true;
-                console.log(`[First Data] Received for ${infoHash.substring(0, 8)}... | Peers: ${torrent.numPeers} | Speed: ${(torrent.downloadSpeed / 1024).toFixed(0)} KB/s`);
+                console.log(`[Stream Ready] ${infoHash.substring(0, 8)}... | Peers: ${torrent.numPeers} | Speed: ${(torrent.downloadSpeed / 1024).toFixed(0)} KB/s`);
             }
         });
 
-        // Handle torrent-level errors
+        // Handle torrent errors gracefully
         torrent.on('error', (err) => {
-            console.error(`[Torrent Error] ${infoHash}:`, err.message || err);
+            console.error(`[Torrent Error] ${infoHash.substring(0, 8)}:`, err.message || err);
             if (!res.headersSent) {
                 res.status(500).json({ error: 'Torrent error: ' + (err.message || 'Unknown error') });
             }
-            // Clean up failed torrent
             try {
                 activeTorrents.delete(infoHash);
-                client.remove(torrent, () => {});
+                selectedFiles.delete(infoHash);
+                torrent.destroy();
             } catch {}
         });
 
-        // As soon as metadata is available, deselect everything to prevent auto-download
+        // ============ STRICT FILE ISOLATION - DOWNLOAD NOTHING UNTIL FILE SELECTED ============
         torrent.on('metadata', () => {
-            console.log(`[Metadata] Received for ${torrent.name} | Peers: ${torrent.numPeers} | Pieces: ${torrent.pieces.length}`);
+            console.log(`[Metadata] ${torrent.name} | Peers: ${torrent.numPeers} | Pieces: ${torrent.pieces.length}`);
             try { 
+                // CRITICAL: Deselect ALL pieces and files immediately
                 torrent.deselect(0, torrent.pieces.length - 1, false);
-                torrent.files.forEach(f => f.deselect()); 
-                // Pause the torrent to stop all piece requests immediately
+                torrent.files.forEach(f => {
+                    f.deselect();
+                    // Also set priority to 0 (don't download)
+                    try { f.priority = 0; } catch {}
+                });
+                // Pause to stop any piece requests
                 torrent.pause();
-                console.log(`[Protection] Torrent ${infoHash} paused after metadata retrieval`);
+                console.log(`[Isolation] Torrent paused - NO files downloading`);
             } catch (err) {
-                console.warn('[Protection] Error during initial deselect:', err.message);
+                console.warn('[Isolation] Error:', err.message);
             }
         });
 
         const handleReady = (t) => {
-            // Build list preserving original torrent.files index
             const all = t.files.map((file, idx) => ({ index: idx, name: file.name, size: file.length }));
-            const filtered = all.filter(f => /\.(mp4|mkv|avi|mov|srt|vtt|ass)$/i.test(f.name));
+            const filtered = all.filter(f => /\.(mp4|mkv|avi|mov|webm|srt|vtt|ass)$/i.test(f.name));
             
-            // Server-side logging of files for immediate visibility in terminal
-            console.log(`--- FILES FOUND IN: ${t.name} ---`);
+            console.log(`--- FILES IN: ${t.name} ---`);
             t.files.forEach((file, i) => {
-                console.log(`  [File ${i+1}] ${file.name} (${(file.length / 1024 / 1024).toFixed(2)} MB)`);
+                console.log(`  [${i}] ${file.name} (${(file.length / 1024 / 1024).toFixed(1)} MB)`);
             });
-            console.log(`-----------------------------------------------`);
 
             res.json({
                 infoHash,
                 name: t.name,
-                videoFiles: filtered.filter(f => f.name.match(/\.(mp4|mkv|avi|mov)$/i)).sort((a, b) => b.size - a.size),
+                videoFiles: filtered.filter(f => f.name.match(/\.(mp4|mkv|avi|mov|webm)$/i)).sort((a, b) => b.size - a.size),
                 subtitleFiles: filtered.filter(f => f.name.match(/\.(srt|vtt|ass)$/i)),
             });
             
-            // Re-verify deselect after sending the response
-            setTimeout(() => {
+            // Double-check isolation after response
+            setImmediate(() => {
                 try { 
                     t.deselect(0, t.pieces.length - 1, false);
                     t.files.forEach(f => f.deselect()); 
                     t.pause();
-                    console.log(`[Protection] Verified pause/deselect for ${infoHash}`);
                 } catch {}
-            }, 100);
+            });
         };
 
-    torrent.once('ready', () => handleReady(torrent));
+        torrent.once('ready', () => handleReady(torrent));
     });
 
     // Get torrent info (files list) for an active torrent by hash
@@ -5317,6 +5392,7 @@ for (let i = 0; i < 10; i++) {
                 
                 activeTorrents.delete(hash);
                 torrentTimestamps.delete(hash); // Clean up timestamp
+                streamingState.delete(hash); // Clean up streaming state
                 console.log(`Torrent ${hash} removed from activeTorrents map.`);
 
                 try {
@@ -5328,6 +5404,86 @@ for (let i = 0; i < 10; i++) {
             });
         } else {
             res.status(404).json({ success: false, message: 'Stream not found' });
+        }
+    });
+
+    // ============ SMART BUFFER UPDATE - Player reports playback position ============
+    app.post('/api/stream-buffer-update', (req, res) => {
+        try {
+            const { hash, fileIndex, position, duration } = req.body;
+            if (!hash || fileIndex === undefined || position === undefined || duration === undefined) {
+                return res.status(400).json({ error: 'Missing parameters' });
+            }
+            
+            const torrent = activeTorrents.get(hash);
+            if (!torrent) {
+                return res.status(404).json({ error: 'Torrent not found' });
+            }
+            
+            // Update timestamps
+            torrentTimestamps.set(hash, Date.now());
+            
+            // Update piece priorities based on playback position
+            updateStreamingPriorities(hash, parseInt(fileIndex), parseFloat(position), parseFloat(duration));
+            
+            res.json({ success: true });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // ============ TORRENT STATS - Get real-time streaming stats ============
+    app.get('/api/torrent-stats', (req, res) => {
+        try {
+            const { hash } = req.query;
+            if (!hash) return res.status(400).json({ error: 'Missing hash' });
+            
+            const torrent = activeTorrents.get(hash);
+            if (!torrent) {
+                return res.status(404).json({ error: 'Torrent not found' });
+            }
+            
+            // Get selected file info
+            const state = streamingState.get(hash);
+            let fileProgress = 0;
+            let fileDownloaded = 0;
+            let fileSize = 0;
+            
+            if (state && torrent.files[state.fileIndex]) {
+                const file = torrent.files[state.fileIndex];
+                fileSize = file.length;
+                // Calculate file-specific progress
+                const pieceLength = torrent.pieceLength;
+                const fileStart = Math.floor(file.offset / pieceLength);
+                const fileEnd = Math.floor((file.offset + file.length - 1) / pieceLength);
+                let downloadedPieces = 0;
+                for (let i = fileStart; i <= fileEnd; i++) {
+                    if (torrent.bitfield && torrent.bitfield.get(i)) {
+                        downloadedPieces++;
+                    }
+                }
+                const totalFilePieces = fileEnd - fileStart + 1;
+                fileProgress = totalFilePieces > 0 ? downloadedPieces / totalFilePieces : 0;
+                fileDownloaded = Math.floor(fileProgress * fileSize);
+            }
+            
+            res.json({
+                infoHash: hash,
+                name: torrent.name,
+                numPeers: torrent.numPeers,
+                downloadSpeed: torrent.downloadSpeed,
+                uploadSpeed: torrent.uploadSpeed,
+                progress: torrent.progress,
+                downloaded: torrent.downloaded,
+                uploaded: torrent.uploaded,
+                fileProgress,
+                fileDownloaded,
+                fileSize,
+                ready: torrent.ready,
+                paused: torrent.paused
+            });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
         }
     });
 

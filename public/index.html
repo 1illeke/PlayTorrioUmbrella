@@ -410,6 +410,17 @@
         .downloader-type-toggle { display:flex; align-items:center; gap:0.5rem; margin-left:auto; }
         .downloader-type-toggle .filter-btn { padding: 0.55rem 0.9rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); color:#fff; font-weight:600; cursor:pointer; }
 
+        /* Ace Bet Nav Button Styles */
+        .acebet-nav-item { animation: acebet-glow 2s ease-in-out infinite; }
+        .acebet-nav-item:hover { background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.2)) !important; border-color: rgba(16, 185, 129, 0.5) !important; }
+        @keyframes acebet-glow { 0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.3); } 50% { box-shadow: 0 0 16px rgba(16, 185, 129, 0.5); } }
+        .acebet-nav-particles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+        .acebet-particle-nav { position: absolute; width: 3px; height: 3px; background: #10b981; border-radius: 50%; animation: acebet-float-nav 2s ease-in-out infinite; box-shadow: 0 0 4px #10b981; }
+        .acebet-particle-nav:nth-child(1) { top: 20%; left: 10%; animation-delay: 0s; }
+        .acebet-particle-nav:nth-child(2) { top: 60%; right: 15%; animation-delay: 0.7s; }
+        .acebet-particle-nav:nth-child(3) { bottom: 20%; left: 50%; animation-delay: 1.4s; }
+        @keyframes acebet-float-nav { 0%, 100% { transform: translateY(0) scale(1); opacity: 0.6; } 50% { transform: translateY(-6px) scale(1.3); opacity: 1; } }
+
         /* Live TV Styles */
         .livetv-category-section {
             display: flex;
@@ -8227,6 +8238,14 @@
             <i class="fab fa-trakt"></i>
             <span>Trakt</span>
         </div>
+        <a href="casino.html" class="floating-nav-item acebet-nav-item" style="color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); position: relative;">
+            <div class="acebet-nav-particles">
+                <span style="position:absolute;width:3px;height:3px;background:#10b981;border-radius:50%;top:20%;left:10%;animation:acebet-float 2s ease-in-out infinite;"></span>
+                <span style="position:absolute;width:3px;height:3px;background:#10b981;border-radius:50%;top:60%;right:15%;animation:acebet-float 2s ease-in-out infinite 0.5s;"></span>
+            </div>
+            <span style="font-weight:bold;font-size:1.1rem;">♠</span>
+            <span>Ace Bet</span>
+        </a>
     </div>
 </div>
 
@@ -8273,6 +8292,19 @@
             </div>
             
             <div class="nav-section-title">LIBRARY</div>
+            
+            <!-- Ace Bet Sponsor Button -->
+            <div class="nav-item acebet-nav-item" id="acebet-nav-btn" onclick="window.location.href='casino.html';" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.1)); border: 1px solid rgba(16, 185, 129, 0.3); position: relative; overflow: visible;">
+                <div class="acebet-nav-particles">
+                    <span class="acebet-particle-nav"></span>
+                    <span class="acebet-particle-nav"></span>
+                    <span class="acebet-particle-nav"></span>
+                </div>
+                <div style="width: 24px; height: 24px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 900; color: white; font-size: 14px;">A</div>
+                <span style="color: #10b981; font-weight: 600;">Ace Bet</span>
+                <span class="nav-badge" style="background: linear-gradient(135deg, #10b981, #059669);">Sponsor</span>
+            </div>
+            
             <div class="nav-item" data-page="trakt">
                 <i class="fas fa-tv" style="color: #ed1c24;"></i>
                 <span>Trakt</span>
@@ -33752,6 +33784,74 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 </script>
+
+<!-- Ace Bet Promo Popup -->
+<div id="acebet-popup" class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-sm hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);backdrop-filter:blur(4px);">
+    <div class="relative bg-gray-900 rounded-2xl overflow-hidden max-w-lg w-full mx-4 shadow-2xl border border-emerald-500/20 transform" id="acebet-popup-content" style="position:relative;background:#111827;border-radius:1rem;overflow:hidden;max-width:32rem;width:100%;margin:0 1rem;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);border:1px solid rgba(16,185,129,0.2);transform:scale(0.95);opacity:0;transition:all 0.3s ease;">
+        <!-- Close button -->
+        <button id="acebet-popup-close" style="position:absolute;top:0.75rem;right:0.75rem;z-index:10;width:2rem;height:2rem;background:rgba(0,0,0,0.6);border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;transition:background 0.2s;">
+            <svg style="width:1rem;height:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+        <!-- Banner image -->
+        <img src="https://photos-1xq.pages.dev/Casino%20-%201400x500.png" alt="Ace Bet" style="width:100%;height:auto;">
+        <!-- Content -->
+        <div style="padding:1.5rem;text-align:center;">
+            <h3 style="font-size:1.5rem;font-weight:bold;color:white;margin-bottom:0.5rem;">Get Your Free $1 Bonus!</h3>
+            <p style="color:#9ca3af;margin-bottom:1rem;">Exclusive offer for PlayTorrio users. Start playing today!</p>
+            <a href="casino.html" style="display:inline-flex;align-items:center;gap:0.5rem;background:linear-gradient(to right,#10b981,#059669);color:white;font-weight:bold;padding:0.75rem 1.5rem;border-radius:0.75rem;text-decoration:none;transition:all 0.2s;">
+                <span>Learn More</span>
+                <svg style="width:1rem;height:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                </svg>
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+// Ace Bet Popup - show only once per app session
+(function() {
+    const popup = document.getElementById('acebet-popup');
+    const popupContent = document.getElementById('acebet-popup-content');
+    const closeBtn = document.getElementById('acebet-popup-close');
+    
+    if (!popup || !popupContent || !closeBtn) return;
+    
+    // Check if popup was already shown this session
+    if (!sessionStorage.getItem('acebet_popup_shown')) {
+        // Show popup after a short delay
+        setTimeout(() => {
+            popup.style.display = 'flex';
+            setTimeout(() => {
+                popupContent.style.transform = 'scale(1)';
+                popupContent.style.opacity = '1';
+            }, 50);
+        }, 1000);
+        
+        // Mark as shown for this session
+        sessionStorage.setItem('acebet_popup_shown', 'true');
+    }
+    
+    // Close popup
+    function closePopup() {
+        popupContent.style.transform = 'scale(0.95)';
+        popupContent.style.opacity = '0';
+        setTimeout(() => {
+            popup.style.display = 'none';
+        }, 300);
+    }
+    
+    closeBtn.addEventListener('click', closePopup);
+    closeBtn.addEventListener('mouseover', function() { this.style.background = '#ef4444'; });
+    closeBtn.addEventListener('mouseout', function() { this.style.background = 'rgba(0,0,0,0.6)'; });
+    popup.addEventListener('click', (e) => {
+        if (e.target === popup) closePopup();
+    });
+})();
+</script>
+
 </body>
 <script>
 // Add platform class to body for platform-specific styling

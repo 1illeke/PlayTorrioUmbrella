@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ace Bet - Exclusive Bonus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="basicmode/css/style.css">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'primary-purple': '#7c3aed',
+              'primary-blue': '#3b82f6',
+              'bg-dark': '#0a0a0f',
+              'bg-card': '#14141f',
+              'casino-green': '#10b981',
+              'casino-gold': '#fbbf24',
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body class="casino-gradient text-white min-h-screen pt-8 overflow-x-hidden">
+    <!-- Custom Title Bar -->
+    <div class="custom-title-bar fixed top-0 left-0 right-0 h-8 flex items-center justify-between px-3 z-[999999] select-none bg-[#0a0a0f] border-b border-emerald-500/20" style="-webkit-app-region: drag;">
+        <div class="flex items-center gap-2 text-xs font-semibold text-gray-300">
+            <span class="text-emerald-400">♠</span>
+            <span class="opacity-90">Ace Bet <span class="text-xs text-emerald-500 font-normal ml-1">Exclusive Partner</span></span>
+        </div>
+        <div class="flex items-center gap-1" style="-webkit-app-region: no-drag;">
+            <button id="min-btn" class="w-10 h-8 flex items-center justify-center text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+            </button>
+            <button id="max-btn" class="w-10 h-8 flex items-center justify-center text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h18v18H3z"/></svg>
+            </button>
+            <button id="close-btn" class="w-10 h-8 flex items-center justify-center text-gray-400 hover:bg-red-500 hover:text-white transition-colors">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        if (window.electronAPI) {
+            document.getElementById('min-btn').addEventListener('click', () => window.electronAPI.minimizeWindow());
+            document.getElementById('max-btn').addEventListener('click', () => window.electronAPI.maximizeWindow());
+            document.getElementById('close-btn').addEventListener('click', () => window.electronAPI.closeWindow());
+        }
+        
+        // Open links in default browser
+        function openAceBet() {
+            const url = 'https://a.acebet.com/api/click?a=63&lp=1&c=58';
+            if (window.electronAPI?.openExternal) {
+                window.electronAPI.openExternal(url);
+            } else {
+                window.open(url, '_blank');
+            }
+        }
+    </script>
+
+    <!-- Back Button - Goes to main app index.html -->
+    <a href="index.html" class="fixed top-12 left-6 z-50 w-12 h-12 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-emerald-600 transition-all group">
+        <svg class="w-6 h-6 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+    </a>
+
+    <!-- Floating particles background -->
+    <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div class="absolute top-20 left-10 w-2 h-2 bg-emerald-400 rounded-full animate-ping opacity-60"></div>
+        <div class="absolute top-40 right-20 w-3 h-3 bg-yellow-400 rounded-full animate-pulse opacity-50"></div>
+        <div class="absolute bottom-40 left-1/4 w-2 h-2 bg-emerald-300 rounded-full animate-ping opacity-40" style="animation-delay: 0.5s;"></div>
+        <div class="absolute top-1/3 right-1/3 w-4 h-4 bg-emerald-500 rounded-full animate-pulse opacity-30" style="animation-delay: 1s;"></div>
+        <div class="absolute bottom-20 right-10 w-2 h-2 bg-yellow-300 rounded-full animate-ping opacity-50" style="animation-delay: 1.5s;"></div>
+        <!-- Card suits floating -->
+        <div class="absolute top-32 left-1/4 text-4xl text-emerald-500/20 float-animation">♠</div>
+        <div class="absolute top-48 right-1/4 text-3xl text-red-500/20 float-animation" style="animation-delay: 0.5s;">♥</div>
+        <div class="absolute bottom-32 left-1/3 text-4xl text-emerald-500/20 float-animation" style="animation-delay: 1s;">♣</div>
+        <div class="absolute bottom-48 right-1/3 text-3xl text-red-500/20 float-animation" style="animation-delay: 1.5s;">♦</div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="relative z-10 px-6 py-12 max-w-6xl mx-auto">
+        
+        <!-- Hero Section -->
+        <div class="text-center mb-12 pt-8">
+            <!-- Logo/Brand -->
+            <div class="inline-flex items-center gap-3 mb-6">
+                <div class="w-16 h-16 bg-gradient-to-br from-emerald-500 to-green-700 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30 pulse-glow">
+                    <span class="text-3xl font-black text-white">A</span>
+                </div>
+                <div class="text-left">
+                    <h1 class="text-4xl font-black text-white">ACE BET</h1>
+                    <p class="text-emerald-400 text-sm font-medium tracking-widest">PREMIUM CASINO</p>
+                </div>
+            </div>
+
+            <!-- Main Headline -->
+            <div class="mb-8">
+                <p class="text-emerald-400 text-lg font-semibold mb-2 animate-pulse">★ EXCLUSIVE OFFER FOR PLAYTORRIO USERS ★</p>
+                <h2 class="text-5xl md:text-7xl font-black mb-4">
+                    <span class="gold-text">FREE $1</span>
+                    <span class="text-white"> BONUS</span>
+                </h2>
+                <p class="text-xl text-gray-300 max-w-2xl mx-auto">
+                    The best online casino experience. Slots, sports betting, live games and more.
+                </p>
+            </div>
+
+            <!-- CTA Button -->
+            <button onclick="openAceBet()" 
+               class="inline-flex items-center gap-3 casino-btn text-white text-xl font-bold px-10 py-5 rounded-2xl shimmer cursor-pointer">
+                <span class="text-2xl">♠</span>
+                <span>CLAIM YOUR FREE $1 NOW</span>
+                <svg class="w-6 h-6 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                </svg>
+            </button>
+            <p class="text-gray-500 text-sm mt-4">18+ only • Play responsibly</p>
+        </div>
+
+        <!-- Features Grid -->
+        <div class="grid md:grid-cols-3 gap-6 mb-12">
+            <div class="casino-card rounded-2xl p-6 text-center">
+                <div class="w-14 h-14 bg-emerald-500/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <span class="text-3xl text-emerald-400">$</span>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">Fast Payouts</h3>
+                <p class="text-gray-400">Quick and easy withdrawals with multiple payment options.</p>
+            </div>
+            <div class="casino-card rounded-2xl p-6 text-center">
+                <div class="w-14 h-14 bg-emerald-500/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <span class="text-3xl text-emerald-400">♠</span>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">Casino & Sports</h3>
+                <p class="text-gray-400">Slots, table games, live dealers, and sports betting all in one place.</p>
+            </div>
+            <div class="casino-card rounded-2xl p-6 text-center">
+                <div class="w-14 h-14 bg-emerald-500/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <span class="text-3xl text-emerald-400">★</span>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">VIP Rewards</h3>
+                <p class="text-gray-400">Exclusive bonuses and promotions for loyal players.</p>
+            </div>
+        </div>
+
+        <!-- Banner Section -->
+        <div class="mb-12">
+            <h3 class="text-2xl font-bold text-white mb-6 text-center">♦ Hot Promotions ♦</h3>
+            
+            <!-- Two wide banners stacked -->
+            <div class="space-y-6">
+                <button onclick="openAceBet()" class="block w-full rounded-2xl overflow-hidden casino-card group cursor-pointer">
+                    <img src="https://photos-1xq.pages.dev/Casino%20-%201400x500.png" alt="Casino Bonus" 
+                         class="w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-500">
+                </button>
+                <button onclick="openAceBet()" class="block w-full rounded-2xl overflow-hidden casino-card group cursor-pointer">
+                    <img src="https://photos-1xq.pages.dev/Sport%20-%201400x500.png" alt="Sports Betting" 
+                         class="w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-500">
+                </button>
+            </div>
+        </div>
+
+        <!-- Bottom CTA -->
+        <div class="text-center casino-card rounded-3xl p-8 md:p-12">
+            <h3 class="text-3xl md:text-4xl font-black text-white mb-4">
+                Ready to Play?
+            </h3>
+            <p class="text-gray-300 text-lg mb-8 max-w-xl mx-auto">
+                Join Ace Bet today and get your free $1 bonus to start playing.
+            </p>
+            <button onclick="openAceBet()" 
+               class="inline-flex items-center gap-3 casino-btn text-white text-xl font-bold px-12 py-5 rounded-2xl shimmer cursor-pointer">
+                <span class="text-2xl">♣</span>
+                <span>GET STARTED</span>
+            </button>
+            <div class="flex items-center justify-center gap-6 mt-8 text-gray-500 text-sm flex-wrap">
+                <span class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Quick Registration
+                </span>
+                <span class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    $1 Free Bonus
+                </span>
+                <span class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    18+ Responsible Gaming
+                </span>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-12 pb-8">
+            <p class="text-gray-600 text-xs">
+                Gambling can be addictive. Please play responsibly. 18+ only.<br>
+                Terms and conditions apply.
+            </p>
+        </div>
+    </div>
+
+    <!-- Decorative gradients -->
+    <div class="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
+        <div class="absolute top-0 left-1/4 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-yellow-600/10 rounded-full blur-3xl"></div>
+    </div>
+</body>
+</html>
