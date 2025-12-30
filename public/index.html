@@ -33806,18 +33806,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
                 </svg>
             </a>
+            <!-- Never show again button -->
+            <button id="acebet-never-show" style="display:block;margin:1rem auto 0;background:transparent;border:1px solid rgba(255,255,255,0.2);color:#9ca3af;padding:0.5rem 1rem;border-radius:0.5rem;cursor:pointer;font-size:0.85rem;transition:all 0.2s;">
+                Never show again
+            </button>
         </div>
     </div>
 </div>
 
 <script>
-// Ace Bet Popup - show only once per app session
+// Ace Bet Popup - show only once per session, or never if user opted out
 (function() {
     const popup = document.getElementById('acebet-popup');
     const popupContent = document.getElementById('acebet-popup-content');
     const closeBtn = document.getElementById('acebet-popup-close');
+    const neverShowBtn = document.getElementById('acebet-never-show');
     
     if (!popup || !popupContent || !closeBtn) return;
+    
+    // Check if user permanently dismissed the popup
+    if (localStorage.getItem('acebet_popup_never_show') === 'true') {
+        return; // Never show again
+    }
     
     // Check if popup was already shown this session
     if (!sessionStorage.getItem('acebet_popup_shown')) {
@@ -33849,6 +33859,24 @@ document.addEventListener('DOMContentLoaded', () => {
     popup.addEventListener('click', (e) => {
         if (e.target === popup) closePopup();
     });
+    
+    // Never show again button
+    if (neverShowBtn) {
+        neverShowBtn.addEventListener('click', function() {
+            localStorage.setItem('acebet_popup_never_show', 'true');
+            closePopup();
+        });
+        neverShowBtn.addEventListener('mouseover', function() { 
+            this.style.background = 'rgba(239,68,68,0.2)'; 
+            this.style.borderColor = '#ef4444';
+            this.style.color = '#ef4444';
+        });
+        neverShowBtn.addEventListener('mouseout', function() { 
+            this.style.background = 'transparent'; 
+            this.style.borderColor = 'rgba(255,255,255,0.2)';
+            this.style.color = '#9ca3af';
+        });
+    }
 })();
 </script>
 
