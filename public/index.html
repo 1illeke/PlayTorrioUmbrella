@@ -8257,13 +8257,14 @@
             <i class="fab fa-trakt"></i>
             <span>Trakt</span>
         </div>
-        <a href="casino.html" class="floating-nav-item acebet-nav-item" style="color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); position: relative;">
+        <a href="casino.html" class="floating-nav-item acebet-nav-item" id="acebet-floating-btn" style="color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); position: relative; padding-right: 28px;">
             <div class="acebet-nav-particles">
                 <span style="position:absolute;width:3px;height:3px;background:#10b981;border-radius:50%;top:20%;left:10%;animation:acebet-float 2s ease-in-out infinite;"></span>
                 <span style="position:absolute;width:3px;height:3px;background:#10b981;border-radius:50%;top:60%;right:15%;animation:acebet-float 2s ease-in-out infinite 0.5s;"></span>
             </div>
             <span style="font-weight:bold;font-size:1.1rem;">♠</span>
             <span>Ace Bet</span>
+            <button class="acebet-floating-close" onclick="event.preventDefault(); event.stopPropagation(); hideSponsor();" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); width:16px; height:16px; background:#dc3545; border:none; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:10; padding:0; font-size:10px; color:white; line-height:1;">&times;</button>
         </a>
     </div>
 </div>
@@ -8313,7 +8314,7 @@
             <div class="nav-section-title">LIBRARY</div>
             
             <!-- Ace Bet Sponsor Button -->
-            <div class="nav-item acebet-nav-item" id="acebet-nav-btn" onclick="window.location.href='casino.html';" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.1)); border: 1px solid rgba(16, 185, 129, 0.3); position: relative; overflow: visible;">
+            <div class="nav-item acebet-nav-item" id="acebet-nav-btn" onclick="window.location.href='casino.html';" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.1)); border: 1px solid rgba(16, 185, 129, 0.3); position: relative; overflow: visible; padding-right: 32px;">
                 <div class="acebet-nav-particles">
                     <span class="acebet-particle-nav"></span>
                     <span class="acebet-particle-nav"></span>
@@ -8322,6 +8323,7 @@
                 <div style="width: 24px; height: 24px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 900; color: white; font-size: 14px;">A</div>
                 <span style="color: #10b981; font-weight: 600;">Ace Bet</span>
                 <span class="nav-badge" style="background: linear-gradient(135deg, #10b981, #059669);">Sponsor</span>
+                <button id="acebet-close-btn" onclick="event.stopPropagation(); hideSponsor();" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); width:18px; height:18px; background:#dc3545; border:none; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:10; padding:0; font-size:10px; color:white; line-height:1;">&times;</button>
             </div>
             
             <div class="nav-item" data-page="trakt">
@@ -9740,6 +9742,24 @@
                             </div>
                             <div style="margin-top:0.5rem; color:#9ca3af; font-size:0.9rem;">
                                 <i class="fas fa-info-circle"></i> Display what you're watching on your Discord profile
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-ad" style="color: #10b981;"></i> Sponsor</h3>
+                        </div>
+                        <div class="settings-card-body">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="showSponsorToggle" checked />
+                                <label for="showSponsorToggle">
+                                    <i class="fas fa-heart" style="margin-right:0.25rem; color:#10b981;"></i>
+                                    <strong>Show Sponsor Button</strong>
+                                </label>
+                            </div>
+                            <div style="margin-top:0.5rem; color:#9ca3af; font-size:0.9rem;">
+                                <i class="fas fa-info-circle"></i> Display the Ace Bet sponsor button in the navigation. Sponsors help keep PlayTorrio free!
                             </div>
                         </div>
                     </div>
@@ -12173,6 +12193,53 @@ Your browser does not support the video tag.
         let discordMusicActive = false;
         let discordActivityEnabled = true; // Cached value, updated when settings change
 
+        // Sponsor visibility functions
+        function updateSponsorVisibility(show) {
+            const aceBetNavBtn = document.getElementById('acebet-nav-btn');
+            const aceBetFloatingBtn = document.getElementById('acebet-floating-btn');
+            
+            if (aceBetNavBtn) {
+                aceBetNavBtn.style.display = show ? '' : 'none';
+            }
+            if (aceBetFloatingBtn) {
+                aceBetFloatingBtn.style.display = show ? '' : 'none';
+            }
+        }
+        
+        // Load sponsor visibility setting on app startup
+        async function loadSponsorVisibility() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/settings`);
+                if (res.ok) {
+                    const settings = await res.json();
+                    const showSponsor = settings.showSponsor === undefined ? true : settings.showSponsor;
+                    updateSponsorVisibility(showSponsor);
+                }
+            } catch (e) {
+                console.error('[Sponsor] Failed to load setting:', e);
+            }
+        }
+        
+        async function hideSponsor() {
+            // Update toggle state
+            const showSponsorToggles = document.querySelectorAll('#showSponsorToggle');
+            showSponsorToggles.forEach(t => { t.checked = false; });
+            
+            // Hide sponsor buttons immediately
+            updateSponsorVisibility(false);
+            
+            // Save to server
+            try {
+                await fetch(`${API_BASE_URL}/settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ showSponsor: false })
+                });
+            } catch (e) {
+                console.error('[Sponsor] Failed to save setting:', e);
+            }
+        }
+
         // Check if Discord activity is enabled
         async function isDiscordActivityEnabled() {
             try {
@@ -12381,6 +12448,7 @@ Your browser does not support the video tag.
         async function init() {
             await checkApiKeyStatus();
             await ensureDebridState();
+            await loadSponsorVisibility(); // Load sponsor visibility on startup
             setupEventListeners();
             initIptvSourceSelector(); // Initialize IPTV dropdown
             initializeBookTorrio(); // Initialize BookTorrio functionality
@@ -12704,6 +12772,12 @@ Your browser does not support the video tag.
                             discordActivityEnabled = discordActivity; // Update cached value
                             const discordActivityToggles = document.querySelectorAll('#discordActivityToggle');
                             discordActivityToggles.forEach(t => { t.checked = !!discordActivity; });
+                            
+                            // Show Sponsor toggle (default ON if missing)
+                            const showSponsor = s.showSponsor === undefined ? true : s.showSponsor;
+                            const showSponsorToggles = document.querySelectorAll('#showSponsorToggle');
+                            showSponsorToggles.forEach(t => { t.checked = !!showSponsor; });
+                            updateSponsorVisibility(showSponsor);
                     
                     const useTorrentlessToggles = document.querySelectorAll('#useTorrentlessToggle');
                     useTorrentlessToggles.forEach(toggle => {
@@ -14613,10 +14687,20 @@ Your browser does not support the video tag.
             
             // Get Discord Activity setting (prefer visible)
             const discordActivityToggles = document.querySelectorAll('#discordActivityToggle');
-            let discordActivityEnabled = true; // default ON
+            let newDiscordActivityEnabled = true; // default ON
             for (const el of discordActivityToggles) {
                 if (el.offsetParent !== null) {
-                    discordActivityEnabled = !!el.checked;
+                    newDiscordActivityEnabled = !!el.checked;
+                    break;
+                }
+            }
+            
+            // Get Show Sponsor setting (prefer visible)
+            const showSponsorToggles = document.querySelectorAll('#showSponsorToggle');
+            let showSponsorEnabled = true; // default ON
+            for (const el of showSponsorToggles) {
+                if (el.offsetParent !== null) {
+                    showSponsorEnabled = !!el.checked;
                     break;
                 }
             }
@@ -14679,10 +14763,14 @@ Your browser does not support the video tag.
                 const settings = { 
                     useTorrentless: desiredTorrentless, 
                     autoUpdate: !!autoUpdateEnabled,
-                    discordActivity: !!discordActivityEnabled
+                    discordActivity: !!newDiscordActivityEnabled,
+                    showSponsor: !!showSponsorEnabled
                 };
                 if (jackettUrl) settings.jackettUrl = jackettUrl;
                 if (cacheLocation) settings.cacheLocation = cacheLocation;
+                
+                // Update sponsor visibility immediately
+                updateSponsorVisibility(showSponsorEnabled);
                 
                 // Persist all settings including Jackett URL and cache location
                 await fetch(`${API_BASE_URL}/settings`, {
@@ -14692,8 +14780,8 @@ Your browser does not support the video tag.
                 });
                 useTorrentless = desiredTorrentless;
 
-                // Update the cached Discord activity flag
-                discordActivityEnabled = !!discordActivityEnabled;
+                // Update the global cached Discord activity flag
+                discordActivityEnabled = !!newDiscordActivityEnabled;
                 
                 // If Discord activity was disabled, clear the presence immediately
                 if (!discordActivityEnabled) {

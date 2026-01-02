@@ -1268,7 +1268,8 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
             cacheLocation: userSettings.cacheLocation || CACHE_LOCATION,
             useNodeMPV: !!s.useNodeMPV,
             mpvPath: s.mpvPath || null,
-            discordActivity: s.discordActivity !== false
+            discordActivity: s.discordActivity !== false,
+            showSponsor: s.showSponsor !== false
         });
     });
     
@@ -1290,6 +1291,7 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
             useNodeMPV: req.body.useNodeMPV != null ? !!req.body.useNodeMPV : !!s.useNodeMPV,
             mpvPath: req.body.mpvPath !== undefined ? (req.body.mpvPath || null) : (s.mpvPath || null),
             discordActivity: req.body.discordActivity !== undefined ? !!req.body.discordActivity : (s.discordActivity !== false),
+            showSponsor: req.body.showSponsor !== undefined ? !!req.body.showSponsor : (s.showSponsor !== false),
         };
         const ok = writeSettings(next);
         

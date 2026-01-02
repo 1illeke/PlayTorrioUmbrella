@@ -182,25 +182,28 @@
                 </div>
 
                 <!-- Ace Bet Button -->
-                <a href="casino.html" id="acebet-btn" class="relative w-10 h-10 bg-gradient-to-br from-emerald-600 to-green-700 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:from-emerald-500 hover:to-green-600 transition-all active:scale-95 border border-emerald-400/30 shadow-lg shadow-emerald-500/20 group overflow-visible">
-                    <!-- Particle effects -->
-                    <div class="absolute inset-0 rounded-full">
-                        <span class="acebet-particle"></span>
-                        <span class="acebet-particle"></span>
-                        <span class="acebet-particle"></span>
-                    </div>
-                    <!-- Glow pulse -->
-                    <div class="absolute inset-0 rounded-full bg-emerald-400/40 animate-ping opacity-75"></div>
-                    <!-- Ace icon - stylized A with card suit -->
-                    <svg class="w-6 h-6 relative z-10 drop-shadow-lg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <!-- Card shape background -->
-                        <rect x="4" y="2" width="16" height="20" rx="2" fill="white" opacity="0.15"/>
-                        <!-- Letter A -->
-                        <path d="M12 5L7 19H9.5L10.5 16H13.5L14.5 19H17L12 5Z" fill="currentColor"/>
-                        <!-- Spade suit in the middle of A -->
-                        <path d="M12 10.5C12 10.5 10 12 10 13.2C10 14.2 10.9 14.8 12 14.8C13.1 14.8 14 14.2 14 13.2C14 12 12 10.5 12 10.5Z" fill="currentColor" opacity="0.6"/>
-                    </svg>
-                </a>
+                <div id="acebet-btn-wrapper" class="relative">
+                    <button id="acebet-close-btn" onclick="event.stopPropagation(); hideSponsorBasic();" class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 border border-gray-900 rounded-full flex items-center justify-center cursor-pointer z-20 text-white text-[10px] leading-none hover:bg-red-600 transition-colors">&times;</button>
+                    <a href="casino.html" id="acebet-btn" class="relative w-10 h-10 bg-gradient-to-br from-emerald-600 to-green-700 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:from-emerald-500 hover:to-green-600 transition-all active:scale-95 border border-emerald-400/30 shadow-lg shadow-emerald-500/20 group overflow-visible">
+                        <!-- Particle effects -->
+                        <div class="absolute inset-0 rounded-full">
+                            <span class="acebet-particle"></span>
+                            <span class="acebet-particle"></span>
+                            <span class="acebet-particle"></span>
+                        </div>
+                        <!-- Glow pulse -->
+                        <div class="absolute inset-0 rounded-full bg-emerald-400/40 animate-ping opacity-75"></div>
+                        <!-- Ace icon - stylized A with card suit -->
+                        <svg class="w-6 h-6 relative z-10 drop-shadow-lg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Card shape background -->
+                            <rect x="4" y="2" width="16" height="20" rx="2" fill="white" opacity="0.15"/>
+                            <!-- Letter A -->
+                            <path d="M12 5L7 19H9.5L10.5 16H13.5L14.5 19H17L12 5Z" fill="currentColor"/>
+                            <!-- Spade suit in the middle of A -->
+                            <path d="M12 10.5C12 10.5 10 12 10 13.2C10 14.2 10.9 14.8 12 14.8C13.1 14.8 14 14.2 14 13.2C14 12 12 10.5 12 10.5Z" fill="currentColor" opacity="0.6"/>
+                        </svg>
+                    </a>
+                </div>
 
                 <!-- Settings Button -->
                 <button id="settings-btn" class="w-10 h-10 bg-gray-800/80 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors active:scale-95 border border-gray-700/50">
@@ -337,8 +340,25 @@
                     </div>
                 </div>
 
+                <!-- Sponsor Settings -->
+                <div id="sponsor-section" class="pt-4 border-t border-gray-800">
+                    <h3 class="text-white font-semibold mb-3 flex items-center gap-2 text-sm sm:text-base">
+                        <svg class="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                        </svg>
+                        Sponsor
+                    </h3>
+                    
+                    <div class="mb-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="show-sponsor-toggle" class="form-checkbox bg-gray-800 border-gray-700 text-emerald-600 rounded focus:ring-emerald-500 transition-colors" checked>
+                            <span class="text-gray-300 text-xs sm:text-sm">Show Sponsor Button</span>
+                        </label>
+                        <p class="text-gray-500 text-[9px] sm:text-[10px] mt-1 ml-6">Display the Ace Bet sponsor button. Sponsors help keep PlayTorrio free!</p>
+                    </div>
+                </div>
+
                 <div class="pt-4 border-t border-gray-800">
-                    <label class="block text-gray-400 text-xs sm:text-sm font-medium mb-2">Application Mode</label>
                     <button onclick="if(window.electronAPI?.setPreferredMode) window.electronAPI.setPreferredMode('advanced'); window.location.href='../index.html'" class="w-full py-2 bg-gray-800 hover:bg-gray-700 text-white text-xs sm:text-sm rounded-lg transition-colors flex items-center justify-center gap-2 border border-gray-700">
                         <svg class="w-4 h-4 sm:w-5 sm:h-5 text-primary-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />

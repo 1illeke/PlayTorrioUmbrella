@@ -335,3 +335,66 @@ export const initNodeMPVUI = async () => {
         });
     }
 };
+
+// Sponsor Settings
+export const initSponsorUI = async () => {
+    const showSponsorToggle = document.getElementById('show-sponsor-toggle');
+    const aceBetWrapper = document.getElementById('acebet-btn-wrapper');
+    
+    if (!showSponsorToggle) return;
+    
+    // Load initial state
+    const settings = await getDebridSettings();
+    const showSponsor = settings.showSponsor !== false; // default ON
+    showSponsorToggle.checked = showSponsor;
+    
+    // Update visibility
+    if (aceBetWrapper) {
+        aceBetWrapper.style.display = showSponsor ? '' : 'none';
+    }
+    
+    // Event listener for toggle
+    showSponsorToggle.addEventListener('change', (e) => {
+        const show = e.target.checked;
+        saveDebridSettings({ showSponsor: show });
+        if (aceBetWrapper) {
+            aceBetWrapper.style.display = show ? '' : 'none';
+        }
+    });
+};
+
+// Load sponsor visibility on app startup (before settings modal is opened)
+export const loadSponsorVisibility = async () => {
+    const aceBetWrapper = document.getElementById('acebet-btn-wrapper');
+    if (!aceBetWrapper) return;
+    
+    try {
+        const settings = await getDebridSettings();
+        const showSponsor = settings.showSponsor !== false; // default ON
+        aceBetWrapper.style.display = showSponsor ? '' : 'none';
+    } catch (e) {
+        console.error('[Sponsor] Failed to load setting:', e);
+    }
+};
+
+// Hide sponsor function (called from X button)
+export const hideSponsorBasic = async () => {
+    const showSponsorToggle = document.getElementById('show-sponsor-toggle');
+    const aceBetWrapper = document.getElementById('acebet-btn-wrapper');
+    
+    // Update toggle
+    if (showSponsorToggle) {
+        showSponsorToggle.checked = false;
+    }
+    
+    // Hide button
+    if (aceBetWrapper) {
+        aceBetWrapper.style.display = 'none';
+    }
+    
+    // Save to server
+    await saveDebridSettings({ showSponsor: false });
+};
+
+// Make hideSponsorBasic available globally for onclick handler
+window.hideSponsorBasic = hideSponsorBasic;

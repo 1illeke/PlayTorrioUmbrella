@@ -13,7 +13,7 @@ import {
 import { getJackettKey, setJackettKey, getJackettSettings } from './jackett.js';
 import { getInstalledAddons, installAddon, removeAddon } from './addons.js';
 import { initComics } from './comics.js';
-import { initDebridUI, initNodeMPVUI } from './debrid.js';
+import { initDebridUI, initNodeMPVUI, initSponsorUI, loadSponsorVisibility } from './debrid.js';
 
 // DOM Elements
 let contentRows, searchResultsContainer, searchGrid, searchInput, searchSourceSelect, heroSection, heroBackdrop, heroTitle, heroOverview, heroInfoBtn;
@@ -613,6 +613,7 @@ const openSettings = async () => {
     await renderAddonsList();
     await initDebridUI();
     await initNodeMPVUI();
+    await initSponsorUI();
     settingsModal.classList.remove('hidden');
     requestAnimationFrame(() => {
         settingsModal.classList.remove('opacity-0');
@@ -671,6 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSearchSources(); // Initial load of search sources
     initRows();
     initWelcomePopup();
+    loadSponsorVisibility(); // Load sponsor visibility on startup
     
     // Listeners
     settingsBtn?.addEventListener('click', openSettings);
