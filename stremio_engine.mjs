@@ -3,7 +3,7 @@
  * Uses the bundled Stremio server.js for FAST torrent streaming
  */
 
-import { spawn } from 'child_process';
+import { fork } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -21,10 +21,25 @@ let isReady = false;
 let cachePath = null;
 let ffmpegPath = null;
 let ffprobePath = null;
+let logFile = null;
 
 // Track active torrents
 const activeTorrents = new Map();
 const torrentTimestamps = new Map();
+
+/**
+ * Log to file for debugging in production builds
+ */
+function logToFile(message) {
+    const timestamp = new Date().toISOString();
+    const logMsg = `[${timestamp}] ${message}\n`;
+    console.log(message);
+    if (logFile) {
+        try {
+            fs.appendFileSync(logFile, logMsg);
+        } catch (e) {}
+    }
+}
 
 /**
  * Get path to engine/server.cjs
@@ -39,16 +54,22 @@ function getEnginePath() {
         path.join(__dirname.replace('app.asar', 'app.asar.unpacked'), 'engine', 'server.cjs'),
         // Electron resources path (if using extraResources)
         path.join(process.resourcesPath || '', 'engine', 'server.cjs'),
+        // Also check app.asar.unpacked in resources
+        path.join(process.resourcesPath || '', 'app.asar.unpacked', 'engine', 'server.cjs'),
     ];
     
+    logToFile(`[StremioEngine] __dirname: ${__dirname}`);
+    logToFile(`[StremioEngine] process.resourcesPath: ${process.resourcesPath || 'undefined'}`);
+    
     for (const enginePath of possiblePaths) {
+        logToFile(`[StremioEngine] Checking: ${enginePath}`);
         if (fs.existsSync(enginePath)) {
-            console.log(`[StremioEngine] Found engine at: ${enginePath}`);
+            logToFile(`[StremioEngine] Found engine at: ${enginePath}`);
             return enginePath;
         }
     }
     
-    console.error('[StremioEngine] Engine not found in any location:', possiblePaths);
+    logToFile('[StremioEngine] Engine not found in any location!');
     return null;
 }
 
@@ -74,12 +95,24 @@ async function waitForReady(maxAttempts = 60, delayMs = 500) {
  * Start the Stremio engine
  */
 export async function startEngine(userDataPath, ffmpegBin = null, ffprobeBin = null) {
+    // Set up log file in userData for debugging
+    logFile = path.join(userDataPath, 'stremio_engine.log');
+    try {
+        fs.writeFileSync(logFile, `=== Stremio Engine Log Started ${new Date().toISOString()} ===\n`);
+    } catch (e) {}
+    
+    logToFile(`[StremioEngine] startEngine called`);
+    logToFile(`[StremioEngine] userDataPath: ${userDataPath}`);
+    logToFile(`[StremioEngine] process.execPath: ${process.execPath}`);
+    
     if (isReady && engineProcess) {
+        logToFile('[StremioEngine] Already running');
         return { success: true, url: ENGINE_URL };
     }
     
     const enginePath = getEnginePath();
     if (!enginePath) {
+        logToFile('[StremioEngine] ERROR: Engine not found!');
         throw new Error('Stremio engine not found in /engine folder');
     }
     
@@ -90,9 +123,9 @@ export async function startEngine(userDataPath, ffmpegBin = null, ffprobeBin = n
     // Set up cache path - engine will create stremio-cache subfolder
     cachePath = userDataPath;
     
-    console.log(`[StremioEngine] Starting from: ${enginePath}`);
-    console.log(`[StremioEngine] Data path: ${cachePath}`);
-    console.log(`[StremioEngine] FFmpeg: ${ffmpegPath || 'system'}`);
+    logToFile(`[StremioEngine] Starting from: ${enginePath}`);
+    logToFile(`[StremioEngine] Data path: ${cachePath}`);
+    logToFile(`[StremioEngine] FFmpeg: ${ffmpegPath || 'system'}`);
     
     // Build environment with FFmpeg paths
     const engineEnv = {
@@ -116,34 +149,38 @@ export async function startEngine(userDataPath, ffmpegBin = null, ffprobeBin = n
         engineEnv.FFPROBE = ffprobePath;
     }
     
-    // Start the engine process using spawn with node
-    engineProcess = spawn(process.execPath, [enginePath], {
+    logToFile(`[StremioEngine] Spawning engine with fork...`);
+    
+    // Use fork() which uses Electron's built-in Node.js runtime
+    // This works in packaged apps unlike spawn(process.execPath)
+    engineProcess = fork(enginePath, [], {
         env: engineEnv,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+        detached: false,
         windowsHide: true
     });
     
     engineProcess.stdout?.on('data', (data) => {
         const msg = data.toString().trim();
         if (msg && !msg.includes('DEBUG')) {
-            console.log(`[StremioEngine] ${msg}`);
+            logToFile(`[StremioEngine] ${msg}`);
         }
     });
     
     engineProcess.stderr?.on('data', (data) => {
         const msg = data.toString().trim();
         if (msg) {
-            console.error(`[StremioEngine] ${msg}`);
+            logToFile(`[StremioEngine] STDERR: ${msg}`);
         }
     });
     
     engineProcess.on('error', (err) => {
-        console.error('[StremioEngine] Process error:', err.message);
+        logToFile(`[StremioEngine] Process error: ${err.message}`);
         isReady = false;
     });
     
     engineProcess.on('exit', (code) => {
-        console.log(`[StremioEngine] Process exited with code ${code}`);
+        logToFile(`[StremioEngine] Process exited with code ${code}`);
         isReady = false;
         engineProcess = null;
     });
