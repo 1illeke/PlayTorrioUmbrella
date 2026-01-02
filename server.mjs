@@ -467,7 +467,6 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         
         // If there's already a probe running for this URL, wait for it
         if (activeProbes.has(normalizedUrl)) {
-            // console.log(`[FFprobe] Awaiting active probe for: ${normalizedUrl.substring(0, 80)}...`);
             return activeProbes.get(normalizedUrl);
         }
 
@@ -477,18 +476,33 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                 const isLocal = targetUrl.includes('127.0.0.1');
                 
                 const runProbe = () => new Promise((resolve, reject) => {
+                    // ============ OPTIMIZED FFPROBE FOR SPEED ============
+                    // Key optimizations:
+                    // 1. Reduced analyzeduration/probesize for faster startup
+                    // 2. Only read first 5MB of file for metadata
+                    // 3. Skip frame analysis (-count_frames removed)
+                    // 4. Use faster format detection
                     const args = [
                         '-hide_banner',
                         '-loglevel', 'error',
                         '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        
+                        // ============ SPEED OPTIMIZATIONS ============
+                        '-analyzeduration', '5000000',   // 5M microseconds (5s) - much faster
+                        '-probesize', '5000000',         // 5MB - enough for headers
+                        '-fflags', '+fastseek+nobuffer', // Fast seeking, no buffering
+                        '-flags', 'low_delay',           // Low delay mode
+                        
+                        // Network optimizations
+                        '-reconnect', '1',
+                        '-reconnect_streamed', '1',
+                        '-reconnect_delay_max', '2',     // Reduced from 5s
+                        '-timeout', '10000000',          // 10s timeout (microseconds)
+                        
+                        // Output format
                         '-print_format', 'json',
                         '-show_format',
                         '-show_streams',
-                        '-reconnect', '1',
-                        '-reconnect_streamed', '1',
-                        '-reconnect_delay_max', '5',
-                        '-analyzeduration', '20000000', // Increased to 20M for robustness
-                        '-probesize', '20000000'
                     ];
 
                     // Only add TorBox Referer for TorBox links
@@ -496,11 +510,13 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                         args.push('-headers', 'Referer: https://torbox.app/\r\n');
                     }
 
-                    args.push(targetUrl);
+                    args.push('-i', targetUrl);
                     
-                    // console.log(`[FFprobe] Spawning: ${resolvedFfprobePath} ${args.join(' ')}`);
+                    const ffprobe = spawn(resolvedFfprobePath, args, {
+                        stdio: ['ignore', 'pipe', 'pipe'],
+                        windowsHide: true  // Hide console window on Windows
+                    });
                     
-                    const ffprobe = spawn(resolvedFfprobePath, args);
                     let stdout = '', stderr = '';
                     ffprobe.stdout.on('data', (d) => stdout += d.toString());
                     ffprobe.stderr.on('data', (d) => stderr += d.toString());
@@ -524,9 +540,9 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                             const audioCodecs = audioStreams.map(s => s.codec_name);
                             
                             // Check if codecs are web-compatible (can be remuxed without transcoding)
-                            // Web-compatible video: h264, hevc (h265), vp8, vp9, av1
-                            // Web-compatible audio: aac, mp3, opus, vorbis, flac
-                            const webCompatibleVideo = ['h264', 'hevc', 'vp8', 'vp9', 'av1'].includes(videoCodec);
+                            // Web-compatible video: h264 only for maximum browser compatibility
+                            // HEVC/VP9/AV1 have limited browser support, so transcode them
+                            const webCompatibleVideo = ['h264'].includes(videoCodec);
                             const webCompatibleAudio = audioCodecs.length === 0 || audioCodecs.some(c => 
                                 ['aac', 'mp3', 'opus', 'vorbis', 'flac'].includes(c)
                             );
@@ -546,6 +562,7 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                                 videoCodec: videoCodec,
                                 width: videoStream?.width || 0,
                                 height: videoStream?.height || 0,
+                                bitrate: parseInt(data.format?.bit_rate) || 0,
                                 // Web compatibility info
                                 canRemux: canRemux,
                                 webCompatibleVideo: webCompatibleVideo,
@@ -553,7 +570,7 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                                 webCompatibleAudioIndex: webCompatibleAudioIndex,
                                 audioTracks: audioStreams.map((s, index) => ({
                                     index: s.index,
-                                    id: index, // Relative audio index for mapping
+                                    id: index,
                                     codec: s.codec_name,
                                     language: s.tags?.language || 'und',
                                     title: s.tags?.title || `Track ${index + 1}`,
@@ -567,29 +584,29 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                         }
                     });
 
+                    // Reduced timeout for faster failure detection
                     const timeout = setTimeout(() => { 
                         ffprobe.kill('SIGKILL'); 
                         reject(new Error('ffprobe timeout')); 
-                    }, 45000); 
+                    }, 20000);  // 20s timeout (reduced from 45s)
 
                     ffprobe.on('close', () => clearTimeout(timeout));
                 });
 
-                // Retry logic for WebTorrent or slow starts
+                // Optimized retry logic - fewer retries, shorter delays
                 let lastError = null;
-                for (let i = 0; i < 5; i++) { // Reduced retries to 5 to avoid long hangs
+                for (let i = 0; i < 3; i++) {  // Reduced from 5 to 3 retries
                     try {
                         const meta = await runProbe();
-                        // console.log(`[FFprobe] Success after ${i+1} attempts`);
                         return meta;
                     } catch (err) {
                         lastError = err;
                         const msg = err.message || '';
                         // Fast fail on certain errors
-                        if (msg.includes('404') || msg.includes('403')) throw err;
+                        if (msg.includes('404') || msg.includes('403') || msg.includes('401')) throw err;
 
-                        // Wait before retry
-                        if (i < 4) await new Promise(r => setTimeout(r, 1500)); 
+                        // Shorter wait before retry
+                        if (i < 2) await new Promise(r => setTimeout(r, 800));  // Reduced from 1500ms
                     }
                 }
                 throw lastError;
@@ -639,22 +656,23 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         const args = [
             '-hide_banner', '-loglevel', 'warning',
             
-            // Input optimization
+            // ============ ULTRA-FAST INPUT FOR INSTANT START ============
             '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            '-fflags', '+genpts+discardcorrupt+fastseek+nobuffer',
+            '-fflags', '+genpts+discardcorrupt+fastseek+nobuffer+igndts',
             '-flags', 'low_delay',
-            '-probesize', '32M',
-            '-analyzeduration', '32M',
+            '-probesize', '1M',        // Absolute minimum for remux
+            '-analyzeduration', '1M',  // Absolute minimum for remux
+            '-thread_queue_size', '512',
             
-            // Seek BEFORE input for faster startup
+            // Seek BEFORE input for instant startup
             '-ss', start.toString(),
             
-            // Reconnection for network streams
+            // Fast reconnection for network streams
             '-reconnect', '1',
             '-reconnect_streamed', '1',
             '-reconnect_on_network_error', '1',
             '-reconnect_at_eof', '1',
-            '-reconnect_delay_max', '3',
+            '-reconnect_delay_max', '2',
             '-i', targetUrl,
             
             // Stream mapping
@@ -665,9 +683,9 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
             '-c:v', 'copy',
             '-c:a', 'copy',
             
-            // Fragmented MP4 for instant playback
-            '-movflags', 'frag_keyframe+empty_moov+default_base_moof+faststart+delay_moov',
-            '-frag_duration', '1000000',  // 1s fragments
+            // Fragmented MP4 for instant playback - optimized flags
+            '-movflags', 'frag_keyframe+empty_moov+default_base_moof+faststart+delay_moov+omit_tfhd_offset',
+            '-frag_duration', '500000',  // 0.5s fragments for lower latency (reduced from 1s)
             
             // Output
             '-f', 'mp4',
@@ -675,7 +693,8 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         ];
 
         const ffmpeg = spawn(resolvedFfmpegPath, args, {
-            stdio: ['ignore', 'pipe', 'pipe']
+            stdio: ['ignore', 'pipe', 'pipe'],
+            windowsHide: true  // Hide console window on Windows
         });
         
         ffmpeg.stdout.pipe(res);
@@ -779,8 +798,8 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         const isVideoToolbox = activeEncoder.includes('videotoolbox');
         const isVAAPI = activeEncoder.includes('vaapi');
 
-        // ============ OPTIMIZED QUALITY PROFILES ============
-        // Tuned for best quality-to-speed ratio per encoder type
+        // ============ OPTIMIZED QUALITY PROFILES - SPEED FOCUSED ============
+        // Tuned for fastest startup while maintaining acceptable quality
         let videoBitrate, maxRate, bufSize, scaleFilter, crf;
         let preset = activePreset;
 
@@ -791,42 +810,43 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                 maxRate = isHW ? '60000k' : '45000k';
                 bufSize = '80000k';
                 scaleFilter = null;
-                crf = isHW ? null : '18'; // CRF for software only
+                crf = isHW ? null : '18';
                 break;
             case 'high': // 1080p - High quality streaming
-                videoBitrate = isHW ? '10000k' : '8000k';
-                maxRate = isHW ? '14000k' : '10000k';
-                bufSize = '20000k';
-                scaleFilter = 'scale=-2:1080:flags=lanczos';
-                crf = isHW ? null : '20';
+                videoBitrate = isHW ? '8000k' : '6000k';  // Reduced for faster encoding
+                maxRate = isHW ? '12000k' : '8000k';
+                bufSize = '16000k';
+                scaleFilter = 'scale=-2:1080:flags=bilinear';  // Faster than lanczos
+                crf = isHW ? null : '22';
                 break;
             case 'low': // 480p - Fast, low bandwidth
-                videoBitrate = '1500k';
-                maxRate = '2000k';
-                bufSize = '4000k';
+                videoBitrate = '1200k';
+                maxRate = '1800k';
+                bufSize = '3000k';
                 scaleFilter = 'scale=-2:480:flags=fast_bilinear';
-                crf = isHW ? null : '26';
+                crf = isHW ? null : '28';
                 break;
             case 'mid': // 720p - Balanced (default)
             default:
-                videoBitrate = isHW ? '5000k' : '4000k';
-                maxRate = isHW ? '7000k' : '5500k';
-                bufSize = '10000k';
-                scaleFilter = 'scale=-2:720:flags=lanczos';
-                crf = isHW ? null : '22';
+                videoBitrate = isHW ? '4000k' : '3500k';  // Slightly reduced for speed
+                maxRate = isHW ? '6000k' : '5000k';
+                bufSize = '8000k';
+                scaleFilter = 'scale=-2:720:flags=bilinear';  // Faster than lanczos
+                crf = isHW ? null : '24';
                 break;
         }
 
-        // ============ BUILD FFMPEG ARGUMENTS ============
+        // ============ BUILD FFMPEG ARGUMENTS - INSTANT START OPTIMIZED ============
         const args = [
             '-hide_banner', '-loglevel', 'warning',
             
-            // Input optimization
+            // ============ ULTRA-FAST INPUT OPTIMIZATION ============
             '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            '-fflags', '+genpts+discardcorrupt+fastseek+nobuffer',
+            '-fflags', '+genpts+discardcorrupt+fastseek+nobuffer+igndts',
             '-flags', 'low_delay',
-            '-probesize', '32M',
-            '-analyzeduration', '32M',
+            '-probesize', '2M',        // Minimal probing for instant start
+            '-analyzeduration', '2M',  // Minimal analysis for instant start
+            '-thread_queue_size', '512', // Larger queue for smoother streaming
             
             // Seek BEFORE input for faster startup (input seeking)
             '-ss', start.toString(),
@@ -1163,10 +1183,12 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                 adApiKey: null,
                 tbApiKey: null,
                 pmApiKey: null,
+                useNodeMPV: false, // Windows only - use MPV player instead of HTML5
+                mpvPath: null, // Custom path to mpv.exe
                 ...s,
             };
         } catch {
-            return { autoUpdate: true, useTorrentless: false, torrentSource: 'torrentio', useDebrid: false, debridProvider: 'realdebrid', rdToken: null, rdRefresh: null, rdClientId: null, rdCredId: null, rdCredSecret: null, adApiKey: null, tbApiKey: null, pmApiKey: null };
+            return { autoUpdate: true, useTorrentless: false, torrentSource: 'torrentio', useDebrid: false, debridProvider: 'realdebrid', rdToken: null, rdRefresh: null, rdClientId: null, rdCredId: null, rdCredSecret: null, adApiKey: null, tbApiKey: null, pmApiKey: null, useNodeMPV: false, mpvPath: null };
         }
     }
     function writeSettings(obj) {
@@ -1243,9 +1265,18 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
             debridAuth,
             rdClientId: s.rdClientId || null,
             jackettUrl: userSettings.jackettUrl || JACKETT_URL,
-            cacheLocation: userSettings.cacheLocation || CACHE_LOCATION
+            cacheLocation: userSettings.cacheLocation || CACHE_LOCATION,
+            useNodeMPV: !!s.useNodeMPV,
+            mpvPath: s.mpvPath || null,
+            discordActivity: s.discordActivity !== false
         });
     });
+    
+    // Platform detection endpoint
+    app.get('/api/platform', (req, res) => {
+        res.json({ platform: process.platform });
+    });
+    
     app.post('/api/settings', (req, res) => {
         const s = readSettings();
         const next = {
@@ -1256,6 +1287,9 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
             useDebrid: req.body.useDebrid != null ? !!req.body.useDebrid : !!s.useDebrid,
             debridProvider: req.body.debridProvider || s.debridProvider || 'realdebrid',
             rdClientId: typeof req.body.rdClientId === 'string' ? req.body.rdClientId.trim() || null : (s.rdClientId || null),
+            useNodeMPV: req.body.useNodeMPV != null ? !!req.body.useNodeMPV : !!s.useNodeMPV,
+            mpvPath: req.body.mpvPath !== undefined ? (req.body.mpvPath || null) : (s.mpvPath || null),
+            discordActivity: req.body.discordActivity !== undefined ? !!req.body.discordActivity : (s.discordActivity !== false),
         };
         const ok = writeSettings(next);
         
@@ -4678,59 +4712,98 @@ for (let i = 0; i < 10; i++) {
         }
     }));
 
+    // ============================================================================
+    // ULTIMATE WEBTORRENT ENGINE - MAXIMUM SPEED & STABILITY
+    // ============================================================================
+    // WebTorrent 2.3.0+ includes native WebRTC support (formerly webtorrent-hybrid)
+    // This configuration is optimized for maximum download speed and stability
+    // ============================================================================
+    
     const client = new WebTorrent({
-        // ============ OPTIMIZED FOR STREAMING - FAST & STABLE ============
+        // ============ MAXIMUM CONNECTIONS FOR SPEED ============
+        maxConns: 500,              // Maximum connections per torrent (aggressive)
         
-        // Connection limits - balanced for speed without overwhelming the system
-        maxConns: 100,              // More connections = more potential speed
-        
-        // Protocol features for maximum peer discovery
-        webSeeds: true,             // HTTP seeds for instant data when available
-        utp: true,                  // µTP - better NAT traversal, less congestion
+        // ============ ALL PROTOCOLS ENABLED ============
+        webSeeds: true,             // HTTP/HTTPS seeds for instant data
+        utp: true,                  // µTP protocol - better NAT traversal, congestion control
         lsd: true,                  // Local Service Discovery - instant LAN peers
-        natUpnp: true,              // UPnP port forwarding
-        natPmp: true,               // NAT-PMP port forwarding (Apple/routers)
-        dht: true,                  // DHT for decentralized peer discovery
+        dht: true,                  // Distributed Hash Table - decentralized peer discovery
+        natUpnp: true,              // UPnP port forwarding for better connectivity
+        natPmp: true,               // NAT-PMP port forwarding (Apple routers)
         
-        // Speed settings - unlimited
-        uploadLimit: -1,            // Unlimited upload = better peer relationships = more download
-        downloadLimit: -1,          // Unlimited download
+        // ============ UNLIMITED SPEED ============
+        uploadLimit: -1,            // No upload limit (better peer relationships = more download)
+        downloadLimit: -1,          // No download limit
         
-        // Timeouts - aggressive for fast startup
-        handshakeTimeout: 8000,     // 8s handshake (fast fail on bad peers)
-        pieceTimeout: 15000,        // 15s piece timeout (quick retry)
+        // ============ AGGRESSIVE TIMEOUTS FOR FAST PEER CYCLING ============
+        handshakeTimeout: 4000,     // 4s handshake - fast fail on bad peers
+        pieceTimeout: 8000,         // 8s piece timeout - quick retry on slow pieces
         
-        // DHT bootstrap nodes for faster peer discovery
+        // ============ COMPREHENSIVE DHT BOOTSTRAP NODES ============
         dhtBootstrap: [
+            // Primary BitTorrent DHT nodes
             'router.bittorrent.com:6881',
             'router.utorrent.com:6881',
             'dht.transmissionbt.com:6881',
-            'dht.aelitis.com:6881'
+            'dht.aelitis.com:6881',
+            // Additional reliable DHT nodes
+            'router.bitcomet.com:6881',
+            'dht.libtorrent.org:25401',
+            'router.magnets.im:6881',
+            'dht.anacrolix.link:42069'
         ],
         
-        // Tracker settings
+        // ============ WEBRTC CONFIGURATION FOR BROWSER PEERS ============
         tracker: {
-            announce: [],           // Will be set per-torrent
-            rtcConfig: {            // WebRTC optimization
+            announce: [],
+            rtcConfig: {
                 iceServers: [
+                    // Google STUN servers (most reliable)
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' },
                     { urls: 'stun:stun2.l.google.com:19302' },
-                    { urls: 'stun:stun3.l.google.com:19302' }
-                ]
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun4.l.google.com:19302' },
+                    // Cloudflare STUN
+                    { urls: 'stun:stun.cloudflare.com:3478' },
+                    // Mozilla STUN
+                    { urls: 'stun:stun.services.mozilla.com:3478' },
+                    // Twilio STUN
+                    { urls: 'stun:global.stun.twilio.com:3478' },
+                    // Additional public STUN servers
+                    { urls: 'stun:stun.stunprotocol.org:3478' },
+                    { urls: 'stun:stun.voip.blackberry.com:3478' }
+                ],
+                // ICE candidate gathering optimization
+                iceCandidatePoolSize: 10
             }
         }
     });
     
-    // Handle WebTorrent client errors gracefully - NEVER crash
+    // ============ ROBUST ERROR HANDLING - NEVER CRASH ============
     client.on('error', (err) => {
-        console.error('[WebTorrent] Client error (handled):', err.message || err);
+        console.error('[WebTorrent] Client error (handled):', err?.message || err);
+    });
+    
+    // Catch any unhandled promise rejections from WebTorrent
+    process.on('unhandledRejection', (reason, promise) => {
+        if (reason?.message?.includes('WebTorrent') || reason?.message?.includes('torrent')) {
+            console.warn('[WebTorrent] Unhandled rejection (suppressed):', reason?.message);
+        }
     });
 
-    // ============ PEER THROTTLING - Prevent UI freeze from too many connections ============
+    // ============ SMART PEER MANAGEMENT ============
     let peerConnectionQueue = [];
     let isProcessingPeers = false;
-    const MAX_PEERS_PER_TICK = 5; // Process max 5 peer connections per tick
+    const MAX_PEERS_PER_TICK = 15; // Process 15 peer connections per tick
+    
+    // Peer speed tracking for smart selection
+    const peerStats = new Map(); // addr -> { speed, bytes, startTime, badPieces }
+    
+    // Throttle peer disconnection logging (log every 10th disconnect or every 30 seconds)
+    let peerDisconnectCount = 0;
+    let lastPeerDisconnectLog = 0;
+    const PEER_DISCONNECT_LOG_INTERVAL = 30000; // 30 seconds
     
     function processPeerQueue() {
         if (isProcessingPeers || peerConnectionQueue.length === 0) return;
@@ -4747,20 +4820,117 @@ for (let i = 0; i < 10; i++) {
         }
     }
 
-    // Stats logging - less frequent to reduce overhead
+    // ============ ULTIMATE TRACKER LIST ============
+    // Comprehensive list of the best public trackers worldwide
+    const ULTIMATE_TRACKERS = [
+        // ═══════════════════════════════════════════════════════════════
+        // TIER 1: FASTEST & MOST RELIABLE PUBLIC TRACKERS
+        // ═══════════════════════════════════════════════════════════════
+        'udp://tracker.opentrackr.org:1337/announce',
+        'udp://open.tracker.cl:1337/announce',
+        'udp://tracker.openbittorrent.com:6969/announce',
+        'udp://open.stealth.si:80/announce',
+        'udp://exodus.desync.com:6969/announce',
+        'udp://open.demonii.com:1337/announce',
+        'udp://tracker.torrent.eu.org:451/announce',
+        'udp://tracker.moeking.me:6969/announce',
+        
+        // ═══════════════════════════════════════════════════════════════
+        // TIER 2: HIGH-QUALITY BACKUP TRACKERS
+        // ═══════════════════════════════════════════════════════════════
+        'udp://explodie.org:6969/announce',
+        'udp://tracker.theoks.net:6969/announce',
+        'udp://tracker.tiny-vps.com:6969/announce',
+        'udp://tracker.pomf.se:80/announce',
+        'udp://tracker.dler.org:6969/announce',
+        'udp://opentracker.i2p.rocks:6969/announce',
+        'udp://tracker.0x.tf:6969/announce',
+        'udp://p4p.arenabg.com:1337/announce',
+        'udp://tracker.coppersurfer.tk:6969/announce',
+        'udp://tracker.leechers-paradise.org:6969/announce',
+        
+        // ═══════════════════════════════════════════════════════════════
+        // TIER 3: ADDITIONAL RELIABLE TRACKERS
+        // ═══════════════════════════════════════════════════════════════
+        'udp://bt1.archive.org:6969/announce',
+        'udp://bt2.archive.org:6969/announce',
+        'udp://tracker.pirateparty.gr:6969/announce',
+        'udp://tracker.cyberia.is:6969/announce',
+        'udp://tracker.internetwarriors.net:1337/announce',
+        'udp://9.rarbg.to:2920/announce',
+        'udp://tracker.birkenwald.de:6969/announce',
+        'udp://tracker.jordan.im:6969/announce',
+        'udp://retracker.lanta-net.ru:2710/announce',
+        'udp://tracker.uw0.xyz:6969/announce',
+        
+        // ═══════════════════════════════════════════════════════════════
+        // TIER 4: REGIONAL & SPECIALIZED TRACKERS
+        // ═══════════════════════════════════════════════════════════════
+        'udp://tracker.filemail.com:6969/announce',
+        'udp://tracker.lelux.fi:6969/announce',
+        'udp://tracker.zerobytes.xyz:1337/announce',
+        'udp://vibe.sleepyinternetfun.xyz:1738/announce',
+        'udp://www.torrent.eu.org:451/announce',
+        'udp://tracker.bitsearch.to:1337/announce',
+        'udp://tracker.altrosky.nl:6969/announce',
+        'udp://tracker.army:6969/announce',
+        'udp://tracker.leech.ie:1337/announce',
+        'udp://tracker.srv00.com:6969/announce',
+        
+        // ═══════════════════════════════════════════════════════════════
+        // HTTP/HTTPS TRACKERS (Fallback for UDP-blocked networks)
+        // ═══════════════════════════════════════════════════════════════
+        'http://tracker.openbittorrent.com:80/announce',
+        'http://tracker.opentrackr.org:1337/announce',
+        'https://tracker.lilithraws.org:443/announce',
+        'https://tracker.tamersunion.org:443/announce',
+        'http://tracker.files.fm:6969/announce',
+        'https://tracker.gbitt.info:443/announce',
+        'https://tracker.imgoingto.icu:443/announce',
+        'http://tracker.bt4g.com:2095/announce',
+        
+        // ═══════════════════════════════════════════════════════════════
+        // WEBRTC TRACKERS (For browser peer connectivity)
+        // ═══════════════════════════════════════════════════════════════
+        'wss://tracker.openwebtorrent.com',
+        'wss://tracker.btorrent.xyz',
+        'wss://tracker.webtorrent.dev',
+        'wss://tracker.files.fm:7073/announce',
+        'wss://spacetradersapi-chatbox.herokuapp.com:443/announce'
+    ];
+    
+    function processPeerQueue() {
+        if (isProcessingPeers || peerConnectionQueue.length === 0) return;
+        isProcessingPeers = true;
+        
+        const batch = peerConnectionQueue.splice(0, MAX_PEERS_PER_TICK);
+        batch.forEach(fn => {
+            try { fn(); } catch {}
+        });
+        
+        isProcessingPeers = false;
+        if (peerConnectionQueue.length > 0) {
+            setImmediate(processPeerQueue);
+        }
+    }
+
+    // ============ ENHANCED STATS LOGGING ============
     setInterval(() => {
         try {
             if (client.torrents.length > 0) {
-                const stats = {
-                    torrents: client.torrents.length,
-                    peers: client.torrents.reduce((sum, t) => sum + (t.numPeers || 0), 0),
-                    down: (client.downloadSpeed / 1024 / 1024).toFixed(2) + ' MB/s',
-                    up: (client.uploadSpeed / 1024 / 1024).toFixed(2) + ' MB/s'
-                };
-                console.log(`[WebTorrent] ${JSON.stringify(stats)}`);
+                const totalPeers = client.torrents.reduce((sum, t) => sum + (t.numPeers || 0), 0);
+                const downloadSpeed = client.downloadSpeed / 1024 / 1024;
+                const uploadSpeed = client.uploadSpeed / 1024 / 1024;
+                
+                // Calculate average peer speed
+                const avgPeerSpeed = peerStats.size > 0 
+                    ? Array.from(peerStats.values()).reduce((a, b) => a + b.speed, 0) / peerStats.size / 1024
+                    : 0;
+                
+                console.log(`[WebTorrent] ↓${downloadSpeed.toFixed(2)} MB/s ↑${uploadSpeed.toFixed(2)} MB/s | Peers: ${totalPeers} | Tracked: ${peerStats.size} | Avg: ${avgPeerSpeed.toFixed(0)} KB/s`);
             }
         } catch {}
-    }, 60000); // Log every 60 seconds (reduced from 30)
+    }, 30000); // Log every 30 seconds for better monitoring
 
     const activeTorrents = new Map();
     const torrentTimestamps = new Map();
@@ -5006,66 +5176,116 @@ for (let i = 0; i < 10; i++) {
         const torrentDownloadPath = path.join(CACHE_LOCATION, 'webtorrent', infoHash);
         fs.mkdirSync(torrentDownloadPath, { recursive: true });
         
-        // ============ OPTIMIZED TORRENT OPTIONS FOR STREAMING ============
+        // ============ ULTIMATE TORRENT OPTIONS FOR MAXIMUM SPEED ============
         const torrentOptions = { 
             path: torrentDownloadPath, 
             destroyStoreOnDestroy: true,
             
-            // Aggressive tracker list for fast peer discovery
-            announce: [
-                // Tier 1: Fastest, most reliable trackers
-                'udp://tracker.opentrackr.org:1337/announce',
-                'udp://open.tracker.cl:1337/announce',
-                'udp://tracker.openbittorrent.com:6969/announce',
-                'udp://exodus.desync.com:6969/announce',
-                'udp://open.demonii.com:1337/announce',
-                // Tier 2: Good backup trackers
-                'udp://tracker.torrent.eu.org:451/announce',
-                'udp://tracker.moeking.me:6969/announce',
-                'udp://explodie.org:6969/announce',
-                'udp://tracker.theoks.net:6969/announce',
-                // Tier 3: Additional sources
-                'udp://bt1.archive.org:6969/announce',
-                'http://tracker.openbittorrent.com:80/announce',
-                // WebRTC tracker for browser peers
-                'wss://tracker.openwebtorrent.com',
-                'wss://tracker.btorrent.xyz'
-            ],
+            // Use the ultimate tracker list
+            announce: ULTIMATE_TRACKERS,
             
-            // Connection settings
-            maxWebConns: 30,          // More web seed connections
+            // ============ AGGRESSIVE CONNECTION SETTINGS ============
+            maxWebConns: 100,         // Maximum web seed connections
             
             // Download strategy - SEQUENTIAL for streaming
             strategy: 'sequential',
             
-            // Piece verification
-            skipVerify: false,        // Always verify for data integrity
+            // Piece verification - always verify for data integrity
+            skipVerify: false,
             
-            // Memory optimization
-            storeCacheSlots: 50       // More cache = smoother playback
+            // ============ MEMORY & CACHE OPTIMIZATION ============
+            storeCacheSlots: 200,     // Large cache for smooth playback
+            
+            // ============ PRIVATE TORRENT HANDLING ============
+            private: false            // Allow DHT/PEX for public torrents
         };
         
         const torrent = client.add(magnet, torrentOptions);
         activeTorrents.set(infoHash, torrent);
         torrentTimestamps.set(infoHash, Date.now());
 
-        // ============ OPTIMIZED WIRE HANDLING - NON-BLOCKING ============
+        // ============ ULTIMATE WIRE HANDLING - SMART PEER SELECTION ============
         torrent.on('wire', (wire, addr) => {
-            // Queue wire optimization to prevent UI freeze
             peerConnectionQueue.push(() => {
                 try {
-                    // Keep connection alive for better peer relationships
+                    // Keep connection alive
                     wire.setKeepAlive(true);
                     
-                    // Increase request queue for faster piece downloads
-                    // Default is usually 5, we want more parallel requests
+                    // Maximum parallel piece requests for speed
                     if (wire.requests) {
-                        wire._requestsMax = 16; // More parallel piece requests
+                        wire._requestsMax = 64; // Very aggressive parallel requests
                     }
                     
-                    // Set timeout for unresponsive peers
-                    wire.setTimeout(30000, () => {
-                        try { wire.destroy(); } catch {}
+                    // Initialize peer stats
+                    peerStats.set(addr, {
+                        speed: 0,
+                        bytes: 0,
+                        startTime: Date.now(),
+                        badPieces: 0,
+                        lastActive: Date.now()
+                    });
+                    
+                    // Track download speed per peer
+                    wire.on('download', (bytes) => {
+                        const stats = peerStats.get(addr);
+                        if (stats) {
+                            stats.bytes += bytes;
+                            stats.lastActive = Date.now();
+                            const elapsed = (Date.now() - stats.startTime) / 1000;
+                            if (elapsed > 0) {
+                                stats.speed = stats.bytes / elapsed;
+                            }
+                        }
+                    });
+                    
+                    // Track bad pieces (corruption indicator)
+                    wire.on('timeout', () => {
+                        const stats = peerStats.get(addr);
+                        if (stats) stats.badPieces++;
+                    });
+                    
+                    // ============ SMART PEER CULLING ============
+                    // After 20 seconds, evaluate peer quality
+                    setTimeout(() => {
+                        try {
+                            const stats = peerStats.get(addr);
+                            if (!stats) return;
+                            
+                            const speed = stats.speed;
+                            const allSpeeds = Array.from(peerStats.values()).map(s => s.speed);
+                            const avgSpeed = allSpeeds.reduce((a, b) => a + b, 0) / Math.max(1, allSpeeds.length);
+                            const minAcceptableSpeed = Math.max(5000, avgSpeed * 0.05); // At least 5KB/s or 5% of avg
+                            
+                            // Disconnect criteria:
+                            // 1. Speed is below minimum AND we have enough peers
+                            // 2. Too many bad pieces (unreliable peer)
+                            // 3. Peer has been inactive for 30+ seconds
+                            const shouldDisconnect = (
+                                (torrent.numPeers > 15 && speed < minAcceptableSpeed) ||
+                                (stats.badPieces > 3) ||
+                                (Date.now() - stats.lastActive > 30000 && stats.bytes === 0)
+                            );
+                            
+                            if (shouldDisconnect) {
+                                peerDisconnectCount++;
+                                const now = Date.now();
+                                // Only log every 10th disconnect or every 30 seconds
+                                if (peerDisconnectCount % 10 === 1 || now - lastPeerDisconnectLog > PEER_DISCONNECT_LOG_INTERVAL) {
+                                    console.log(`[Peer] Disconnected ${peerDisconnectCount} slow/bad peers (latest: ${(speed/1024).toFixed(1)} KB/s)`);
+                                    lastPeerDisconnectLog = now;
+                                }
+                                wire.destroy();
+                                peerStats.delete(addr);
+                            }
+                        } catch {}
+                    }, 20000);
+                    
+                    // Hard timeout for completely unresponsive peers
+                    wire.setTimeout(15000, () => {
+                        try { 
+                            wire.destroy(); 
+                            peerStats.delete(addr);
+                        } catch {}
                     });
                 } catch {}
             });
@@ -5096,15 +5316,25 @@ for (let i = 0; i < 10; i++) {
 
         // ============ STRICT FILE ISOLATION - DOWNLOAD NOTHING UNTIL FILE SELECTED ============
         torrent.on('metadata', () => {
-            console.log(`[Metadata] ${torrent.name} | Peers: ${torrent.numPeers} | Pieces: ${torrent.pieces.length}`);
+            const fileCount = torrent.files?.length || 0;
+            console.log(`[Metadata] ${torrent.name} | Files: ${fileCount} | Peers: ${torrent.numPeers} | Pieces: ${torrent.pieces.length}`);
             try { 
-                // CRITICAL: Deselect ALL pieces and files immediately
+                // CRITICAL: Deselect ALL pieces immediately (single call, not per-file)
                 torrent.deselect(0, torrent.pieces.length - 1, false);
-                torrent.files.forEach(f => {
-                    f.deselect();
-                    // Also set priority to 0 (don't download)
-                    try { f.priority = 0; } catch {}
-                });
+                
+                // For large torrents (50+ files), use batch deselection
+                if (fileCount > 50) {
+                    // Batch deselect - faster for large torrents
+                    for (let i = 0; i < fileCount; i++) {
+                        try { torrent.files[i].deselect(); } catch {}
+                    }
+                } else {
+                    torrent.files.forEach(f => {
+                        f.deselect();
+                        try { f.priority = 0; } catch {}
+                    });
+                }
+                
                 // Pause to stop any piece requests
                 torrent.pause();
                 console.log(`[Isolation] Torrent paused - NO files downloading`);
@@ -5114,26 +5344,66 @@ for (let i = 0; i < 10; i++) {
         });
 
         const handleReady = (t) => {
-            const all = t.files.map((file, idx) => ({ index: idx, name: file.name, size: file.length }));
-            const filtered = all.filter(f => /\.(mp4|mkv|avi|mov|webm|srt|vtt|ass)$/i.test(f.name));
+            const fileCount = t.files?.length || 0;
             
-            console.log(`--- FILES IN: ${t.name} ---`);
-            t.files.forEach((file, i) => {
-                console.log(`  [${i}] ${file.name} (${(file.length / 1024 / 1024).toFixed(1)} MB)`);
-            });
+            // ============ OPTIMIZED FILE LISTING FOR LARGE TORRENTS ============
+            // Only log first 20 files for large torrents to avoid console spam
+            if (fileCount <= 20) {
+                console.log(`--- FILES IN: ${t.name} ---`);
+                t.files.forEach((file, i) => {
+                    console.log(`  [${i}] ${file.name} (${(file.length / 1024 / 1024).toFixed(1)} MB)`);
+                });
+            } else {
+                console.log(`--- ${t.name} | ${fileCount} files (showing first 10 + last 5) ---`);
+                for (let i = 0; i < Math.min(10, fileCount); i++) {
+                    console.log(`  [${i}] ${t.files[i].name} (${(t.files[i].length / 1024 / 1024).toFixed(1)} MB)`);
+                }
+                console.log(`  ... ${fileCount - 15} more files ...`);
+                for (let i = Math.max(10, fileCount - 5); i < fileCount; i++) {
+                    console.log(`  [${i}] ${t.files[i].name} (${(t.files[i].length / 1024 / 1024).toFixed(1)} MB)`);
+                }
+            }
+            
+            // ============ FAST FILE FILTERING ============
+            // Use regex once, filter in single pass
+            const videoRegex = /\.(mp4|mkv|avi|mov|webm)$/i;
+            const subRegex = /\.(srt|vtt|ass)$/i;
+            const videoFiles = [];
+            const subtitleFiles = [];
+            
+            for (let i = 0; i < fileCount; i++) {
+                const file = t.files[i];
+                const name = file.name;
+                const size = file.length;
+                
+                if (videoRegex.test(name)) {
+                    videoFiles.push({ index: i, name, size });
+                } else if (subRegex.test(name)) {
+                    subtitleFiles.push({ index: i, name, size });
+                }
+            }
+            
+            // Sort videos by size (largest first) - likely the main content
+            videoFiles.sort((a, b) => b.size - a.size);
 
             res.json({
                 infoHash,
                 name: t.name,
-                videoFiles: filtered.filter(f => f.name.match(/\.(mp4|mkv|avi|mov|webm)$/i)).sort((a, b) => b.size - a.size),
-                subtitleFiles: filtered.filter(f => f.name.match(/\.(srt|vtt|ass)$/i)),
+                videoFiles,
+                subtitleFiles,
+                files: videoFiles,
+                totalSize: t.length,
+                numPeers: t.numPeers
             });
             
-            // Double-check isolation after response
+            // Double-check isolation after response (non-blocking)
             setImmediate(() => {
                 try { 
                     t.deselect(0, t.pieces.length - 1, false);
-                    t.files.forEach(f => f.deselect()); 
+                    // Only deselect files if not too many (avoid blocking)
+                    if (fileCount <= 100) {
+                        t.files.forEach(f => f.deselect()); 
+                    }
                     t.pause();
                 } catch {}
             });
@@ -5190,73 +5460,68 @@ for (let i = 0; i < 10; i++) {
             // Resume the torrent before selecting files/pieces
             try { torrent.resume(); } catch {}
 
+            // Track if we've already set up this file to avoid duplicate logging
+            const fileKey = `${hash}-${fileIndex}`;
+            const alreadySelected = selectedFiles.get(hash) === Number(fileIndex);
+            
             // Ensure only the selected video file is downloaded (STRICT file-only mode)
-            try {
-                // Deselect everything first
-                torrent.files.forEach(f => f.deselect());
-                try { torrent.deselect(0, Math.max(0, torrent.pieces.length - 1), false); } catch {}
-                
-                // Select ONLY the chosen video file - WebTorrent will handle piece selection intelligently
-                file.select();
-                
-                // ============ OPTIMIZED PIECE PRIORITIZATION (FILE-ONLY) ============
-                const pieceLength = torrent.pieceLength;
-                const fileStart = Math.max(0, Math.floor(file.offset / pieceLength));
-                const fileEnd = Math.max(fileStart, Math.floor((file.offset + file.length - 1) / pieceLength));
-                
-                console.log(`[STREAM] Selected file pieces: ${fileStart}-${fileEnd} (${fileEnd - fileStart + 1} pieces)`);
-                
-                // ============ PHASE 1: CRITICAL INITIAL BUFFER (20MB) ============
-                // Prioritize first pieces for instant playback start
-                const criticalBytes = 20 * 1024 * 1024; // 20MB critical buffer
-                const criticalPieces = Math.ceil(criticalBytes / pieceLength);
-                const criticalEnd = Math.min(fileStart + criticalPieces, fileEnd);
-                
-                console.log(`[OPTIMIZATION] Critical buffer: ${(criticalBytes / 1024 / 1024).toFixed(1)}MB (pieces ${fileStart}-${criticalEnd})`);
-                
-                // Download critical pieces with MAXIMUM priority (only within file boundaries)
-                for (let i = fileStart; i <= criticalEnd; i++) {
-                    try {
-                        torrent.critical(i, i);  // Highest priority
-                    } catch {}
-                }
-                
-                // ============ PHASE 2: EXTENDED BUFFER FOR SMOOTH PLAYBACK (50MB) ============
-                // Extended buffer prevents buffering during playback
-                const extendedBytes = 50 * 1024 * 1024; // 50MB extended buffer
-                const extendedPieces = Math.ceil(extendedBytes / pieceLength);
-                const extendedEnd = Math.min(fileStart + extendedPieces, fileEnd);
-                
-                // High priority for extended buffer (after critical pieces)
-                for (let i = criticalEnd + 1; i <= extendedEnd; i++) {
-                    try {
-                        torrent.select(i, i, 3);  // Very high priority
-                    } catch {}
-                }
-                
-                console.log(`[OPTIMIZATION] Extended buffer: ${(extendedBytes / 1024 / 1024).toFixed(1)}MB (pieces ${criticalEnd + 1}-${extendedEnd})`);
-                
-                // ============ PHASE 3: END PIECES FOR SEEKING ============
-                // Pre-download end for instant seeking to credits/end
-                const endPriorityPieces = Math.min(10, Math.floor((fileEnd - fileStart) / 10));
-                const endStart = Math.max(fileStart, fileEnd - endPriorityPieces);
-                
-                for (let i = endStart; i <= fileEnd; i++) {
-                    try {
-                        torrent.select(i, i, 2);  // High priority for end pieces
-                    } catch {}
-                }
-                
-                console.log(`[OPTIMIZATION] End buffer: ${endPriorityPieces} pieces (${endStart}-${fileEnd})`);
-                
-                // ============ PHASE 4: MIDDLE PIECES - RAREST FIRST ============
-                // Middle pieces use rarest-first for optimal swarm performance
-                // WebTorrent handles this automatically for non-critical pieces
-                
-                console.log(`[Streaming] Optimized piece selection: Critical→Extended→End→Rarest for ${file.name}`);
-                console.log(`[Streaming] Total file pieces: ${fileEnd - fileStart + 1}, File size: ${(file.length / 1024 / 1024).toFixed(1)}MB`);
-                console.log(`[Streaming] ONLY downloading selected file: ${file.name}`);
-            } catch {}
+            if (!alreadySelected) {
+                try {
+                    // Deselect everything first
+                    torrent.files.forEach(f => f.deselect());
+                    try { torrent.deselect(0, Math.max(0, torrent.pieces.length - 1), false); } catch {}
+                    
+                    // Select ONLY the chosen video file
+                    file.select();
+                    selectedFiles.set(hash, Number(fileIndex));
+                    
+                    // ============ ULTIMATE PIECE PRIORITIZATION FOR STREAMING ============
+                    const pieceLength = torrent.pieceLength;
+                    const fileStart = Math.max(0, Math.floor(file.offset / pieceLength));
+                    const fileEnd = Math.max(fileStart, Math.floor((file.offset + file.length - 1) / pieceLength));
+                    const totalPieces = fileEnd - fileStart + 1;
+                    
+                    // ============ PHASE 1: CRITICAL BUFFER (30MB) - INSTANT PLAYBACK ============
+                    const criticalBytes = 30 * 1024 * 1024; // 30MB for instant start
+                    const criticalPieces = Math.ceil(criticalBytes / pieceLength);
+                    const criticalEnd = Math.min(fileStart + criticalPieces, fileEnd);
+                    
+                    for (let i = fileStart; i <= criticalEnd; i++) {
+                        try { torrent.critical(i, i); } catch {}
+                    }
+                    
+                    // ============ PHASE 2: EXTENDED BUFFER (80MB) - SMOOTH PLAYBACK ============
+                    const extendedBytes = 80 * 1024 * 1024; // 80MB extended buffer
+                    const extendedPieces = Math.ceil(extendedBytes / pieceLength);
+                    const extendedEnd = Math.min(fileStart + extendedPieces, fileEnd);
+                    
+                    for (let i = criticalEnd + 1; i <= extendedEnd; i++) {
+                        try { torrent.select(i, i, 5); } catch {} // Priority 5 (very high)
+                    }
+                    
+                    // ============ PHASE 3: END BUFFER - INSTANT SEEKING TO END ============
+                    const endPriorityPieces = Math.min(15, Math.floor(totalPieces / 8));
+                    const endStart = Math.max(fileStart, fileEnd - endPriorityPieces);
+                    
+                    for (let i = endStart; i <= fileEnd; i++) {
+                        try { torrent.select(i, i, 4); } catch {} // Priority 4 (high)
+                    }
+                    
+                    // ============ PHASE 4: MIDDLE CHUNKS FOR SEEKING ============
+                    // Pre-prioritize pieces at 25%, 50%, 75% marks for common seek points
+                    const seekPoints = [0.25, 0.5, 0.75];
+                    for (const ratio of seekPoints) {
+                        const seekPiece = Math.floor(fileStart + (totalPieces * ratio));
+                        const seekEnd = Math.min(seekPiece + 5, fileEnd); // 5 pieces at each seek point
+                        for (let i = seekPiece; i <= seekEnd; i++) {
+                            try { torrent.select(i, i, 3); } catch {} // Priority 3 (medium-high)
+                        }
+                    }
+                    
+                    // Log summary
+                    console.log(`[Streaming] ${file.name} | ${(file.length / 1024 / 1024).toFixed(0)}MB | ${totalPieces} pieces | Critical: ${criticalEnd - fileStart + 1} | Extended: ${extendedEnd - criticalEnd}`);
+                } catch {}
+            }
 
             res.setHeader('Accept-Ranges', 'bytes');
             const range = req.headers.range;
@@ -5323,44 +5588,71 @@ for (let i = 0; i < 10; i++) {
             const idx = Number(fileIndex);
             const file = torrent.files[idx];
             if (!file) return res.status(404).json({ success: false, error: 'File not found' });
+            
+            // Skip if already prepared
+            if (selectedFiles.get(hash) === idx) {
+                // Resume torrent if paused
+                try { torrent.resume(); } catch {}
+                return res.json({
+                    success: true,
+                    file: { index: idx, name: file.name, size: file.length },
+                    infoHash: hash,
+                    cached: true
+                });
+            }
+            
             try {
-                // Deselect everything then select ONLY this file
-                torrent.files.forEach(f => f.deselect());
-                try { torrent.deselect(0, Math.max(0, torrent.pieces.length - 1), false); } catch {}
-                
-                // Select only the target file - WebTorrent handles piece selection
-                file.select();
-                
-                // OPTIMIZATION: Prioritize first pieces for faster playback start
+                const fileCount = torrent.files?.length || 0;
                 const pieceLength = torrent.pieceLength;
                 const fileStart = Math.max(0, Math.floor(file.offset / pieceLength));
                 const fileEnd = Math.max(fileStart, Math.floor((file.offset + file.length - 1) / pieceLength));
                 
-                console.log(`[Prepare] Selected file pieces: ${fileStart}-${fileEnd}`);
+                // ============ OPTIMIZED FOR LARGE TORRENTS ============
+                // For large torrents, only deselect pieces (faster than per-file deselection)
+                try { torrent.deselect(0, Math.max(0, torrent.pieces.length - 1), false); } catch {}
                 
-                // CRITICAL: Prioritize first 15MB for pre-buffering (more than streaming)
-                const priorityBytes = 15 * 1024 * 1024; // 15MB for prepare
-                const priorityPieces = Math.ceil(priorityBytes / pieceLength);
-                const priorityEnd = Math.min(fileStart + priorityPieces, fileEnd);
-                
-                // Download first pieces with highest priority
-                for (let i = fileStart; i <= priorityEnd; i++) {
-                    try {
-                        torrent.critical(i, i);
-                    } catch {}
+                // For smaller torrents, also deselect files individually
+                if (fileCount <= 50) {
+                    torrent.files.forEach(f => f.deselect());
                 }
                 
-                // OPTIMIZATION: Also prioritize last few pieces for seeking
-                const endPriorityPieces = Math.min(5, Math.floor((fileEnd - fileStart) / 2));
-                for (let i = Math.max(fileStart, fileEnd - endPriorityPieces); i <= fileEnd; i++) {
-                    try {
-                        torrent.critical(i, i);
-                    } catch {}
+                // ============ IMMEDIATELY SELECT AND PRIORITIZE TARGET FILE ============
+                file.select();
+                selectedFiles.set(hash, idx);
+                
+                // Resume torrent IMMEDIATELY to start downloading
+                try { torrent.resume(); } catch {}
+                
+                // ============ AGGRESSIVE PIECE PRIORITIZATION ============
+                // CRITICAL: First 30MB for instant playback
+                const criticalBytes = 30 * 1024 * 1024;
+                const criticalPieces = Math.ceil(criticalBytes / pieceLength);
+                const criticalEnd = Math.min(fileStart + criticalPieces, fileEnd);
+                
+                // Mark critical pieces FIRST (highest priority)
+                for (let i = fileStart; i <= criticalEnd; i++) {
+                    try { torrent.critical(i, i); } catch {}
                 }
                 
-                console.log(`[Prepare] Pre-buffering pieces ${fileStart}-${priorityEnd} of ${fileStart}-${fileEnd} for ${file.name}`);
-                console.log(`[Prepare] ONLY downloading selected file: ${file.name}`);
-            } catch {}
+                // Extended buffer (50MB more)
+                const extendedBytes = 50 * 1024 * 1024;
+                const extendedPieces = Math.ceil(extendedBytes / pieceLength);
+                const extendedEnd = Math.min(fileStart + criticalPieces + extendedPieces, fileEnd);
+                
+                for (let i = criticalEnd + 1; i <= extendedEnd; i++) {
+                    try { torrent.select(i, i, 5); } catch {}
+                }
+                
+                // End pieces for seeking
+                const endPieces = Math.min(10, Math.floor((fileEnd - fileStart) / 10));
+                for (let i = Math.max(fileStart, fileEnd - endPieces); i <= fileEnd; i++) {
+                    try { torrent.select(i, i, 4); } catch {}
+                }
+                
+                console.log(`[Prepare] ${file.name} | ${(file.length / 1024 / 1024).toFixed(0)}MB | Critical: ${criticalEnd - fileStart + 1} pieces`);
+            } catch (err) {
+                console.warn('[Prepare] Error:', err.message);
+            }
 
             return res.json({
                 success: true,
@@ -5379,29 +5671,60 @@ for (let i = 0; i < 10; i++) {
         }
     });
 
-    app.get('/api/stop-stream', (req, res) => {
+    app.get('/api/stop-stream', async (req, res) => {
         const { hash } = req.query;
         if (!hash) return res.status(400).send('Missing hash');
         const torrent = activeTorrents.get(hash);
         if (torrent) {
             console.log(`⏹️ Stopping torrent: ${hash}`);
             const torrentDownloadPath = path.join(CACHE_LOCATION, 'webtorrent', hash);
-            client.remove(torrent.magnetURI, { destroyStore: true }, async (err) => {
-                if (err) console.error('Error removing torrent from client:', err);
-                else console.log(`Torrent ${hash} removed successfully from client.`);
-                
-                activeTorrents.delete(hash);
-                torrentTimestamps.delete(hash); // Clean up timestamp
-                streamingState.delete(hash); // Clean up streaming state
-                console.log(`Torrent ${hash} removed from activeTorrents map.`);
-
+            
+            // Immediately remove from tracking maps to prevent race conditions
+            activeTorrents.delete(hash);
+            torrentTimestamps.delete(hash);
+            streamingState.delete(hash);
+            selectedFiles.delete(hash);
+            
+            // Send response immediately - don't wait for cleanup
+            res.json({ success: true, message: 'Stream stopped' });
+            
+            // Perform cleanup asynchronously with timeout protection
+            const cleanupWithTimeout = async () => {
                 try {
-                    await deleteFolderRecursive(torrentDownloadPath);
-                } catch (cleanupErr) {
-                    console.error(`Error cleaning up torrent directory ${torrentDownloadPath}:`, cleanupErr);
+                    // Try to remove torrent with a 5-second timeout
+                    await Promise.race([
+                        new Promise((resolve, reject) => {
+                            try {
+                                client.remove(torrent.magnetURI || torrent.infoHash, { destroyStore: true }, (err) => {
+                                    if (err) console.warn(`[Cleanup] Torrent removal warning: ${err.message}`);
+                                    else console.log(`[Cleanup] Torrent ${hash.substring(0, 8)}... removed from client`);
+                                    resolve();
+                                });
+                            } catch (e) {
+                                // If client.remove throws, try direct destroy
+                                try { torrent.destroy(); } catch {}
+                                resolve();
+                            }
+                        }),
+                        new Promise((resolve) => setTimeout(() => {
+                            console.warn(`[Cleanup] Torrent removal timed out for ${hash.substring(0, 8)}..., forcing destroy`);
+                            try { torrent.destroy(); } catch {}
+                            resolve();
+                        }, 5000))
+                    ]);
+                } catch (e) {
+                    console.warn(`[Cleanup] Error during torrent removal: ${e.message}`);
+                    try { torrent.destroy(); } catch {}
                 }
-                res.json({ success: true, message: 'Stream stopped and cleaned up' });
-            });
+                
+                // Clean up files in background (don't block)
+                deleteFolderRecursive(torrentDownloadPath).catch(err => {
+                    console.warn(`[Cleanup] Directory cleanup warning: ${err.message}`);
+                });
+            };
+            
+            // Run cleanup in background
+            cleanupWithTimeout().catch(() => {});
         } else {
             res.status(404).json({ success: false, message: 'Stream not found' });
         }
@@ -5427,6 +5750,28 @@ for (let i = 0; i < 10; i++) {
             updateStreamingPriorities(hash, parseInt(fileIndex), parseFloat(position), parseFloat(duration));
             
             res.json({ success: true });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // ============ WEBTORRENT STATUS - Get overall client status ============
+    app.get('/api/webtorrent-status', (req, res) => {
+        try {
+            res.json({
+                activeTorrents: activeTorrents.size,
+                totalPeers: client.torrents.reduce((sum, t) => sum + (t.numPeers || 0), 0),
+                downloadSpeed: (client.downloadSpeed / 1024 / 1024).toFixed(2) + ' MB/s',
+                uploadSpeed: (client.uploadSpeed / 1024 / 1024).toFixed(2) + ' MB/s',
+                trackedPeers: peerStats.size,
+                torrents: Array.from(activeTorrents.entries()).map(([hash, t]) => ({
+                    hash: hash.substring(0, 8) + '...',
+                    name: t.name?.substring(0, 50) || 'Unknown',
+                    progress: ((t.progress || 0) * 100).toFixed(1) + '%',
+                    peers: t.numPeers || 0,
+                    downloadSpeed: ((t.downloadSpeed || 0) / 1024).toFixed(0) + ' KB/s'
+                }))
+            });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -5495,45 +5840,104 @@ for (let i = 0; i < 10; i++) {
         }
 
         try {
-            const response = await fetch(url, {
-                redirect: 'manual' // 🔑 IMPORTANT
+            console.log(`[resolve-torrent-file] Resolving: ${url.substring(0, 100)}...`);
+            
+            // First try with manual redirect to catch magnet redirects
+            let response = await fetch(url, {
+                redirect: 'manual',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
             });
 
-            // 🔹 Case 1: Jackett redirects to magnet
-            const location = response.headers.get('location');
+            // 🔹 Case 1: Redirect to magnet
+            let location = response.headers.get('location');
             if (location && location.startsWith('magnet:')) {
+                console.log(`[resolve-torrent-file] Found magnet redirect`);
                 return res.json({ magnet: location });
             }
+            
+            // 🔹 Case 2: Follow redirects (up to 5) to find magnet or final URL
+            let redirectCount = 0;
+            while (location && redirectCount < 5) {
+                console.log(`[resolve-torrent-file] Following redirect ${redirectCount + 1}: ${location.substring(0, 80)}...`);
+                
+                if (location.startsWith('magnet:')) {
+                    console.log(`[resolve-torrent-file] Found magnet after ${redirectCount + 1} redirects`);
+                    return res.json({ magnet: location });
+                }
+                
+                // Make location absolute if relative
+                if (location.startsWith('/')) {
+                    const urlObj = new URL(url);
+                    location = `${urlObj.protocol}//${urlObj.host}${location}`;
+                }
+                
+                response = await fetch(location, {
+                    redirect: 'manual',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+                
+                location = response.headers.get('location');
+                redirectCount++;
+            }
 
-            // 🔹 Case 2: Response body itself is magnet
+            // 🔹 Case 3: Response body itself is magnet (text/plain)
             const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('text/plain')) {
+            if (contentType.includes('text/plain') || contentType.includes('text/html')) {
                 const text = await response.text();
-                if (text.startsWith('magnet:')) {
+                if (text.trim().startsWith('magnet:')) {
+                    console.log(`[resolve-torrent-file] Found magnet in response body`);
                     return res.json({ magnet: text.trim() });
+                }
+                
+                // Check if HTML contains a magnet link
+                const magnetMatch = text.match(/magnet:\?[^"'\s<>]+/);
+                if (magnetMatch) {
+                    console.log(`[resolve-torrent-file] Extracted magnet from HTML`);
+                    return res.json({ magnet: magnetMatch[0] });
                 }
             }
 
-            // 🔹 Case 3: Real .torrent file
+            // 🔹 Case 4: Real .torrent file - need to re-fetch with follow redirects
+            if (!response.ok || response.status >= 300) {
+                // Re-fetch following redirects to get the actual torrent file
+                response = await fetch(url, {
+                    redirect: 'follow',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+            }
+            
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
             const buffer = await response.buffer();
+            
+            // Check if it's actually a torrent file
+            if (buffer.length < 10) {
+                throw new Error('Response too small to be a torrent file');
+            }
+            
             const parsed = parseTorrent(buffer);
 
             if (!parsed?.infoHash) {
-                throw new Error('Failed to parse infoHash');
+                throw new Error('Failed to parse infoHash from torrent file');
             }
 
             const magnet = parseTorrent.toMagnetURI(parsed, {
-                name: title
+                name: title || parsed.name
             });
 
+            console.log(`[resolve-torrent-file] Parsed torrent file, infoHash: ${parsed.infoHash}`);
             res.json({ magnet });
 
         } catch (err) {
-            console.error('[resolve-torrent-file]', err);
+            console.error('[resolve-torrent-file]', err.message);
             res.status(500).json({
                 error: 'Failed to resolve torrent',
                 details: err.message
@@ -6630,5 +7034,49 @@ for (let i = 0; i < 10; i++) {
     };
     server.getActiveSocketCount = () => activeSockets.size;
 
-    return { server, client, clearCache };
+    // Cleanup function for graceful shutdown
+    const cleanupWebTorrent = async () => {
+        console.log('[WebTorrent] Starting cleanup...');
+        try {
+            // Stop all active torrents
+            for (const [hash, torrent] of activeTorrents.entries()) {
+                try {
+                    torrent.destroy();
+                    console.log(`[WebTorrent] Destroyed torrent: ${hash.substring(0, 8)}...`);
+                } catch (e) {
+                    console.warn(`[WebTorrent] Error destroying torrent ${hash.substring(0, 8)}: ${e.message}`);
+                }
+            }
+            activeTorrents.clear();
+            torrentTimestamps.clear();
+            streamingState.clear();
+            selectedFiles.clear();
+            peerStats.clear();
+            
+            // Destroy the client with timeout
+            await Promise.race([
+                new Promise((resolve) => {
+                    try {
+                        client.destroy((err) => {
+                            if (err) console.warn('[WebTorrent] Client destroy warning:', err.message);
+                            else console.log('[WebTorrent] Client destroyed successfully');
+                            resolve();
+                        });
+                    } catch (e) {
+                        console.warn('[WebTorrent] Client destroy error:', e.message);
+                        resolve();
+                    }
+                }),
+                new Promise((resolve) => setTimeout(() => {
+                    console.warn('[WebTorrent] Client destroy timed out');
+                    resolve();
+                }, 3000))
+            ]);
+        } catch (e) {
+            console.error('[WebTorrent] Cleanup error:', e.message);
+        }
+        console.log('[WebTorrent] Cleanup complete');
+    };
+
+    return { server, client, clearCache, cleanupWebTorrent, activeTorrents };
 }

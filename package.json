@@ -1,6 +1,6 @@
 {
   "name": "playtorrio",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Ayman's PlayTorrio an all in one media center",
   "author": {
     "name": "Ayman",
@@ -40,7 +40,8 @@
     "parse-torrent": "^9.0.3",
     "qs": "^6.14.0",
     "uuid": "^13.0.0",
-    "webtorrent": "^2.6.8",
+    "webtorrent": "^2.8.5",
+    "torrent-stream": "^1.2.0",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {

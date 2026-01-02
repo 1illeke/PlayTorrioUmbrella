@@ -11,7 +11,7 @@ import {
 } from './api.js';
 import { searchJackett, getJackettKey, setJackettKey, getJackettSettings } from './jackett.js';
 import { getInstalledAddons, installAddon, removeAddon, fetchAddonStreams, parseAddonStream } from './addons.js';
-import { initDebridUI, getDebridSettings } from './debrid.js';
+import { initDebridUI, initNodeMPVUI, getDebridSettings } from './debrid.js';
 
 // Helper functions for parsing torrent/stream info
 const detectQuality = (title) => {
@@ -101,6 +101,85 @@ function hidePlayLoading() {
     if (playLoadingOverlay) {
         playLoadingOverlay.classList.add('hidden');
     }
+}
+
+// Open player in iframe overlay instead of separate window
+async function openPlayerInIframe(options) {
+    const {
+        url,
+        tmdbId,
+        imdbId,
+        seasonNum,
+        episodeNum,
+        type,
+        isDebrid,
+        isBasicMode,
+        showName,
+        provider,
+        providerUrl,
+        quality
+    } = options;
+    
+    // Check if NodeMPV is enabled (Windows only) - use Electron IPC for that
+    if (window.electronAPI?.spawnMpvjsPlayer) {
+        try {
+            const settingsRes = await fetch('/api/settings');
+            const settings = await settingsRes.json();
+            if (settings.useNodeMPV) {
+                console.log('[Player] Using NodeMPV player');
+                window.electronAPI.spawnMpvjsPlayer(options);
+                setTimeout(hidePlayLoading, 500);
+                return { success: true };
+            }
+        } catch (e) {
+            console.warn('[Player] Failed to check NodeMPV setting:', e);
+        }
+    }
+    
+    // Build player URL with query params for HTML5 player
+    const params = new URLSearchParams();
+    if (url) params.append('url', url);
+    if (tmdbId) params.append('tmdbId', tmdbId);
+    if (imdbId) params.append('imdbId', imdbId);
+    if (seasonNum) params.append('season', seasonNum);
+    if (episodeNum) params.append('episode', episodeNum);
+    if (type) params.append('type', type);
+    if (isDebrid) params.append('isDebrid', '1');
+    if (isBasicMode) params.append('isBasicMode', '1');
+    if (showName) params.append('showName', showName);
+    if (provider) params.append('provider', provider);
+    if (providerUrl) params.append('providerUrl', providerUrl);
+    if (quality) params.append('quality', quality);
+    
+    const playerUrl = `http://localhost:6987/player.html?${params.toString()}`;
+    
+    // Extract stream hash for cleanup (if local WebTorrent stream)
+    let streamHash = null;
+    if (url && url.includes('/api/stream-file')) {
+        try {
+            const urlObj = new URL(url);
+            streamHash = urlObj.searchParams.get('hash');
+        } catch (e) {}
+    }
+    
+    // Use the playerOverlay from the parent page (HTML5 player)
+    if (window.playerOverlay) {
+        window.playerOverlay.open(playerUrl, streamHash);
+        hidePlayLoading();
+        return { success: true };
+    }
+    
+    // Fallback to electron API
+    if (window.electronAPI?.spawnMpvjsPlayer) {
+        window.electronAPI.spawnMpvjsPlayer(options);
+        setTimeout(hidePlayLoading, 500);
+        return { success: true };
+    }
+    
+    // Last resort: open in new tab
+    window.open(playerUrl, '_blank');
+    hidePlayLoading();
+    return { success: true };
 }
 
 // Listen for player window opening to hide the loading overlay
@@ -768,13 +847,28 @@ const matchEpisodeFile = (files, season, episode) => {
 
 const resolveTorrent = async (url, title) => {
     if (!url || !url.startsWith('http')) return url;
+    // If it's already a magnet, no need to resolve
+    if (url.startsWith('magnet:')) return url;
     try {
-        const res = await fetch(`/api/resolve-torrent-file?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`);
+        const res = await fetch(`/api/resolve-torrent-file?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title || '')}`);
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            console.error('[resolveTorrent] Server error:', errData.error || res.status);
+            return null;
+        }
         const data = await res.json();
-        return data.magnet || url;
+        if (data.error) {
+            console.error('[resolveTorrent] Resolution error:', data.error);
+            return null;
+        }
+        if (data.magnet && data.magnet.startsWith('magnet:')) {
+            return data.magnet;
+        }
+        console.warn('[resolveTorrent] No magnet returned from resolution');
+        return null;
     } catch (err) {
-        console.error('Failed to resolve torrent:', err);
-        return url;
+        console.error('[resolveTorrent] Failed to resolve torrent:', err);
+        return null;
     }
 };
 
@@ -822,12 +916,23 @@ const displaySources = (sources) => {
             e.stopPropagation();
             if (link) {
                 let finalLink = link;
-                // Only resolve as torrent if it's a .torrent file URL
-                if (link.startsWith('http') && link.includes('.torrent')) {
+                // Resolve torrent if it's a download URL (Jackett, .torrent, etc.)
+                const needsResolution = link.startsWith('http') && !link.startsWith('magnet:') && (
+                    link.includes('.torrent') ||
+                    link.includes('/dl/') ||
+                    link.includes('/download') ||
+                    link.includes('jackett_apikey') ||
+                    link.includes('apikey=')
+                );
+                if (needsResolution) {
                     const originalIcon = copyBtn.innerHTML;
                     copyBtn.innerHTML = '<div class="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>';
                     finalLink = await resolveTorrent(link, source.title);
                     copyBtn.innerHTML = originalIcon;
+                    if (!finalLink) {
+                        alert('Failed to resolve torrent link');
+                        return;
+                    }
                 }
                 
                 const showSuccess = () => {
@@ -854,9 +959,24 @@ const displaySources = (sources) => {
             showPlayLoading('Preparing stream...');
 
             try {
-                // Check if this is a direct streaming URL (not a magnet or torrent file)
-                const isDirectUrl = link.startsWith('http') && !link.includes('.torrent') && !link.startsWith('magnet:');
+                // Check if this is a Jackett/torrent download URL that needs resolution
+                // Jackett URLs look like: http://127.0.0.1:9117/dl/...?jackett_apikey=...
+                const isJackettUrl = link.includes('jackett') ||      // jackett_apikey or jackett in URL
+                                     link.includes(':9117') ||        // Default Jackett port
+                                     link.includes('/dl/') ||         // Jackett download path
+                                     link.includes('/download');      // Generic download path
+                
+                console.log(`[Play] Link: ${link.substring(0, 100)}...`);
+                console.log(`[Play] isJackettUrl: ${isJackettUrl}`);
+                
+                // Check if this is a direct streaming URL (not a magnet, torrent file, or Jackett URL)
+                const isDirectUrl = link.startsWith('http') && 
+                                    !link.includes('.torrent') && 
+                                    !link.startsWith('magnet:') &&
+                                    !isJackettUrl;
                 const isMagnet = link.startsWith('magnet:');
+                
+                console.log(`[Play] isDirectUrl: ${isDirectUrl}, isMagnet: ${isMagnet}`);
                 
                 // For direct URLs from addons like Nuvio, play directly through transcoder
                 if (isDirectUrl && !isMagnet) {
@@ -899,45 +1019,66 @@ const displaySources = (sources) => {
                     }
                 }
                 
-                // Launch player with direct URL
-                if (window.electronAPI?.spawnMpvjsPlayer) {
-                    window.electronAPI.spawnMpvjsPlayer({
-                        url: link,
-                        tmdbId: currentTmdbId || id,
-                        imdbId: currentImdbId,
-                        seasonNum: targetS,
-                        episodeNum: targetE,
-                        type: type,
-                        isDebrid: false,  // Not debrid, direct stream
-                        isBasicMode: true,
-                        showName: currentDetails?.name || currentDetails?.title || '',
-                        provider: currentProvider,
-                        providerUrl: providerUrl,
-                        quality: source.quality
-                    });
-                    // Hide loading after a short delay (player window opening)
-                    setTimeout(hidePlayLoading, 500);
-                } else {
-                    // Fallback: open in new tab
-                    window.open(link, '_blank');
-                    hidePlayLoading();
-                }
+                // Launch player with direct URL using iframe overlay
+                openPlayerInIframe({
+                    url: link,
+                    tmdbId: currentTmdbId || id,
+                    imdbId: currentImdbId,
+                    seasonNum: targetS,
+                    episodeNum: targetE,
+                    type: type,
+                    isDebrid: false,  // Not debrid, direct stream
+                    isBasicMode: true,
+                    showName: currentDetails?.name || currentDetails?.title || '',
+                    provider: currentProvider,
+                    providerUrl: providerUrl,
+                    quality: source.quality
+                });
                 return;
             }
 
             // For torrent files or magnets, continue with existing logic
             let activeLink = link;
-            if (link.startsWith('http') && link.includes('.torrent')) {
+            
+            // Check if this is a torrent download URL that needs resolution
+            // This includes: .torrent files, Jackett /dl/ URLs, and other torrent download endpoints
+            const needsResolution = link.startsWith('http') && !link.startsWith('magnet:') && (
+                link.includes('.torrent') ||
+                link.includes('/dl/') ||           // Jackett download URLs
+                link.includes('/download') ||      // Common torrent download paths
+                link.includes('jackett_apikey') || // Jackett API key in URL
+                link.includes('apikey=')           // Generic API key patterns
+            );
+            
+            if (needsResolution) {
                 showPlayLoading('Resolving torrent...');
+                console.log(`[Torrent] Resolving download URL: ${link.substring(0, 100)}...`);
                 activeLink = await resolveTorrent(link, source.title);
                 if (!activeLink) {
                     hidePlayLoading();
+                    alert('Failed to resolve torrent link. Please try another source.');
                     return;
                 }
+                if (!activeLink.startsWith('magnet:')) {
+                    // Resolution didn't return a magnet - this is a problem for debrid/webtorrent
+                    console.error('[Torrent] Resolution failed to return a magnet link:', activeLink.substring(0, 100));
+                    hidePlayLoading();
+                    alert('Could not extract magnet link from this torrent. The source may be unavailable or require manual download.');
+                    return;
+                }
+                console.log(`[Torrent] Resolved to magnet: ${activeLink.substring(0, 80)}...`);
             }
 
             // Check if we should use Debrid or WebTorrent
             const debridSettings = await getDebridSettings();
+            
+            // Final validation: ensure we have a magnet link for debrid/webtorrent
+            if (!activeLink.startsWith('magnet:')) {
+                console.error('[Torrent] activeLink is not a magnet:', activeLink.substring(0, 100));
+                hidePlayLoading();
+                alert('Invalid torrent link. Expected a magnet link but got: ' + activeLink.substring(0, 50) + '...');
+                return;
+            }
             
             // Extract Target S/E from UI text as requested by user
             let targetS = currentSeason;
@@ -1036,28 +1177,21 @@ const displaySources = (sources) => {
                                 const unresData = await unres.json();
                                 if (unresData.url) {
                                     console.log(`[FINAL STREAM LINK] ${unresData.url}`);
-                                                                if (window.electronAPI?.spawnMpvjsPlayer) {
-                                                                    window.electronAPI.spawnMpvjsPlayer({
-                                                                        url: unresData.url,
-                                                                        tmdbId: currentTmdbId || id,
-                                                                        imdbId: currentImdbId,
-                                                                        seasonNum: targetS,
-                                                                        episodeNum: targetE,
-                                                                        type: type,
-                                                                        isDebrid: true,
-                                                                        isBasicMode: true,
-                                                                        showName: currentDetails?.name || currentDetails?.title || '',
-                                                                        provider: currentProvider,
-                                                                        providerUrl: providerUrl,
-                                                                        quality: source.quality
-                                                                    });
-                                                                    setTimeout(hidePlayLoading, 500);
-                                                                } else if (window.electronAPI?.openMPVDirect) {                                        window.electronAPI.openMPVDirect(unresData.url);
-                                        hidePlayLoading();
-                                    } else {
-                                        window.open(unresData.url, '_blank');
-                                        hidePlayLoading();
-                                    }
+                                    // Launch player using iframe overlay
+                                    openPlayerInIframe({
+                                        url: unresData.url,
+                                        tmdbId: currentTmdbId || id,
+                                        imdbId: currentImdbId,
+                                        seasonNum: targetS,
+                                        episodeNum: targetE,
+                                        type: type,
+                                        isDebrid: true,
+                                        isBasicMode: true,
+                                        showName: currentDetails?.name || currentDetails?.title || '',
+                                        provider: currentProvider,
+                                        providerUrl: providerUrl,
+                                        quality: source.quality
+                                    });
                                 } else {
                                     console.error('[Debrid] Failed to unrestrict link:', unresData.error);
                                     hidePlayLoading();
@@ -1119,29 +1253,21 @@ const displaySources = (sources) => {
                             const streamUrl = `${window.location.origin}/api/stream-file?hash=${data.infoHash}&file=${targetFile.index}`;
                             fetch(`/api/prepare-file?hash=${data.infoHash}&file=${targetFile.index}`);
                             
-                            if (window.electronAPI?.spawnMpvjsPlayer) {
-                                window.electronAPI.spawnMpvjsPlayer({
-                                    url: streamUrl,
-                                    tmdbId: currentTmdbId || id,
-                                    imdbId: currentImdbId,
-                                    seasonNum: targetS,
-                                    episodeNum: targetE,
-                                    type: type,
-                                    isDebrid: false,
-                                    isBasicMode: true,
-                                    showName: currentDetails?.name || currentDetails?.title || '',
-                                    provider: currentProvider,
-                                    providerUrl: providerUrl,
-                                    quality: source.quality
-                                });
-                                setTimeout(hidePlayLoading, 500);
-                            } else if (window.electronAPI?.openMPVDirect) {
-                                window.electronAPI.openMPVDirect(streamUrl);
-                                hidePlayLoading();
-                            } else {
-                                window.open(streamUrl, '_blank');
-                                hidePlayLoading();
-                            }
+                            // Launch player using iframe overlay
+                            openPlayerInIframe({
+                                url: streamUrl,
+                                tmdbId: currentTmdbId || id,
+                                imdbId: currentImdbId,
+                                seasonNum: targetS,
+                                episodeNum: targetE,
+                                type: type,
+                                isDebrid: false,
+                                isBasicMode: true,
+                                showName: currentDetails?.name || currentDetails?.title || '',
+                                provider: currentProvider,
+                                providerUrl: providerUrl,
+                                quality: source.quality
+                            });
                         } else {
                             // No matching file found
                             hidePlayLoading();

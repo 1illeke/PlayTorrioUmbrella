@@ -13,7 +13,7 @@ import {
 import { getJackettKey, setJackettKey, getJackettSettings } from './jackett.js';
 import { getInstalledAddons, installAddon, removeAddon } from './addons.js';
 import { initComics } from './comics.js';
-import { initDebridUI } from './debrid.js';
+import { initDebridUI, initNodeMPVUI } from './debrid.js';
 
 // DOM Elements
 let contentRows, searchResultsContainer, searchGrid, searchInput, searchSourceSelect, heroSection, heroBackdrop, heroTitle, heroOverview, heroInfoBtn;
@@ -612,6 +612,7 @@ const openSettings = async () => {
     if (jackettUrlInput) jackettUrlInput.value = settings.jackettUrl || '';
     await renderAddonsList();
     await initDebridUI();
+    await initNodeMPVUI();
     settingsModal.classList.remove('hidden');
     requestAnimationFrame(() => {
         settingsModal.classList.remove('opacity-0');

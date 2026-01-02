@@ -405,6 +405,66 @@
         </div>
     </div>
 
+    <!-- Embedded Player Overlay (iframe) -->
+    <div id="player-overlay" class="fixed inset-0 z-[10000] bg-black hidden">
+        <iframe id="player-iframe" class="w-full h-full border-0" allowfullscreen></iframe>
+    </div>
+
+    <script>
+        // Player overlay management
+        window.playerOverlay = {
+            overlay: null,
+            iframe: null,
+            currentStreamHash: null,
+            
+            init() {
+                this.overlay = document.getElementById('player-overlay');
+                this.iframe = document.getElementById('player-iframe');
+                
+                // Listen for messages from the player iframe
+                window.addEventListener('message', (event) => {
+                    if (event.data?.type === 'player-close') {
+                        this.close();
+                    } else if (event.data?.type === 'player-cleanup') {
+                        // Player requests cleanup of specific hash
+                        if (event.data.hash) {
+                            this.currentStreamHash = event.data.hash;
+                        }
+                    }
+                });
+            },
+            
+            open(playerUrl, streamHash) {
+                if (!this.overlay || !this.iframe) this.init();
+                this.currentStreamHash = streamHash || null;
+                this.iframe.src = playerUrl;
+                this.overlay.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            },
+            
+            close() {
+                if (!this.overlay) return;
+                
+                // Cleanup stream if we have a hash (local WebTorrent stream)
+                if (this.currentStreamHash) {
+                    fetch(`http://localhost:6987/api/stop-stream?hash=${this.currentStreamHash}`).catch(() => {});
+                    this.currentStreamHash = null;
+                }
+                
+                this.overlay.classList.add('hidden');
+                this.iframe.src = 'about:blank';
+                document.body.style.overflow = '';
+            }
+        };
+        
+        // Initialize on DOM ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => window.playerOverlay.init());
+        } else {
+            window.playerOverlay.init();
+        }
+    </script>
+
     <script type="module" src="js/details.js"></script>
 </body>
 </html>

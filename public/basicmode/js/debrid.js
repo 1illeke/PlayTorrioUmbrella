@@ -252,3 +252,86 @@ export const initDebridUI = async () => {
     // Initial UI Setup
     updateUI(settings.debridProvider || 'realdebrid');
 };
+
+// NodeMPV Player Settings (Windows Only)
+export const initNodeMPVUI = async () => {
+    const nodempvSection = document.getElementById('nodempv-section');
+    const useNodeMPVToggle = document.getElementById('use-nodempv-toggle');
+    const mpvPathInput = document.getElementById('mpv-path-input');
+    const browseMpvBtn = document.getElementById('browse-mpv-btn');
+    
+    if (!nodempvSection || !useNodeMPVToggle) return;
+    
+    // Only show on Windows
+    try {
+        const platformRes = await fetch('/api/platform');
+        const platformData = await platformRes.json();
+        if (platformData.platform !== 'win32') {
+            nodempvSection.style.display = 'none';
+            return;
+        }
+    } catch(e) {
+        // If we can't detect platform, hide the section
+        nodempvSection.style.display = 'none';
+        return;
+    }
+    
+    // Show the section on Windows
+    nodempvSection.classList.remove('hidden');
+    
+    // Load initial state
+    const settings = await getDebridSettings();
+    useNodeMPVToggle.checked = !!settings.useNodeMPV;
+    if (mpvPathInput) {
+        mpvPathInput.value = settings.mpvPath || '';
+    }
+    
+    // Event listener for toggle
+    useNodeMPVToggle.addEventListener('change', (e) => {
+        saveDebridSettings({ useNodeMPV: e.target.checked });
+    });
+    
+    // Event listener for path input (save on blur)
+    if (mpvPathInput) {
+        mpvPathInput.addEventListener('blur', () => {
+            saveDebridSettings({ mpvPath: mpvPathInput.value.trim() || null });
+        });
+        mpvPathInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                mpvPathInput.blur();
+            }
+        });
+    }
+    
+    // Browse button - use Electron dialog if available
+    if (browseMpvBtn) {
+        browseMpvBtn.addEventListener('click', async () => {
+            if (window.electronAPI?.pickFile) {
+                const result = await window.electronAPI.pickFile({
+                    filters: [{ name: 'Executable', extensions: ['exe'] }],
+                    title: 'Select mpv.exe'
+                });
+                if (result && mpvPathInput) {
+                    mpvPathInput.value = result;
+                    saveDebridSettings({ mpvPath: result });
+                }
+            } else {
+                alert('File browser not available. Please enter the path manually.');
+            }
+        });
+    }
+    
+    // Download MPV button - open in default browser
+    const downloadMpvBtn = document.getElementById('download-mpv-btn');
+    if (downloadMpvBtn) {
+        downloadMpvBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const mpvUrl = 'https://mpv.io/installation/';
+            if (window.electronAPI?.openExternal) {
+                window.electronAPI.openExternal(mpvUrl);
+            } else {
+                window.open(mpvUrl, '_blank');
+            }
+        });
+    }
+};

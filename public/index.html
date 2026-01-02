@@ -8042,6 +8042,25 @@
                 <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(103, 126, 234, 0.1); border-left: 3px solid var(--secondary); border-radius: 4px; font-size: 0.85rem;">
                     <i class="fas fa-check-circle" style="color: var(--secondary);"></i> Default token is active. You can continue using Nuvio without adding your own token.
                 </div>
+
+                <!-- NodeMPV Player Toggle (Windows Only) -->
+                <div id="nodempvSectionMain" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); display: none;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-play-circle" style="color: #ff6b35;"></i>
+                                Use MPV Player
+                            </label>
+                            <div style="font-size: 0.85rem; color: var(--gray); margin-top: 0.25rem;">
+                                Better codec support (DTS, TrueHD), hardware acceleration. Requires <a href="https://mpv.io/installation/" target="_blank" style="color: #ff6b35;">MPV</a> installed.
+                            </div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="useNodeMPVToggleMain">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -9298,6 +9317,7 @@
             <div class="settings-tabs">
                 <button class="settings-tab active" data-section="streaming">Streaming</button>
                 <button class="settings-tab" data-section="debrid">Debrid</button>
+                <button class="settings-tab" data-section="nodempv" id="nodempvTab" style="display:none;">Player</button>
                 <button class="settings-tab" data-section="ui">User Interface</button>
                 <button class="settings-tab" data-section="trakt">Trakt Integration</button>
                 <button class="settings-tab" data-section="addons">Addon Manager</button>
@@ -9532,6 +9552,43 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- NodeMPV Player Section (Windows Only) -->
+                <div id="nodempvContent" class="settings-section" style="display:none;">
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-play-circle" style="color: #f97316;"></i> Player Settings</h3>
+                        </div>
+                        <div class="settings-card-body">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="useNodeMPVToggle" />
+                                <label for="useNodeMPVToggle">Use MPV Player (Better codec support)</label>
+                            </div>
+                            <div style="margin-top:0.5rem; color:var(--gray); font-size:0.85rem;">
+                                <i class="fas fa-info-circle"></i> Requires MPV installed on your system. Uses native MPV for better audio/video codec support including DTS, TrueHD, etc.
+                            </div>
+                            
+                            <div class="form-group" style="margin-top:1rem;">
+                                <label for="mpvPathInput">Custom MPV Path (optional)</label>
+                                <div style="display:flex; gap:0.5rem;">
+                                    <input type="text" id="mpvPathInput" placeholder="Leave empty to use global MPV" style="flex:1;" />
+                                    <button class="api-btn" id="browseMpvPathBtn" style="background:var(--gray-dark);">
+                                        <i class="fas fa-folder-open"></i> Browse
+                                    </button>
+                                </div>
+                                <div style="margin-top:0.25rem; color:var(--gray); font-size:0.8rem;">
+                                    Path to mpv.exe (e.g., C:\mpv\mpv.exe)
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top:0.75rem; padding:0.75rem; background:rgba(249,115,22,0.1); border-left:3px solid #f97316; border-radius:4px; font-size:0.85rem;">
+                                <i class="fas fa-download" style="color:#f97316;"></i> 
+                                <a href="#" id="downloadMpvLink" style="color:#f97316; text-decoration:underline;">Download MPV</a> if not installed.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Addon Manager Section -->
                 <div id="addonsContent" class="settings-section">
                     <div class="settings-card">
@@ -11256,6 +11313,133 @@ If you experience audio problems or no audio at all, click <strong>"Open in MPV"
 </div>
 </div>
 
+<!-- Embedded Player Overlay (iframe) -->
+<div id="player-overlay" class="fixed inset-0 z-[10000] bg-black hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 10000; background: #000; display: none;">
+    <iframe id="player-iframe" style="width: 100%; height: 100%; border: 0;" allowfullscreen></iframe>
+</div>
+
+<script>
+    // Player overlay management for main app
+    window.playerOverlay = {
+        overlay: null,
+        iframe: null,
+        currentStreamHash: null,
+        
+        init() {
+            this.overlay = document.getElementById('player-overlay');
+            this.iframe = document.getElementById('player-iframe');
+            
+            // Listen for messages from the player iframe
+            window.addEventListener('message', (event) => {
+                if (event.data?.type === 'player-close') {
+                    this.close();
+                } else if (event.data?.type === 'player-cleanup') {
+                    // Player requests cleanup of specific hash
+                    if (event.data.hash) {
+                        this.currentStreamHash = event.data.hash;
+                    }
+                }
+            });
+        },
+        
+        open(playerUrl, streamHash) {
+            if (!this.overlay || !this.iframe) this.init();
+            this.currentStreamHash = streamHash || null;
+            this.iframe.src = playerUrl;
+            this.overlay.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        },
+        
+        close() {
+            if (!this.overlay) return;
+            
+            // Cleanup stream if we have a hash (local WebTorrent stream)
+            if (this.currentStreamHash) {
+                fetch(`http://localhost:6987/api/stop-stream?hash=${this.currentStreamHash}`).catch(() => {});
+                this.currentStreamHash = null;
+            }
+            
+            this.overlay.style.display = 'none';
+            this.iframe.src = 'about:blank';
+            document.body.style.overflow = '';
+        }
+    };
+    
+    // Helper function to open player in iframe mode
+    window.openPlayerInIframe = async function(options) {
+        const {
+            url,
+            tmdbId,
+            imdbId,
+            seasonNum,
+            episodeNum,
+            type,
+            isDebrid,
+            isBasicMode,
+            showName,
+            provider,
+            providerUrl,
+            quality
+        } = options;
+        
+        // Check if NodeMPV is enabled (Windows only) - use Electron IPC for that
+        if (window.electronAPI?.spawnMpvjsPlayer) {
+            try {
+                const settingsRes = await fetch('/api/settings');
+                const settings = await settingsRes.json();
+                if (settings.useNodeMPV) {
+                    console.log('[Player] Using NodeMPV player');
+                    window.electronAPI.spawnMpvjsPlayer(options);
+                    return { success: true };
+                }
+            } catch (e) {
+                console.warn('[Player] Failed to check NodeMPV setting:', e);
+            }
+        }
+        
+        // Build player URL with query params for HTML5 player
+        const params = new URLSearchParams();
+        if (url) params.append('url', url);
+        if (tmdbId) params.append('tmdbId', tmdbId);
+        if (imdbId) params.append('imdbId', imdbId);
+        if (seasonNum) params.append('season', seasonNum);
+        if (episodeNum) params.append('episode', episodeNum);
+        if (type) params.append('type', type);
+        if (isDebrid) params.append('isDebrid', '1');
+        if (isBasicMode) params.append('isBasicMode', '1');
+        if (showName) params.append('showName', showName);
+        if (provider) params.append('provider', provider);
+        if (providerUrl) params.append('providerUrl', providerUrl);
+        if (quality) params.append('quality', quality);
+        
+        const playerUrl = `http://localhost:6987/player.html?${params.toString()}`;
+        
+        // Extract stream hash for cleanup (if local WebTorrent stream)
+        let streamHash = null;
+        if (url && url.includes('/api/stream-file')) {
+            try {
+                const urlObj = new URL(url);
+                streamHash = urlObj.searchParams.get('hash');
+            } catch (e) {}
+        }
+        
+        // Use the playerOverlay (HTML5 player)
+        if (window.playerOverlay) {
+            window.playerOverlay.open(playerUrl, streamHash);
+            return { success: true };
+        }
+        
+        return { success: false, message: 'Player overlay not available' };
+    };
+    
+    // Initialize on DOM ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => window.playerOverlay.init());
+    } else {
+        window.playerOverlay.init();
+    }
+</script>
+
 <!-- MPV Player -->
 <div class="vlc-player-container" id="mpvPlayerContainer">
 <div class="vlc-player-header">
@@ -12597,6 +12781,37 @@ Your browser does not support the video tag.
                     document.querySelectorAll('#adSection').forEach(el => el.style.display = isAD ? '' : 'none');
                     document.querySelectorAll('#tbSection').forEach(el => el.style.display = isTB ? '' : 'none');
                     document.querySelectorAll('#pmSection').forEach(el => el.style.display = isPM ? '' : 'none');
+                    
+                    // NodeMPV Player (Windows Only)
+                    try {
+                        const platformRes = await fetch('/api/platform');
+                        const platformData = await platformRes.json();
+                        const isWindows = platformData.platform === 'win32';
+                        
+                        // Show/hide NodeMPV sections based on platform
+                        document.querySelectorAll('#nodempvContent').forEach(el => {
+                            el.style.display = isWindows ? '' : 'none';
+                        });
+                        // Show/hide the Player tab
+                        const nodempvTab = document.getElementById('nodempvTab');
+                        if (nodempvTab) {
+                            nodempvTab.style.display = isWindows ? '' : 'none';
+                        }
+                        // Show the main toggle in Nuvio section
+                        const nodempvSectionMain = document.getElementById('nodempvSectionMain');
+                        if (nodempvSectionMain) {
+                            nodempvSectionMain.style.display = isWindows ? '' : 'none';
+                        }
+                        
+                        // Load NodeMPV toggle state for all toggles
+                        if (isWindows) {
+                            document.querySelectorAll('#useNodeMPVToggle, #useNodeMPVToggleMain').forEach(toggle => {
+                                toggle.checked = !!s.useNodeMPV;
+                            });
+                        }
+                    } catch(e) {
+                        console.warn('[Settings] Failed to check platform for NodeMPV:', e);
+                    }
                 }
             } catch(_) {}
         }
@@ -17585,6 +17800,96 @@ Your browser does not support the video tag.
                     }
                 } catch {}
             }));
+
+            // ===== NodeMPV Player Toggle (Windows Only) =====
+            document.querySelectorAll('#useNodeMPVToggle, #useNodeMPVToggleMain').forEach(toggle => {
+                toggle.addEventListener('change', async (e) => {
+                    try {
+                        await fetch(`${API_BASE_URL}/settings`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ useNodeMPV: e.target.checked })
+                        });
+                        // Sync all toggles (both in settings and in Nuvio section)
+                        document.querySelectorAll('#useNodeMPVToggle, #useNodeMPVToggleMain').forEach(t => {
+                            t.checked = e.target.checked;
+                        });
+                        showNotification(e.target.checked ? 'MPV Player enabled' : 'HTML5 Player enabled');
+                    } catch (err) {
+                        showNotification('Failed to save player setting');
+                    }
+                });
+            });
+            
+            // MPV Path input and browse button
+            const mpvPathInput = document.getElementById('mpvPathInput');
+            const browseMpvPathBtn = document.getElementById('browseMpvPathBtn');
+            
+            // Load saved MPV path
+            if (mpvPathInput) {
+                fetch(`${API_BASE_URL}/settings`).then(r => r.json()).then(s => {
+                    if (s.mpvPath) mpvPathInput.value = s.mpvPath;
+                }).catch(() => {});
+                
+                // Save on blur
+                mpvPathInput.addEventListener('blur', async () => {
+                    try {
+                        await fetch(`${API_BASE_URL}/settings`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ mpvPath: mpvPathInput.value.trim() || null })
+                        });
+                    } catch (err) {
+                        console.warn('Failed to save MPV path:', err);
+                    }
+                });
+                
+                mpvPathInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') mpvPathInput.blur();
+                });
+            }
+            
+            // Browse button for MPV path
+            if (browseMpvPathBtn) {
+                browseMpvPathBtn.addEventListener('click', async () => {
+                    if (window.electronAPI?.pickFile) {
+                        const result = await window.electronAPI.pickFile({
+                            filters: [{ name: 'Executable', extensions: ['exe'] }],
+                            title: 'Select mpv.exe'
+                        });
+                        if (result && mpvPathInput) {
+                            mpvPathInput.value = result;
+                            // Save immediately
+                            try {
+                                await fetch(`${API_BASE_URL}/settings`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ mpvPath: result })
+                                });
+                                showNotification('MPV path saved');
+                            } catch (err) {
+                                showNotification('Failed to save MPV path');
+                            }
+                        }
+                    } else {
+                        showNotification('File browser not available');
+                    }
+                });
+            }
+            
+            // Download MPV link - open in default browser
+            const downloadMpvLink = document.getElementById('downloadMpvLink');
+            if (downloadMpvLink) {
+                downloadMpvLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const mpvUrl = 'https://mpv.io/installation/';
+                    if (window.electronAPI?.openExternal) {
+                        window.electronAPI.openExternal(mpvUrl);
+                    } else {
+                        window.open(mpvUrl, '_blank');
+                    }
+                });
+            }
 
             // ===== FEBBOX TOKEN EVENT LISTENER =====
             

@@ -429,7 +429,37 @@
     </div>
 
     <script>
-        const { ipcRenderer } = require('electron');
+        // Detect if running in iframe or standalone window
+        const isInIframe = window.parent !== window;
+        
+        // Only require electron if not in iframe
+        let ipcRenderer = null;
+        if (!isInIframe) {
+            try {
+                const electron = require('electron');
+                ipcRenderer = electron.ipcRenderer;
+            } catch (e) {
+                console.warn('Electron IPC not available');
+            }
+        }
+        
+        // Close player function - works for both iframe and standalone
+        function closePlayer() {
+            if (isInIframe) {
+                // Send message to parent window
+                window.parent.postMessage({ type: 'player-close' }, '*');
+            } else {
+                // Standalone window - use window.close()
+                window.close();
+            }
+        }
+        
+        // Notify parent of stream hash for cleanup
+        function notifyStreamHash(hash) {
+            if (isInIframe && hash) {
+                window.parent.postMessage({ type: 'player-cleanup', hash: hash }, '*');
+            }
+        }
 
         const video = document.getElementById('video-player');
         const overlay = document.getElementById('subtitle-overlay');
@@ -490,6 +520,15 @@
         const provider = params.get('provider') || '';  // 'jackett' or addon ID
         const providerUrl = params.get('providerUrl') || '';  // addon base URL
         const quality = params.get('quality') || '1080p';
+        
+        // Extract and notify stream hash for cleanup
+        if (videoUrl && videoUrl.includes('/api/stream-file')) {
+            try {
+                const urlObj = new URL(videoUrl);
+                const hash = urlObj.searchParams.get('hash');
+                if (hash) notifyStreamHash(hash);
+            } catch (e) {}
+        }
 
         const titleEl = document.getElementById('video-title');
         // Display show name with episode info, or just episode info
@@ -572,45 +611,57 @@
             document.getElementById('loading-spinner').style.display = 'block';
             lastAbsoluteTime = start || 0; 
             
-            console.log('Player: Checking source codec compatibility...');
+            console.log('Player: Starting stream immediately at 720p...');
             
-            // First, fetch metadata to check codec compatibility
-            try {
-                const metaRes = await fetch(`http://127.0.0.1:6987/api/transcode/metadata?url=${encodeURIComponent(url)}`);
-                if (metaRes.ok) {
-                    sourceMetadata = await metaRes.json();
-                    if (sourceMetadata.duration) videoDuration = sourceMetadata.duration;
-                    if (sourceMetadata.audioTracks) {
-                        audioTracks = sourceMetadata.audioTracks;
-                        renderAudioTracks();
-                    }
-                    
-                    // Check if we can use fast remux (web-compatible codecs)
-                    if (sourceMetadata.canRemux) {
-                        console.log(`Player: ✅ Web-compatible codecs detected (${sourceMetadata.videoCodec}) - using fast REMUX`);
-                        useRemux = true;
-                        
-                        // Update badge to show REMUX mode
-                        const badge = document.getElementById('transcode-badge');
-                        if (badge) {
-                            badge.textContent = 'REMUX';
-                            badge.title = `Fast Remux: ${sourceMetadata.videoCodec.toUpperCase()} (no transcoding)`;
-                            badge.style.background = 'linear-gradient(135deg, #10b981, #059669)'; // Green for remux
-                        }
-                    } else {
-                        console.log(`Player: ⚠️ Incompatible codec (${sourceMetadata.videoCodec}) - using transcoding`);
-                        useRemux = false;
-                    }
-                }
-            } catch (e) {
-                console.warn('Metadata fetch failed, defaulting to transcode:', e.message);
-                useRemux = false;
-            }
-            
-            // Start streaming
+            // ============ INSTANT START - NO WAITING ============
+            // Start transcoding IMMEDIATELY at 720p - don't wait for metadata
             isTranscoding = true;
+            useRemux = false;
+            currentQuality = 'mid'; // Start at 720p
             updateTranscodeUI();
-            loadSmartStream(url, start);
+            
+            // Update UI to show 720p is selected
+            document.querySelectorAll('#settings-list .list-item').forEach(el => {
+                el.classList.remove('active');
+                if (el.dataset.quality === 'mid') el.classList.add('active');
+            });
+            
+            // Start streaming RIGHT NOW at 720p
+            loadTranscodedStream(url, start);
+            
+            // ============ AUTO-SWITCH TO NATIVE AFTER 3 SECONDS ============
+            setTimeout(() => {
+                console.log('Player: Auto-switching to native quality...');
+                currentQuality = 'native';
+                
+                // Update UI to show native is selected
+                document.querySelectorAll('#settings-list .list-item').forEach(el => {
+                    el.classList.remove('active');
+                    if (el.dataset.quality === 'native') el.classList.add('active');
+                });
+                
+                // Switch to native quality
+                const currentTime = lastAbsoluteTime;
+                loadTranscodedStream(url, currentTime);
+            }, 3000);
+            
+            // ============ BACKGROUND METADATA FETCH ============
+            fetch(`http://127.0.0.1:6987/api/transcode/metadata?url=${encodeURIComponent(url)}`)
+                .then(async (metaRes) => {
+                    if (metaRes.ok) {
+                        sourceMetadata = await metaRes.json();
+                        console.log(`Player: Metadata received - ${sourceMetadata.videoCodec}, ${sourceMetadata.duration}s`);
+                        
+                        if (sourceMetadata.duration) videoDuration = sourceMetadata.duration;
+                        if (sourceMetadata.audioTracks) {
+                            audioTracks = sourceMetadata.audioTracks;
+                            renderAudioTracks();
+                        }
+                    }
+                })
+                .catch(e => {
+                    console.warn('Background metadata fetch failed:', e.message);
+                });
         }
 
         function fallbackToTranscoder(url, start) {
@@ -638,7 +689,6 @@
             // For remux, use web-compatible audio track if current one isn't compatible
             let audioTrackToUse = currentAudioTrack;
             if (sourceMetadata?.audioTracks?.[currentAudioTrack] && !sourceMetadata.audioTracks[currentAudioTrack].webCompatible) {
-                // Current audio track isn't web-compatible, use the first compatible one
                 audioTrackToUse = sourceMetadata.webCompatibleAudioIndex || 0;
                 console.log(`Player: Audio track ${currentAudioTrack} not web-compatible, using track ${audioTrackToUse}`);
             }
@@ -652,22 +702,25 @@
             video.pause();
             video.removeAttribute('src');
             video.load();
+            
+            // ============ OPTIMIZED VIDEO ELEMENT FOR FAST REMUX ============
             video.preload = 'auto';
             video.playsInline = true;
+            video.autoplay = true;  // Auto-start playback
             video.src = streamUrl;
             video.load();
             
-            const attemptPlay = async (attempts = 3) => {
+            // Aggressive play attempt with shorter delays
+            const attemptPlay = async (attempts = 5) => {
                 for (let i = 0; i < attempts; i++) {
                     try {
                         await video.play();
                         return;
                     } catch (e) {
                         if (i < attempts - 1) {
-                            await new Promise(r => setTimeout(r, 500));
+                            await new Promise(r => setTimeout(r, 300));  // Reduced delay
                         } else {
                             console.warn('Remux play() failed, falling back to transcode:', e);
-                            // If remux fails, fall back to transcoding
                             useRemux = false;
                             loadTranscodedStream(url, start);
                         }
@@ -679,9 +732,7 @@
 
         function loadTranscodedStream(url, start) {
             console.log('Player: Loading Transcoded Stream from', start, 'Quality:', currentQuality, useSoftwareFallback ? '(SOFTWARE MODE)' : '');
-            // Ensure we use the global videoUrl variable if url is just a placeholder
             const targetUrl = url || videoUrl;
-            // Ensure start is a valid number
             const startTime = typeof start === 'number' ? start : lastAbsoluteTime;
             
             // Add forceSoftware parameter if we've hit the fallback threshold
@@ -697,23 +748,24 @@
             video.removeAttribute('src');
             video.load();
             
-            // Set optimized video element properties for streaming
+            // ============ OPTIMIZED VIDEO ELEMENT FOR FAST STREAMING ============
             video.preload = 'auto';
             video.playsInline = true;
+            video.autoplay = true;  // Auto-start playback
             
             // Set new source and play
             video.src = streamUrl;
             video.load();
             
-            // Use play with retry logic
-            const attemptPlay = async (attempts = 3) => {
+            // Aggressive play attempt with shorter delays
+            const attemptPlay = async (attempts = 5) => {
                 for (let i = 0; i < attempts; i++) {
                     try {
                         await video.play();
                         return;
                     } catch (e) {
                         if (i < attempts - 1) {
-                            await new Promise(r => setTimeout(r, 500));
+                            await new Promise(r => setTimeout(r, 300));  // Reduced from 500ms
                         } else {
                             console.warn('Transcoder play() failed after retries:', e);
                         }
@@ -1079,7 +1131,7 @@
         };
 
         // Back Button
-        document.getElementById('back-btn').onclick = () => { window.close(); };
+        document.getElementById('back-btn').onclick = () => { closePlayer(); };
 
         // Mouse Hiding
         function showControls() {
@@ -1258,7 +1310,21 @@
 
             // 2. Fetch from Stremio Addons - each addon independently (non-blocking)
             try {
-                const addons = await ipcRenderer.invoke('get-installed-addons');
+                // Get addons list - works in both iframe and standalone mode
+                let addons = [];
+                if (ipcRenderer) {
+                    addons = await ipcRenderer.invoke('get-installed-addons');
+                } else {
+                    // In iframe mode, fetch addons from API
+                    try {
+                        const res = await fetch('/api/addons');
+                        if (res.ok) {
+                            addons = await res.json();
+                        }
+                    } catch (e) {
+                        console.warn('Failed to fetch addons from API:', e);
+                    }
+                }
                 
                 if (addons && Array.isArray(addons)) {
                     // Fetch from each addon independently - don't wait for all

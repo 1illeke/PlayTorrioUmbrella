@@ -113,7 +113,6 @@ try {
 const configDir = persistentUserDataPath;
 
 let httpServer;
-let webtorrentClient;
 let mainWindow;
 // Updater runtime state/timers so we can disable cleanly at runtime
 let updaterActive = false;
@@ -665,7 +664,13 @@ async function clearPlaytorrioSubtitlesTemp() {
 
 // resolveMpvExe removed
 
-function resolveSystemMpv() {
+function resolveSystemMpv(customPath = null) {
+    // First check custom path from settings
+    if (customPath && fs.existsSync(customPath)) {
+        console.log('[MPV] Using custom path:', customPath);
+        return customPath;
+    }
+    
     try {
         // Try 'mpv' in system PATH
         const checkCmd = process.platform === 'win32' ? 'where' : 'which';
@@ -694,12 +699,14 @@ function resolveSystemMpv() {
 }
 
 async function openInStandaloneMPV(url, startSeconds = null) {
-    const mpvPath = resolveSystemMpv();
+    // Read custom mpvPath from settings
+    const settings = readMainSettings();
+    const mpvPath = resolveSystemMpv(settings.mpvPath);
     if (!mpvPath) {
         console.warn('[MPV] System MPV not found');
         return { 
             success: false, 
-            message: 'MPV player not found. Please install it globally (https://mpv.io) to use this feature.' 
+            message: 'MPV player not found. Please install it globally (https://mpv.io) or set a custom path in Settings.' 
         };
     }
     
@@ -1016,21 +1023,20 @@ function stopPlayback() {
         }
     } catch(e) {}
 
-    // Destroy WebTorrent streams
-    if (webtorrentClient) {
+    // Destroy torrent-stream engines
+    if (global.activeTorrents && global.activeTorrents.size > 0) {
         try {
-            const torrents = webtorrentClient.torrents;
-            if (torrents.length > 0) {
-                console.log(`[Playback] Destroying ${torrents.length} active torrents...`);
-                // Clone array because destroying modifies it
-                [...torrents].forEach(t => {
-                    t.destroy({ destroyStore: true }, (err) => {
-                         if(err) console.error('[Playback] Error destroying torrent:', err);
-                    });
-                });
+            console.log(`[Playback] Destroying ${global.activeTorrents.size} active torrent engines...`);
+            for (const [hash, engine] of global.activeTorrents.entries()) {
+                try {
+                    engine.destroy();
+                } catch(e) {
+                    console.error('[Playback] Error destroying torrent engine:', e);
+                }
             }
+            global.activeTorrents.clear();
         } catch(e) {
-            console.error('[Playback] Error clearing torrents:', e);
+            console.error('[Playback] Error clearing torrent engines:', e);
         }
     }
 }
@@ -1175,6 +1181,347 @@ function openInHtml5Player(win, streamUrl, startSeconds, metadata = {}) {
         console.error('[HTML5] Error launching player:', error);
         return { success: false, message: error.message };
     }
+}
+
+// ===== NodeMPV Player (Windows Only) =====
+let mpvProcess = null;
+let mpvWindow = null;
+let mpvSocket = null;
+let mpvStatusInterval = null;
+
+// Launch NodeMPV Player - MPV embedded in Electron window with transparent UI overlay
+function openInNodeMPVPlayer(win, streamUrl, startSeconds, metadata = {}) {
+    if (process.platform !== 'win32') {
+        console.log('[NodeMPV] Not Windows, falling back to HTML5');
+        return openInHtml5Player(win, streamUrl, startSeconds, metadata);
+    }
+    
+    try {
+        console.log('[NodeMPV] Opening embedded MPV player...');
+        
+        // Close existing MPV window if any
+        if (mpvWindow && !mpvWindow.isDestroyed()) {
+            mpvWindow.close();
+        }
+        if (mpvProcess) {
+            try { mpvProcess.kill(); } catch(e) {}
+            mpvProcess = null;
+        }
+        if (mpvSocket) {
+            try { mpvSocket.destroy(); } catch(e) {}
+            mpvSocket = null;
+        }
+
+        // Create a NEW standalone window for the player (not child of main)
+        mpvWindow = new BrowserWindow({
+            width: 1280,
+            height: 720,
+            minWidth: 640,
+            minHeight: 360,
+            show: false,
+            frame: false,
+            transparent: true,
+            backgroundColor: '#00000000',
+            hasShadow: true,
+            titleBarStyle: 'hidden',
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false,
+                webSecurity: false
+            }
+        });
+
+        // Center on screen
+        mpvWindow.center();
+
+        mpvWindow.on('closed', () => {
+            console.log('[NodeMPV] Window closed, cleaning up...');
+            // Kill MPV process
+            if (mpvProcess) {
+                try { mpvProcess.kill(); } catch(e) {}
+                mpvProcess = null;
+            }
+            if (mpvSocket) {
+                try { mpvSocket.destroy(); } catch(e) {}
+                mpvSocket = null;
+            }
+            if (mpvStatusInterval) {
+                clearInterval(mpvStatusInterval);
+                mpvStatusInterval = null;
+            }
+            
+            // Cleanup WebTorrent if needed
+            if (metadata.isBasicMode && streamUrl && streamUrl.includes('/api/stream-file')) {
+                try {
+                    const urlObj = new URL(streamUrl);
+                    const hash = urlObj.searchParams.get('hash');
+                    if (hash && skipTorrentCleanupHash !== hash) {
+                        fetch(`http://localhost:6987/api/stop-stream?hash=${hash}`).catch(() => {});
+                    }
+                } catch (e) {}
+            }
+
+            mpvWindow = null;
+        });
+
+        // Build URL params for the overlay UI
+        const params = new URLSearchParams();
+        if (streamUrl) params.append('url', streamUrl);
+        if (startSeconds) params.append('t', startSeconds);
+        if (metadata.tmdbId) params.append('tmdbId', metadata.tmdbId);
+        if (metadata.imdbId) params.append('imdbId', metadata.imdbId);
+        if (metadata.seasonNum) params.append('season', metadata.seasonNum);
+        if (metadata.episodeNum) params.append('episode', metadata.episodeNum);
+        if (metadata.type) params.append('type', metadata.type);
+        if (metadata.isDebrid) params.append('isDebrid', '1');
+        if (metadata.isBasicMode) params.append('isBasicMode', '1');
+        if (metadata.showName) params.append('showName', metadata.showName);
+        if (metadata.provider) params.append('provider', metadata.provider);
+        if (metadata.providerUrl) params.append('providerUrl', metadata.providerUrl);
+        if (metadata.quality) params.append('quality', metadata.quality);
+
+        const playerUrl = `http://localhost:6987/nodempv/player.html?${params.toString()}`;
+        console.log('[NodeMPV] Loading overlay:', playerUrl);
+        
+        mpvWindow.loadURL(playerUrl);
+        
+        mpvWindow.once('ready-to-show', () => {
+            mpvWindow.show();
+            mpvWindow.focus();
+        });
+
+        // DevTools
+        mpvWindow.webContents.on('before-input-event', (event, input) => {
+            if (input.key === 'F12' || (input.control && input.shift && input.key === 'I')) {
+                mpvWindow.webContents.toggleDevTools();
+            }
+        });
+
+        return { success: true, message: 'NodeMPV player launched' };
+    } catch (error) {
+        console.error('[NodeMPV] Error launching player:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+// Find MPV executable
+function findMpvPath() {
+    // First check custom path from settings
+    const settings = readMainSettings();
+    if (settings.mpvPath && fs.existsSync(settings.mpvPath)) {
+        console.log('[MPV] Using custom path from settings:', settings.mpvPath);
+        return settings.mpvPath;
+    }
+    
+    const possiblePaths = [
+        'C:\\Program Files\\mpv\\mpv.exe',
+        'C:\\Program Files (x86)\\mpv\\mpv.exe',
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'mpv', 'mpv.exe'),
+        path.join(app.getPath('userData'), 'mpv', 'mpv.exe'),
+        'mpv' // Try PATH
+    ];
+    
+    for (const p of possiblePaths) {
+        try {
+            if (p === 'mpv') {
+                // Check if mpv is in PATH
+                const result = spawnSync('where', ['mpv'], { encoding: 'utf8' });
+                if (result.status === 0 && result.stdout.trim()) {
+                    return result.stdout.trim().split('\n')[0].trim();
+                }
+            } else if (fs.existsSync(p)) {
+                return p;
+            }
+        } catch(e) {}
+    }
+    return null;
+}
+
+// Start MPV process embedded in the Electron window
+async function startMpvProcess(videoUrl) {
+    const mpvPath = findMpvPath();
+    if (!mpvPath) {
+        throw new Error('MPV not found. Please install MPV or set custom path in settings.');
+    }
+    
+    if (!mpvWindow || mpvWindow.isDestroyed()) {
+        throw new Error('Player window not available');
+    }
+    
+    // Get the native window handle to embed MPV into
+    const windowHandle = mpvWindow.getNativeWindowHandle();
+    // Convert buffer to hex string for --wid parameter
+    const hwnd = windowHandle.readUInt32LE(0);
+    
+    // Generate unique pipe name for IPC
+    const pipeName = `\\\\.\\pipe\\mpv-playtorrio-${Date.now()}`;
+    
+    const args = [
+        `--wid=${hwnd}`,           // EMBED MPV into Electron window!
+        '--no-border',
+        '--no-osc',
+        '--no-osd-bar',
+        '--osd-level=0',
+        '--keep-open=yes',
+        '--idle=no',
+        `--input-ipc-server=${pipeName}`,
+        '--hwdec=auto-safe',
+        '--vo=gpu',
+        '--gpu-api=d3d11',
+        '--sid=no',                // Start with subtitles off, user can enable
+        '--cursor-autohide=no',    // We handle cursor via Electron
+        videoUrl
+    ];
+    
+    console.log('[NodeMPV] Starting embedded MPV with hwnd:', hwnd);
+    console.log('[NodeMPV] Command:', mpvPath, args.join(' '));
+    
+    mpvProcess = spawn(mpvPath, args, {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true
+    });
+    
+    mpvProcess.stdout.on('data', (data) => {
+        console.log('[MPV stdout]', data.toString().trim());
+    });
+    
+    mpvProcess.stderr.on('data', (data) => {
+        console.log('[MPV stderr]', data.toString().trim());
+    });
+    
+    mpvProcess.on('error', (err) => {
+        console.error('[NodeMPV] Process error:', err);
+        if (mpvWindow && !mpvWindow.isDestroyed()) {
+            mpvWindow.webContents.send('mpv-error', err.message);
+        }
+    });
+    
+    mpvProcess.on('exit', (code) => {
+        console.log('[NodeMPV] Process exited with code:', code);
+        mpvProcess = null;
+        if (mpvWindow && !mpvWindow.isDestroyed()) {
+            mpvWindow.close();
+        }
+    });
+    
+    // Wait for MPV to initialize and pipe to be ready
+    await new Promise(r => setTimeout(r, 800));
+    
+    // Connect to MPV IPC
+    try {
+        const net = require('net');
+        mpvSocket = net.connect(pipeName);
+        
+        mpvSocket.on('connect', () => {
+            console.log('[NodeMPV] IPC connected');
+            startMpvStatusPolling();
+            // Hide spinner once connected
+            if (mpvWindow && !mpvWindow.isDestroyed()) {
+                mpvWindow.webContents.send('mpv-status', { loading: false });
+            }
+        });
+        
+        mpvSocket.on('data', (data) => {
+            const lines = data.toString().split('\n').filter(l => l.trim());
+            lines.forEach(line => {
+                try {
+                    const msg = JSON.parse(line);
+                    handleMpvMessage(msg);
+                } catch(e) {}
+            });
+        });
+        
+        mpvSocket.on('error', (err) => {
+            console.error('[NodeMPV] IPC error:', err.message);
+        });
+    } catch(e) {
+        console.error('[NodeMPV] Failed to connect IPC:', e);
+    }
+    
+    return { success: true };
+}
+
+// Send command to MPV via IPC
+let mpvRequestId = 0;
+const mpvPendingRequests = new Map();
+
+function sendMpvCommand(command, callback) {
+    if (!mpvSocket || mpvSocket.destroyed) return;
+    const requestId = ++mpvRequestId;
+    const msg = { command, request_id: requestId };
+    if (callback) {
+        mpvPendingRequests.set(requestId, callback);
+    }
+    mpvSocket.write(JSON.stringify(msg) + '\n');
+}
+
+// Handle MPV IPC messages
+function handleMpvMessage(msg) {
+    // Handle property responses
+    if (msg.request_id !== undefined && mpvPendingRequests.has(msg.request_id)) {
+        const callback = mpvPendingRequests.get(msg.request_id);
+        mpvPendingRequests.delete(msg.request_id);
+        if (callback) callback(msg.error ? null : msg.data);
+        return;
+    }
+    
+    // Handle events
+    if (msg.event === 'end-file') {
+        if (mpvWindow && !mpvWindow.isDestroyed()) {
+            mpvWindow.webContents.send('mpv-ended');
+        }
+    } else if (msg.event === 'property-change') {
+        // Handle observed property changes
+        if (mpvWindow && !mpvWindow.isDestroyed()) {
+            const status = {};
+            if (msg.name === 'duration') status.duration = msg.data;
+            else if (msg.name === 'time-pos') status.position = msg.data;
+            else if (msg.name === 'pause') status.paused = msg.data;
+            else if (msg.name === 'volume') status.volume = msg.data;
+            else if (msg.name === 'mute') status.muted = msg.data;
+            else if (msg.name === 'paused-for-cache') status.buffering = msg.data;  // True when buffering
+            else if (msg.name === 'seeking') status.buffering = msg.data;  // Also show spinner when seeking
+            else if (msg.name === 'track-list') {
+                // Parse audio and subtitle tracks
+                const tracks = msg.data || [];
+                status.audioTracks = tracks.filter(t => t.type === 'audio').map(t => ({
+                    id: t.id,
+                    title: t.title || t.lang || `Track ${t.id}`,
+                    lang: t.lang,
+                    codec: t.codec
+                }));
+                status.subtitleTracks = tracks.filter(t => t.type === 'sub').map(t => ({
+                    id: t.id,
+                    title: t.title || t.lang || `Track ${t.id}`,
+                    lang: t.lang,
+                    codec: t.codec
+                }));
+            }
+            else if (msg.name === 'aid') status.currentAudioTrack = msg.data;
+            else if (msg.name === 'sid') status.currentSubTrack = msg.data;
+            
+            if (Object.keys(status).length > 0) {
+                mpvWindow.webContents.send('mpv-status', status);
+            }
+        }
+    }
+}
+
+// Poll MPV status
+function startMpvStatusPolling() {
+    if (mpvStatusInterval) clearInterval(mpvStatusInterval);
+    
+    // Observe properties for real-time updates
+    sendMpvCommand(['observe_property', 1, 'duration']);
+    sendMpvCommand(['observe_property', 2, 'time-pos']);
+    sendMpvCommand(['observe_property', 3, 'pause']);
+    sendMpvCommand(['observe_property', 4, 'volume']);
+    sendMpvCommand(['observe_property', 5, 'mute']);
+    sendMpvCommand(['observe_property', 6, 'paused-for-cache']);  // Buffering indicator
+    sendMpvCommand(['observe_property', 7, 'track-list']);
+    sendMpvCommand(['observe_property', 8, 'aid']);
+    sendMpvCommand(['observe_property', 9, 'seeking']);  // Seeking indicator
+    sendMpvCommand(['observe_property', 10, 'sid']);     // Current subtitle track
 }
 
 // Launch IINA on macOS (preferred for mac users)
@@ -2429,11 +2776,12 @@ if (!gotLock) {
             console.warn(`[FFmpeg] Bundled binaries NOT found for ${process.platform}. Looked in: ${ffmpegCandidates.join(', ')}`);
         }
 
-        const { server, client, clearCache } = startServer(app.getPath('userData'), app.getPath('exe'), ffmpegBin, ffprobeBin);
+        const { server, clearCache, cleanupWebTorrent, activeTorrents } = startServer(app.getPath('userData'), app.getPath('exe'), ffmpegBin, ffprobeBin);
         httpServer = server;
-        webtorrentClient = client;
         // Store clearCache function globally for cleanup on exit
         global.clearApiCache = clearCache;
+        global.cleanupWebTorrent = cleanupWebTorrent;
+        global.activeTorrents = activeTorrents;
         console.log('✅ Main API server started on port 6987');
     } catch (e) {
         console.error('[Server] Failed to start API server:', e?.stack || e);
@@ -2624,18 +2972,15 @@ ipcMain.handle("addonRemove", async (event, addonId) => {
         return { success: true };
     });
 
-    // IPC handler to spawn player (formerly mpv.js, now HTML5)
+    // IPC handler to spawn player (formerly mpv.js, now HTML5 or NodeMPV)
 ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, seasonNum, episodeNum, subtitles, isDebrid, type, isBasicMode, showName, provider, providerUrl, quality }) => {
-    // return openPlayer(url, { tmdbId, seasonNum, episodeNum, subtitles, isDebrid }); // Old player
-    
     let finalImdbId = imdbId;
     let finalTmdbId = tmdbId;
     
     // Check if tmdbId is actually an IMDB ID (starts with 'tt')
     if (tmdbId && typeof tmdbId === 'string' && tmdbId.startsWith('tt')) {
-        // tmdbId is actually an IMDB ID, swap them
         finalImdbId = finalImdbId || tmdbId;
-        finalTmdbId = null; // We don't have the real TMDB ID
+        finalTmdbId = null;
         console.log('[Main] tmdbId was actually IMDB ID:', tmdbId);
     }
     
@@ -2659,8 +3004,100 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
         }
     }
 
-    return openInHtml5Player(mainWindow, url, null, { tmdbId: finalTmdbId, imdbId: finalImdbId, seasonNum, episodeNum, isDebrid, type: (seasonNum || type === 'tv' ? 'tv' : 'movie'), isBasicMode, showName, provider, providerUrl, quality });
+    const metadata = { tmdbId: finalTmdbId, imdbId: finalImdbId, seasonNum, episodeNum, isDebrid, type: (seasonNum || type === 'tv' ? 'tv' : 'movie'), isBasicMode, showName, provider, providerUrl, quality };
+    
+    // Check if NodeMPV is enabled (Windows only)
+    if (process.platform === 'win32') {
+        try {
+            const settingsRes = await fetch('http://localhost:6987/api/settings');
+            const settings = await settingsRes.json();
+            if (settings.useNodeMPV) {
+                console.log('[Main] Using NodeMPV player');
+                return openInNodeMPVPlayer(mainWindow, url, null, metadata);
+            }
+        } catch(e) {
+            console.warn('[Main] Failed to check NodeMPV setting:', e.message);
+        }
+    }
+    
+    return openInHtml5Player(mainWindow, url, null, metadata);
 });
+
+    // ===== NodeMPV IPC Handlers (Windows Only) =====
+    ipcMain.handle('mpv-load', async (event, videoUrl) => {
+        if (process.platform !== 'win32') {
+            return { success: false, error: 'NodeMPV is only available on Windows' };
+        }
+        try {
+            return await startMpvProcess(videoUrl);
+        } catch(e) {
+            return { success: false, error: e.message };
+        }
+    });
+    
+    ipcMain.handle('mpv-command', async (event, command, ...args) => {
+        if (!mpvSocket || mpvSocket.destroyed) {
+            return { success: false, error: 'MPV not connected' };
+        }
+        
+        try {
+            switch(command) {
+                case 'toggle-pause':
+                    sendMpvCommand(['cycle', 'pause']);
+                    break;
+                case 'seek':
+                    sendMpvCommand(['seek', args[0], 'relative']);
+                    break;
+                case 'seek-to':
+                    sendMpvCommand(['seek', args[0], 'absolute']);
+                    break;
+                case 'set-volume':
+                    sendMpvCommand(['set_property', 'volume', args[0]]);
+                    break;
+                case 'toggle-mute':
+                    sendMpvCommand(['cycle', 'mute']);
+                    break;
+                case 'set-audio-track':
+                    sendMpvCommand(['set_property', 'aid', args[0]]);
+                    break;
+                case 'set-sub-track':
+                    sendMpvCommand(['set_property', 'sid', args[0]]);
+                    break;
+                case 'load-subtitle':
+                    sendMpvCommand(['sub-add', args[0]]);
+                    break;
+                case 'disable-subtitles':
+                    sendMpvCommand(['set_property', 'sid', 'no']);
+                    break;
+                case 'set-sub-delay':
+                    sendMpvCommand(['set_property', 'sub-delay', args[0]]);
+                    break;
+                case 'set-sub-scale':
+                    sendMpvCommand(['set_property', 'sub-scale', args[0]]);
+                    break;
+                case 'set-sub-pos':
+                    sendMpvCommand(['set_property', 'sub-pos', args[0]]);
+                    break;
+                case 'toggle-fullscreen':
+                    if (mpvWindow && !mpvWindow.isDestroyed()) {
+                        const isFs = mpvWindow.isFullScreen();
+                        mpvWindow.setFullScreen(!isFs);
+                        sendMpvCommand(['set_property', 'fullscreen', !isFs ? 'yes' : 'no']);
+                    }
+                    break;
+                case 'quit':
+                    if (mpvProcess) {
+                        try { mpvProcess.kill(); } catch(e) {}
+                    }
+                    break;
+                default:
+                    sendMpvCommand([command, ...args]);
+            }
+            return { success: true };
+        } catch(e) {
+            return { success: false, error: e.message };
+        }
+    });
 
     // Direct MPV launch for external URLs (111477, etc.)
     ipcMain.handle('open-mpv-direct', async (event, url) => {
@@ -2961,6 +3398,25 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
             return { success: true, path: result.filePaths[0] };
         }
         return { success: false };
+    });
+
+    // IPC handler: Pick a file (for MPV path, etc.)
+    ipcMain.handle('pick-file', async (event, options = {}) => {
+        const dialogOptions = {
+            properties: ['openFile'],
+            title: options.title || 'Select File'
+        };
+        
+        if (options.filters) {
+            dialogOptions.filters = options.filters;
+        }
+        
+        const result = await dialog.showOpenDialog(mainWindow, dialogOptions);
+        
+        if (!result.canceled && result.filePaths.length > 0) {
+            return result.filePaths[0];
+        }
+        return null;
     });
 
     // Removed MPV installer helpers and IPC
@@ -3701,11 +4157,11 @@ async function performGracefulShutdown() {
 
     console.log('[Shutdown] Starting graceful shutdown...');
 
-    // 1-second fallback crash
+    // 3-second fallback crash (increased from 1s for WebTorrent cleanup)
     const fallback = setTimeout(() => {
-        console.warn('[Shutdown] Fallback: force crash after 1s...');
+        console.warn('[Shutdown] Fallback: force crash after 3s...');
         process.exit(1);
-    }, 1000);
+    }, 3000);
 
     try {
         // --- Clear API cache ---
@@ -3713,6 +4169,19 @@ async function performGracefulShutdown() {
         if (global.clearApiCache) {
             try { global.clearApiCache(); } catch (error) {
                 console.error('[Shutdown] Error clearing cache:', error);
+            }
+        }
+
+        // --- WebTorrent cleanup (new) ---
+        console.log('[Shutdown] Cleaning up WebTorrent...');
+        if (global.cleanupWebTorrent) {
+            try { 
+                await Promise.race([
+                    global.cleanupWebTorrent(),
+                    new Promise(resolve => setTimeout(resolve, 2000)) // 2s timeout
+                ]);
+            } catch (error) {
+                console.error('[Shutdown] Error cleaning up WebTorrent:', error);
             }
         }
 
@@ -3724,28 +4193,19 @@ async function performGracefulShutdown() {
             discordRpc = null;
         }
 
-        // --- WebTorrent client ---
-        console.log('[Shutdown] Destroying WebTorrent client...');
-        if (webtorrentClient) {
-            await new Promise((resolve) => {
-                try {
-                    const torrents = webtorrentClient.torrents.slice();
-                    console.log(`[Shutdown] Destroying ${torrents.length} torrents...`);
-                    torrents.forEach(t => { try { t.destroy(); } catch (_) {} });
-
-                    webtorrentClient.destroy((err) => {
-                        if (err) console.error('[Shutdown] WebTorrent destroy error:', err);
-                        else console.log('[Shutdown] WebTorrent client destroyed.');
-                        webtorrentClient = null;
-                        resolve();
-                    });
-
-                    setTimeout(resolve, 2000); // safety timeout
-                } catch (e) {
-                    console.error('[Shutdown] Error during WebTorrent cleanup:', e);
-                    resolve();
+        // --- Torrent-stream engines (legacy) ---
+        console.log('[Shutdown] Destroying torrent-stream engines...');
+        if (global.activeTorrents && global.activeTorrents.size > 0) {
+            try {
+                console.log(`[Shutdown] Destroying ${global.activeTorrents.size} torrent engines...`);
+                for (const [hash, engine] of global.activeTorrents.entries()) {
+                    try { engine.destroy(); } catch (_) {}
                 }
-            });
+                global.activeTorrents.clear();
+                console.log('[Shutdown] Torrent engines destroyed.');
+            } catch (e) {
+                console.error('[Shutdown] Error during torrent cleanup:', e);
+            }
         }
 
         // --- HTTP Server ---
