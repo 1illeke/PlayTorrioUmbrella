@@ -3,7 +3,7 @@
  * Uses the bundled Stremio server.js for FAST torrent streaming
  */
 
-import { fork } from 'child_process';
+import { spawn, fork } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -42,6 +42,14 @@ function logToFile(message) {
 }
 
 /**
+ * Check if we're running in a packaged Electron app
+ */
+function isPackaged() {
+    // In packaged apps, __dirname will contain 'app.asar'
+    return __dirname.includes('app.asar') || (process.resourcesPath && fs.existsSync(path.join(process.resourcesPath, 'app.asar')));
+}
+
+/**
  * Get path to engine/server.cjs
  * Handles both development and production (asar unpacked) paths
  */
@@ -50,16 +58,15 @@ function getEnginePath() {
     const possiblePaths = [
         // Development / unpacked from asar
         path.join(__dirname, 'engine', 'server.cjs'),
-        // Inside asar but unpacked
+        // Inside asar but unpacked (when __dirname is inside app.asar)
         path.join(__dirname.replace('app.asar', 'app.asar.unpacked'), 'engine', 'server.cjs'),
-        // Electron resources path (if using extraResources)
-        path.join(process.resourcesPath || '', 'engine', 'server.cjs'),
-        // Also check app.asar.unpacked in resources
+        // Production: resources/app.asar.unpacked/engine
         path.join(process.resourcesPath || '', 'app.asar.unpacked', 'engine', 'server.cjs'),
     ];
     
     logToFile(`[StremioEngine] __dirname: ${__dirname}`);
     logToFile(`[StremioEngine] process.resourcesPath: ${process.resourcesPath || 'undefined'}`);
+    logToFile(`[StremioEngine] isPackaged: ${isPackaged()}`);
     
     for (const enginePath of possiblePaths) {
         logToFile(`[StremioEngine] Checking: ${enginePath}`);
@@ -149,16 +156,38 @@ export async function startEngine(userDataPath, ffmpegBin = null, ffprobeBin = n
         engineEnv.FFPROBE = ffprobePath;
     }
     
-    logToFile(`[StremioEngine] Spawning engine with fork...`);
+    logToFile(`[StremioEngine] Spawning engine...`);
     
-    // Use fork() which uses Electron's built-in Node.js runtime
-    // This works in packaged apps unlike spawn(process.execPath)
-    engineProcess = fork(enginePath, [], {
-        env: engineEnv,
-        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-        detached: false,
-        windowsHide: true
-    });
+    // In packaged Electron apps, we need to use fork() which properly uses
+    // Electron's embedded Node.js runtime. In development, we can use either.
+    try {
+        if (isPackaged()) {
+            // For packaged apps, use spawn with electron as node
+            // Electron can run .cjs files when passed as argument
+            logToFile(`[StremioEngine] Using spawn with process.execPath for packaged app`);
+            engineProcess = spawn(process.execPath, [enginePath], {
+                env: {
+                    ...engineEnv,
+                    ELECTRON_RUN_AS_NODE: '1'  // This makes Electron act as Node.js
+                },
+                stdio: ['ignore', 'pipe', 'pipe'],
+                detached: false,
+                windowsHide: true
+            });
+        } else {
+            // Development mode - use fork
+            logToFile(`[StremioEngine] Using fork for development`);
+            engineProcess = fork(enginePath, [], {
+                env: engineEnv,
+                stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+                detached: false,
+                windowsHide: true
+            });
+        }
+    } catch (spawnError) {
+        logToFile(`[StremioEngine] Spawn/fork error: ${spawnError.message}`);
+        throw spawnError;
+    }
     
     engineProcess.stdout?.on('data', (data) => {
         const msg = data.toString().trim();
