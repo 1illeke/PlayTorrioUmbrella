@@ -287,3 +287,27 @@ body {
         max-height: calc(100vh - 350px);
     }
 }
+
+/* Desktop - ensure sources list is scrollable */
+@media (min-width: 1025px) {
+    #sources-list {
+        max-height: calc(100vh - 320px);
+        overflow-y: auto !important;
+    }
+    
+    #sources-section {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+    
+    #torrent-sources-section {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+}

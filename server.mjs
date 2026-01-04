@@ -308,6 +308,153 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         }
     });
 
+    // ============================================================================
+    // RESOLVE TORRENT FILE - Convert .torrent URL to magnet link
+    // ============================================================================
+    app.get('/api/resolve-torrent-file', async (req, res) => {
+        const { url, title } = req.query;
+        
+        if (!url) {
+            return res.status(400).json({ error: 'Missing url parameter' });
+        }
+        
+        // If it's already a magnet link, return it directly
+        if (url.startsWith('magnet:')) {
+            return res.json({ magnet: url });
+        }
+        
+        console.log(`[ResolveTorrent] Resolving: ${url.substring(0, 100)}...`);
+        
+        try {
+            // Create abort controller for timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+            
+            // Fetch with redirect: 'manual' to catch magnet redirects
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'application/x-bittorrent, application/octet-stream, */*'
+                },
+                signal: controller.signal,
+                redirect: 'manual'  // Don't auto-follow redirects
+            });
+            
+            clearTimeout(timeoutId);
+            
+            // Check if it's a redirect to a magnet link
+            if (response.status >= 300 && response.status < 400) {
+                const location = response.headers.get('location');
+                if (location) {
+                    console.log(`[ResolveTorrent] Redirect to: ${location.substring(0, 100)}...`);
+                    if (location.startsWith('magnet:')) {
+                        console.log(`[ResolveTorrent] Success: Redirect was a magnet link`);
+                        return res.json({ magnet: location });
+                    }
+                    // Follow non-magnet redirects manually
+                    const redirectResponse = await fetch(location, {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'Accept': 'application/x-bittorrent, application/octet-stream, */*'
+                        },
+                        redirect: 'manual'
+                    });
+                    
+                    // Check again for magnet redirect
+                    if (redirectResponse.status >= 300 && redirectResponse.status < 400) {
+                        const loc2 = redirectResponse.headers.get('location');
+                        if (loc2 && loc2.startsWith('magnet:')) {
+                            console.log(`[ResolveTorrent] Success: Second redirect was a magnet link`);
+                            return res.json({ magnet: loc2 });
+                        }
+                    }
+                    
+                    if (!redirectResponse.ok) {
+                        return res.status(redirectResponse.status).json({ error: `Failed after redirect: ${redirectResponse.status}` });
+                    }
+                    
+                    // Process the redirected response
+                    const arrayBuffer = await redirectResponse.arrayBuffer();
+                    return processBuffer(Buffer.from(arrayBuffer), title, res);
+                }
+            }
+            
+            if (!response.ok) {
+                console.error(`[ResolveTorrent] HTTP error: ${response.status} ${response.statusText}`);
+                return res.status(response.status).json({ error: `Failed to fetch torrent: ${response.status} ${response.statusText}` });
+            }
+            
+            // Get the torrent file as buffer
+            const arrayBuffer = await response.arrayBuffer();
+            return processBuffer(Buffer.from(arrayBuffer), title, res);
+            
+        } catch (error) {
+            console.error(`[ResolveTorrent] Error:`, error);
+            if (error.name === 'AbortError') {
+                return res.status(504).json({ error: 'Request timed out' });
+            }
+            res.status(500).json({ error: error.message || 'Failed to resolve torrent' });
+        }
+    });
+    
+    // Helper function to process torrent buffer
+    async function processBuffer(buffer, title, res) {
+        console.log(`[ResolveTorrent] Downloaded ${buffer.length} bytes`);
+        
+        if (buffer.length === 0) {
+            return res.status(400).json({ error: 'Empty response from torrent URL' });
+        }
+        
+        // Check first byte - bencoded dict starts with 'd'
+        const firstChar = String.fromCharCode(buffer[0]);
+        if (firstChar !== 'd') {
+            // Maybe it's a magnet link or HTML error page
+            const text = buffer.toString('utf8').substring(0, 500).trim();
+            if (text.startsWith('magnet:')) {
+                console.log(`[ResolveTorrent] URL returned magnet link directly`);
+                return res.json({ magnet: text.split('\n')[0].trim() });
+            }
+            console.error(`[ResolveTorrent] Not a torrent file. First 100 chars: ${text.substring(0, 100)}`);
+            return res.status(400).json({ error: 'URL did not return a valid torrent file' });
+        }
+        
+        // Parse the torrent file
+        let parsed;
+        try {
+            parsed = await parseTorrent(buffer);
+        } catch (parseErr) {
+            console.error(`[ResolveTorrent] Parse error:`, parseErr.message);
+            return res.status(400).json({ error: `Invalid torrent file: ${parseErr.message}` });
+        }
+        
+        if (!parsed || !parsed.infoHash) {
+            return res.status(400).json({ error: 'Could not extract info hash from torrent' });
+        }
+        
+        // Build magnet link
+        const magnetParts = [`magnet:?xt=urn:btih:${parsed.infoHash}`];
+        
+        // Add display name
+        const displayName = parsed.name || title || 'Unknown';
+        magnetParts.push(`&dn=${encodeURIComponent(displayName)}`);
+        
+        // Add trackers if available
+        if (parsed.announce && parsed.announce.length > 0) {
+            parsed.announce.forEach(tracker => {
+                magnetParts.push(`&tr=${encodeURIComponent(tracker)}`);
+            });
+        }
+        
+        const magnet = magnetParts.join('');
+        console.log(`[ResolveTorrent] Success: ${parsed.infoHash} - ${displayName.substring(0, 50)}`);
+        
+        return res.json({ 
+            magnet,
+            infoHash: parsed.infoHash,
+            name: displayName
+        });
+    }
+
     // Apply cache middleware to all API routes
     app.use('/anime/api', cacheMiddleware);
     app.use('/torrentio/api', cacheMiddleware);
