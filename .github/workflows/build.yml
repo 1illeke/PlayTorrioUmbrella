@@ -101,7 +101,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
   build-macos-x64:
-    runs-on: macos-14
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
 
@@ -202,7 +202,7 @@ jobs:
 
       - name: Read version
         id: ver
-        run: echo "version=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
+        run: echo "version=$(node -p 'require("./package.json").version')" >> $GITHUB_OUTPUT
 
       - name: Ensure tag uses v prefix
         run: |

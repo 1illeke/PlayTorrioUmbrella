@@ -1409,7 +1409,7 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
     // Save/update a resume position
     app.post('/api/resume', (req, res) => {
         try {
-            const { key, position, duration, title, poster_path, tmdb_id, media_type, season, episode } = req.body || {};
+            const { key, position, duration, title, poster_path, tmdb_id, media_type, season, episode, sourceInfo } = req.body || {};
             const k = (key || '').toString();
             const pos = Number(position || 0);
             const dur = Number(duration || 0);
@@ -1429,6 +1429,18 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
             if (media_type) rec.media_type = String(media_type);
             if (season !== undefined && season !== null) rec.season = Number(season);
             if (episode !== undefined && episode !== null) rec.episode = Number(episode);
+            // Store source info for replay functionality (provider, magnet, url, etc.)
+            if (sourceInfo && typeof sourceInfo === 'object') {
+                rec.sourceInfo = {
+                    provider: sourceInfo.provider || null,
+                    magnet: sourceInfo.magnet || null,
+                    url: sourceInfo.url || null,
+                    torrentTitle: sourceInfo.torrentTitle || null,
+                    fileIndex: sourceInfo.fileIndex !== undefined ? sourceInfo.fileIndex : null,
+                    streamUrl: sourceInfo.streamUrl || null,
+                    embeddedServer: sourceInfo.embeddedServer || null
+                };
+            }
             map[k] = rec;
             // Cap entries to avoid unbounded growth (keep latest 500)
             const entries = Object.entries(map).sort((a, b) => new Date(b[1]?.updatedAt || 0) - new Date(a[1]?.updatedAt || 0));
@@ -1473,6 +1485,7 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                     media_type: data.media_type || null,
                     season: data.season || null,
                     episode: data.episode || null,
+                    sourceInfo: data.sourceInfo || null,
                     updatedAt: data.updatedAt || new Date().toISOString()
                 }))
                 .filter(item => item.duration > 0 && item.position > 0 && item.position / item.duration < 0.95) // Only show items not fully watched

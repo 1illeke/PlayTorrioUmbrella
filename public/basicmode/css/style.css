@@ -235,3 +235,55 @@ body {
     0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
     50% { box-shadow: 0 0 40px rgba(16, 185, 129, 0.8), 0 0 60px rgba(16, 185, 129, 0.4); }
 }
+
+
+/* Mobile responsive fixes for details page */
+@media (max-width: 640px) {
+    /* Ensure sources list is scrollable on small screens */
+    #sources-list {
+        max-height: calc(100vh - 300px);
+        min-height: 200px;
+    }
+    
+    /* Make source cards more compact */
+    .source-card {
+        padding: 0.75rem !important;
+    }
+    
+    /* Ensure release name wraps instead of truncating on very small screens */
+    .release-name {
+        white-space: normal;
+        word-break: break-word;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    
+    /* Adjust right panel height on mobile */
+    #right-panel-anim-target {
+        height: auto !important;
+        min-height: 60vh;
+        max-height: none;
+    }
+    
+    /* Make addon tabs scrollable horizontally */
+    #addon-tabs {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    
+    #addon-tabs::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+/* Tablet adjustments */
+@media (min-width: 641px) and (max-width: 1024px) {
+    #sources-list {
+        max-height: calc(100vh - 350px);
+    }
+}

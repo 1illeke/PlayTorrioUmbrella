@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, clipboard, dialog, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, clipboard, dialog, Menu, session } from 'electron';
 import { spawn, spawnSync, fork } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -10,6 +10,8 @@ import { pipeline as streamPipelineCb } from 'stream';
 import { promisify } from 'util';
 import dns from 'dns';
 import { createRequire } from 'module';
+import { ElectronBlocker } from '@ghostery/adblocker-electron';
+import fetch from 'node-fetch';
 // app.disableHardwareAcceleration(); // Removed for HTML5 player
 
 // electron-updater is CommonJS; use default import + destructure for ESM
@@ -2708,6 +2710,71 @@ if (!gotLock) {
     app.whenReady().then(async () => {
     // ---- Migrate localStorage from default to persist:playtorrio partition ----
     await migrateLocalStorageIfNeeded();
+    
+    // ---- Initialize Ad Blocker for all sessions (blocks ads in iframes too) ----
+    try {
+        console.log('[AdBlocker] Initializing ad blocker...');
+        
+        // Cache path for ad blocker engine
+        const adBlockCachePath = path.join(app.getPath('userData'), 'adblocker-engine.bin');
+        let blocker;
+        
+        // Try to load from cache first for faster startup
+        if (fs.existsSync(adBlockCachePath)) {
+            try {
+                const cacheData = fs.readFileSync(adBlockCachePath);
+                blocker = ElectronBlocker.deserialize(cacheData);
+                console.log('[AdBlocker] Loaded from cache');
+            } catch (cacheErr) {
+                console.log('[AdBlocker] Cache invalid, fetching fresh lists...');
+                blocker = null;
+            }
+        }
+        
+        // If no cache or cache failed, fetch fresh lists
+        if (!blocker) {
+            blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch, {
+                enableCompression: true,
+            });
+            
+            // Save to cache for next startup
+            try {
+                const serialized = blocker.serialize();
+                fs.writeFileSync(adBlockCachePath, serialized);
+                console.log('[AdBlocker] Saved to cache');
+            } catch (saveErr) {
+                console.warn('[AdBlocker] Failed to save cache:', saveErr.message);
+            }
+        }
+        
+        // Enable blocking on the default session
+        blocker.enableBlockingInSession(session.defaultSession);
+        
+        // Enable blocking on the persistent partition used by the app
+        const persistSession = session.fromPartition('persist:playtorrio');
+        blocker.enableBlockingInSession(persistSession);
+        
+        // Store blocker globally for potential future use
+        global.adBlocker = blocker;
+        
+        // Log blocked requests count periodically (optional, for debugging)
+        let blockedCount = 0;
+        blocker.on('request-blocked', () => {
+            blockedCount++;
+        });
+        
+        // Log stats every 5 minutes
+        setInterval(() => {
+            if (blockedCount > 0) {
+                console.log(`[AdBlocker] Blocked ${blockedCount} requests in the last 5 minutes`);
+                blockedCount = 0;
+            }
+        }, 5 * 60 * 1000);
+        
+        console.log('[AdBlocker] ✅ Ad blocker enabled for all sessions (including iframes)');
+    } catch (adBlockErr) {
+        console.error('[AdBlocker] Failed to initialize:', adBlockErr.message);
+    }
     
     // ---- Main process file logging (Windows crash diagnostics)
     try {

@@ -551,6 +551,9 @@ const createRow = async (title, fetchFn, mediaType) => {
 const initRows = async () => {
   if (contentRows) contentRows.innerHTML = '';
   
+  // First, load Continue Watching row if there are items
+  await createContinueWatchingRow();
+  
   // Ordered execution to maintain order on page
   const rows = [
     { title: 'Trending Movies', fetchFn: getTrendingMovies, mediaType: 'movie' },
@@ -576,6 +579,132 @@ const initRows = async () => {
           }, i * 100);
       });
   }, 100);
+};
+
+// Continue Watching Row
+const createContinueWatchingRow = async () => {
+    try {
+        const response = await fetch('/api/resume/all');
+        if (!response.ok) return;
+        
+        const items = await response.json();
+        if (!Array.isArray(items) || items.length === 0) return;
+        
+        if (!rowTemplate) return;
+        const rowClone = rowTemplate.content.cloneNode(true);
+        rowClone.querySelector('.row-title').textContent = '⏱️ Continue Watching';
+        
+        const postersContainer = rowClone.querySelector('.row-posters');
+        
+        items.forEach(item => {
+            if (!item.tmdb_id || !item.media_type) return;
+            
+            const card = document.createElement('a');
+            card.className = 'poster-link block flex-shrink-0 w-[160px] md:w-[180px] lg:w-[200px] group relative cursor-pointer';
+            
+            // Build URL with source info for replay
+            const params = new URLSearchParams({
+                type: item.media_type,
+                id: item.tmdb_id
+            });
+            if (item.season) params.append('season', item.season);
+            if (item.episode) params.append('episode', item.episode);
+            if (item.sourceInfo) params.append('sourceInfo', JSON.stringify(item.sourceInfo));
+            
+            card.href = `details.html?${params.toString()}`;
+            
+            const progress = item.duration > 0 ? ((item.position / item.duration) * 100).toFixed(0) : 0;
+            const posterUrl = item.poster_path 
+                ? `https://image.tmdb.org/t/p/w342${item.poster_path}`
+                : 'https://via.placeholder.com/342x513/1a1a2e/ffffff?text=No+Image';
+            
+            // Episode info for TV shows
+            let episodeInfo = '';
+            if (item.media_type === 'tv' && item.season && item.episode) {
+                episodeInfo = `S${item.season}E${item.episode}`;
+            } else if (item.media_type === 'tv' && item.season) {
+                episodeInfo = `Season ${item.season}`;
+            }
+            
+            card.innerHTML = `
+                <div class="aspect-[2/3] rounded-xl overflow-hidden mb-2 relative poster-shadow transition-all duration-300 group-hover:shadow-purple-500/40 group-hover:shadow-2xl border border-transparent group-hover:border-purple-500/30">
+                    <img src="${posterUrl}" alt="${item.title}" loading="lazy" class="w-full h-full object-cover">
+                    <!-- Progress bar -->
+                    <div class="absolute bottom-0 left-0 right-0 h-1 bg-gray-800">
+                        <div class="h-full bg-purple-500" style="width: ${progress}%"></div>
+                    </div>
+                    <!-- Overlay -->
+                    <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center p-4 text-center">
+                        <span class="text-white font-bold mb-2 flex items-center gap-1">
+                            <svg class="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                            ${progress}%
+                        </span>
+                        ${episodeInfo ? `<span class="text-gray-300 text-sm mb-2">${episodeInfo}</span>` : ''}
+                        <button class="bg-primary-purple text-white px-4 py-2 rounded-full text-sm font-medium transform scale-0 group-hover:scale-100 transition-transform duration-300 delay-100">
+                            Continue
+                        </button>
+                    </div>
+                </div>
+                <h3 class="text-white font-medium truncate group-hover:text-primary-purple transition-colors">${item.title}</h3>
+                <p class="text-gray-500 text-sm">${episodeInfo || (item.media_type === 'movie' ? 'Movie' : 'TV Show')}</p>
+            `;
+            
+            postersContainer.appendChild(card);
+        });
+        
+        // Scroll Logic
+        const scrollLeftBtn = rowClone.querySelector('.scroll-left');
+        const scrollRightBtn = rowClone.querySelector('.scroll-right');
+        
+        const updateScrollButtons = () => {
+            const { scrollLeft, scrollWidth, clientWidth } = postersContainer;
+            
+            if (scrollLeft > 0) {
+                scrollLeftBtn.classList.remove('opacity-0', 'pointer-events-none');
+                scrollLeftBtn.classList.add('group-hover/row:opacity-100');
+            } else {
+                scrollLeftBtn.classList.add('opacity-0', 'pointer-events-none');
+                scrollLeftBtn.classList.remove('group-hover/row:opacity-100');
+            }
+
+            if (scrollLeft < scrollWidth - clientWidth - 10) {
+                scrollRightBtn.classList.remove('opacity-0', 'pointer-events-none');
+                scrollRightBtn.classList.add('group-hover/row:opacity-100');
+            } else {
+                scrollRightBtn.classList.add('opacity-0', 'pointer-events-none');
+                scrollRightBtn.classList.remove('group-hover/row:opacity-100');
+            }
+        };
+
+        if (postersContainer) {
+            postersContainer.addEventListener('scroll', updateScrollButtons);
+            
+            if (scrollLeftBtn) {
+                scrollLeftBtn.addEventListener('click', () => {
+                    const scrollAmount = postersContainer.clientWidth * 0.8;
+                    postersContainer.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+                });
+            }
+
+            if (scrollRightBtn) {
+                scrollRightBtn.addEventListener('click', () => {
+                    const scrollAmount = postersContainer.clientWidth * 0.8;
+                    postersContainer.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+                });
+            }
+            
+            setTimeout(updateScrollButtons, 100);
+        }
+
+        if (contentRows) {
+            contentRows.appendChild(rowClone);
+        }
+        
+    } catch (error) {
+        console.error('[Continue Watching] Failed to load:', error);
+    }
 };
 
 // Addon UI Logic

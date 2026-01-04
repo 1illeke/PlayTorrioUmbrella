@@ -5,6 +5,8 @@ import {
     getImageUrl,
     getMovieImages,
     getTVShowImages,
+    getMovieVideos,
+    getTVShowVideos,
     getEpisodeImages,
     getExternalIds,
     findByExternalId
@@ -80,11 +82,20 @@ const loadingOverlay = document.getElementById('loading-overlay');
 const contentContainer = document.getElementById('content-container');
 const backdropImage = document.getElementById('backdrop-image');
 const addonTabsContainer = document.getElementById('addon-tabs');
-const screenshotsContainer = document.getElementById('screenshots-container');
+const mediaContainer = document.getElementById('media-container');
+const screenshotsSection = document.getElementById('screenshots-section');
 const screenshotsGrid = document.getElementById('screenshots-grid');
+const trailerSection = document.getElementById('trailer-section');
+const trailerContainer = document.getElementById('trailer-container');
+const trailerPlaceholder = document.getElementById('trailer-placeholder');
+const screenshotsTab = document.getElementById('screenshots-tab');
+const trailerTab = document.getElementById('trailer-tab');
 const imageModal = document.getElementById('image-modal');
 const modalImage = document.getElementById('modal-image');
 const closeImageModal = document.getElementById('close-image-modal');
+
+// Trailer data storage
+let currentTrailerKey = null;
 
 // Play Loading Overlay functions
 const playLoadingOverlay = document.getElementById('play-loading-overlay');
@@ -117,8 +128,40 @@ async function openPlayerInIframe(options) {
         showName,
         provider,
         providerUrl,
-        quality
+        quality,
+        sourceInfo // New: source info for replay
     } = options;
+    
+    // Save to Continue Watching with source info
+    try {
+        const resumeKey = `${type || (isTV ? 'tv' : 'movie')}_${tmdbId || id}${seasonNum ? `_s${seasonNum}` : ''}${episodeNum ? `_e${episodeNum}` : ''}`;
+        const resumeData = {
+            key: resumeKey,
+            position: 0,
+            duration: 1, // Will be updated by player
+            title: showName || currentDetails?.title || currentDetails?.name || 'Unknown',
+            poster_path: currentDetails?.poster_path || null,
+            tmdb_id: tmdbId || id,
+            media_type: type || (isTV ? 'tv' : 'movie'),
+            season: seasonNum || null,
+            episode: episodeNum || null,
+            sourceInfo: sourceInfo || {
+                provider: provider || currentProvider || null,
+                url: url || null,
+                magnet: options.magnet || null,
+                torrentTitle: options.torrentTitle || null,
+                streamUrl: url || null
+            }
+        };
+        
+        fetch('/api/resume', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(resumeData)
+        }).catch(e => console.warn('[Resume] Failed to save:', e));
+    } catch (e) {
+        console.warn('[Resume] Error preparing save:', e);
+    }
     
     // Check if NodeMPV is enabled (Windows only) - use Electron IPC for that
     if (window.electronAPI?.spawnMpvjsPlayer) {
@@ -386,7 +429,7 @@ const loadScreenshots = async () => {
         const images = data.backdrops || [];
         
         if (images.length > 0) {
-            screenshotsContainer.classList.remove('hidden');
+            mediaContainer.classList.remove('hidden');
             screenshotsGrid.innerHTML = '';
             
             images.slice(0, 4).forEach((img) => {
@@ -413,7 +456,387 @@ const loadScreenshots = async () => {
     }
 };
 
+const loadTrailer = async () => {
+    try {
+        const fetchFn = isTV ? getTVShowVideos : getMovieVideos;
+        const data = await fetchFn(id);
+        const videos = data.results || [];
+        
+        // Find the best trailer (prefer official YouTube trailers)
+        const trailer = videos.find(v => 
+            v.site === 'YouTube' && 
+            v.type === 'Trailer' && 
+            v.official === true
+        ) || videos.find(v => 
+            v.site === 'YouTube' && 
+            v.type === 'Trailer'
+        ) || videos.find(v => 
+            v.site === 'YouTube' && 
+            (v.type === 'Teaser' || v.type === 'Clip')
+        );
+        
+        if (trailer) {
+            currentTrailerKey = trailer.key;
+            // Show trailer tab as available
+            trailerTab.classList.remove('opacity-50', 'cursor-not-allowed');
+            trailerTab.disabled = false;
+        } else {
+            currentTrailerKey = null;
+            // Dim the trailer tab if no trailer available
+            trailerTab.classList.add('opacity-50');
+        }
+    } catch (e) {
+        console.warn('Failed to load trailer:', e);
+        currentTrailerKey = null;
+    }
+};
+
+// Tab switching logic
+const switchToScreenshots = () => {
+    screenshotsTab.classList.remove('bg-gray-800', 'text-gray-400');
+    screenshotsTab.classList.add('bg-purple-600', 'text-white');
+    trailerTab.classList.remove('bg-purple-600', 'text-white');
+    trailerTab.classList.add('bg-gray-800', 'text-gray-400');
+    
+    screenshotsSection.classList.remove('hidden');
+    trailerSection.classList.add('hidden');
+    
+    // Stop trailer playback when switching away
+    const iframe = trailerContainer.querySelector('iframe');
+    if (iframe) {
+        iframe.src = '';
+    }
+};
+
+const switchToTrailer = () => {
+    if (!currentTrailerKey) {
+        // No trailer available, show placeholder
+        trailerPlaceholder.classList.remove('hidden');
+        const iframe = trailerContainer.querySelector('iframe');
+        if (iframe) iframe.remove();
+    } else {
+        trailerPlaceholder.classList.add('hidden');
+        
+        // Create or update iframe
+        let iframe = trailerContainer.querySelector('iframe');
+        if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.className = 'w-full h-full';
+            iframe.setAttribute('allowfullscreen', '');
+            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+            iframe.setAttribute('frameborder', '0');
+            trailerContainer.appendChild(iframe);
+        }
+        iframe.src = `https://www.youtube.com/embed/${currentTrailerKey}?autoplay=1&rel=0`;
+    }
+    
+    trailerTab.classList.remove('bg-gray-800', 'text-gray-400');
+    trailerTab.classList.add('bg-purple-600', 'text-white');
+    screenshotsTab.classList.remove('bg-purple-600', 'text-white');
+    screenshotsTab.classList.add('bg-gray-800', 'text-gray-400');
+    
+    trailerSection.classList.remove('hidden');
+    screenshotsSection.classList.add('hidden');
+};
+
+// Initialize tab click handlers
+if (screenshotsTab) {
+    screenshotsTab.addEventListener('click', switchToScreenshots);
+}
+if (trailerTab) {
+    trailerTab.addEventListener('click', switchToTrailer);
+}
+
+// ============================================
+// EMBEDDED SERVERS FUNCTIONALITY
+// ============================================
+
+const embeddedServers = {
+    'CinemaOS': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://cinemaos.tech/player/${id}`
+            : `https://cinemaos.tech/player/${id}/${season}/${episode}`,
+    'Videasy': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://player.videasy.net/movie/${id}`
+            : `https://player.videasy.net/tv/${id}/${season}/${episode}`,
+    'Vidlink': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidlink.pro/movie/${id}`
+            : `https://vidlink.pro/tv/${id}/${season}/${episode}`,
+    'LunaStream': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://lunastream.fun/watch/movie/${id}`
+            : `https://lunastream.fun/watch/tv/${id}/${season}/${episode}`,
+    'VidRock': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidrock.net/movie/${id}`
+            : `https://vidrock.net/tv/${id}/${season}/${episode}`,
+    'HexaWatch': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://hexa.watch/watch/movie/${id}`
+            : `https://hexa.watch/watch/tv/${id}/${season}/${episode}`,
+    'FMovies': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://www.fmovies.gd/watch/movie/${id}`
+            : `https://www.fmovies.gd/watch/tv/${id}/${season}/${episode}`,
+    'Xprime': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://xprime.tv/watch/${id}`
+            : `https://xprime.tv/watch/${id}/${season}/${episode}`,
+    'Vidnest': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidnest.fun/movie/${id}`
+            : `https://vidnest.fun/tv/${id}/${season}/${episode}`,
+    'VeloraTV': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://veloratv.ru/watch/movie/${id}`
+            : `https://veloratv.ru/watch/tv/${id}/${season}/${episode}`,
+    'Vidfast 1': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidfast.pro/movie/${id}`
+            : `https://vidfast.pro/tv/${id}/${season}/${episode}`,
+    'Vidfast 2': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidfast.to/embed/movie/${id}`
+            : `https://vidfast.to/embed/tv/${id}/${season}/${episode}`,
+    '111Movies': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://111movies.com/movie/${id}`
+            : `https://111movies.com/tv/${id}/${season}/${episode}`,
+    'VidSrc 1': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidsrc.wtf/api/1/movie/?id=${id}&color=e01621`
+            : `https://vidsrc.wtf/api/1/tv/?id=${id}&s=${season}&e=${episode}&color=e01621`,
+    'VidSrc 2': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidsrc.wtf/api/2/movie/?id=${id}&color=e01621`
+            : `https://vidsrc.wtf/api/2/tv/?id=${id}&s=${season}&e=${episode}&color=e01621`,
+    'VidSrc 3': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidsrc.wtf/api/3/movie/?id=${id}&color=e01621`
+            : `https://vidsrc.wtf/api/3/tv/?id=${id}&s=${season}&e=${episode}&color=e01621`,
+    'VidSrc 4': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidsrc.wtf/api/4/movie/?id=${id}&color=e01621`
+            : `https://vidsrc.wtf/api/4/tv/?id=${id}&s=${season}&e=${episode}&color=e01621`,
+    'PrimeSrc': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://primesrc.me/embed/movie?tmdb=${id}`
+            : `https://primesrc.me/embed/tv?tmdb=${id}&season=${season}&episode=${episode}`,
+    'MovieClub': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://moviesapi.club/movie/${id}`
+            : `https://moviesapi.club/tv/${id}-${season}-${episode}`,
+    'MapleTV': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://mapple.uk/watch/movie/${id}`
+            : `https://mapple.uk/watch/tv/${id}-${season}-${episode}`,
+    '2Embed': (type, id, season, episode) =>
+        `https://multiembed.mov/?video_id=${id}&tmdb=1&media_type=${type}${type === 'tv' ? `&season=${season}&episode=${episode}` : ''}`,
+    'SmashyStream': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://player.smashy.stream/movie/${id}`
+            : `https://player.smashy.stream/tv/${id}?s=${season}&e=${episode}`,
+    'Autoembed': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://player.autoembed.cc/embed/movie/${id}`
+            : `https://player.autoembed.cc/embed/tv/${id}/${season}/${episode}`,
+    'GoDrivePlayer': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://godriveplayer.com/player.php?imdb=${id}`
+            : `https://godriveplayer.com/player.php?type=tv&tmdb=${id}&season=${season}&episode=${episode}`,
+    'VidWTF Premium': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidsrc.wtf/api/4/movie/?id=${id}&color=e01621`
+            : `https://vidsrc.wtf/api/4/tv/?id=${id}&s=${season}&e=${episode}&color=e01621`,
+    'CinemaOS Embed': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://cinemaos.tech/embed/movie/${id}`
+            : `https://cinemaos.tech/embed/tv/${id}/${season}/${episode}`,
+    'GDrivePlayer API': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://databasegdriveplayer.xyz/player.php?tmdb=${id}`
+            : `https://database.gdriveplayer.us/player.php?type=series&tmdb=${id}&season=${season}&episode=${episode}`,
+    'Nontongo': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://nontongo.win/embed/movie/${id}`
+            : `https://nontongo.win/embed/tv/${id}/${season}/${episode}`,
+    'SpencerDevs': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://spencerdevs.xyz/movie/${id}`
+            : `https://spencerdevs.xyz/tv/${id}/${season}/${episode}`,
+    'VidAPI': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidapi.xyz/embed/movie/${id}`
+            : `https://vidapi.xyz/embed/tv/${id}/${season}/${episode}`,
+    'Vidify': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidify.top/embed/movie/${id}`
+            : `https://vidify.top/embed/tv/${id}/${season}/${episode}`,
+    'VidSrc CX': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidsrc.cx/embed/movie/${id}`
+            : `https://vidsrc.cx/embed/tv/${id}/${season}/${episode}`,
+    'VidSrc ME': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidsrc.me/embed/movie/${id}`
+            : `https://vidsrc.me/embed/tv/${id}/${season}/${episode}`,
+    'VidSrc TO': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidsrc.to/embed/movie/${id}`
+            : `https://vidsrc.to/embed/tv/${id}/${season}/${episode}`,
+    'VidSrc VIP': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidsrc.vip/embed/movie/${id}`
+            : `https://vidsrc.vip/embed/tv/${id}/${season}/${episode}`,
+    'VixSrc': (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vixsrc.to/movie/${id}/`
+            : `https://vixsrc.to/tv/${id}/${season}/${episode}/`
+};
+
+// DOM elements for embedded servers
+const embeddedServersTab = document.getElementById('embedded-servers-tab');
+const torrentSourcesTab = document.getElementById('torrent-sources-tab');
+const embeddedServersSection = document.getElementById('embedded-servers-section');
+const torrentSourcesSection = document.getElementById('torrent-sources-section');
+const embeddedServerSelect = document.getElementById('embedded-server-select');
+const embeddedWatchBtn = document.getElementById('embedded-watch-btn');
+const embeddedEpisodeWarning = document.getElementById('embedded-episode-warning');
+const embeddedPlayerContainer = document.getElementById('embedded-player-container');
+const embeddedPlayerIframe = document.getElementById('embedded-player-iframe');
+
+// Populate server dropdown
+if (embeddedServerSelect) {
+    Object.keys(embeddedServers).forEach(serverName => {
+        const option = document.createElement('option');
+        option.value = serverName;
+        option.textContent = serverName;
+        embeddedServerSelect.appendChild(option);
+    });
+}
+
+// Tab switching for embedded servers vs torrent sources
+if (embeddedServersTab) {
+    embeddedServersTab.addEventListener('click', () => {
+        embeddedServersTab.classList.remove('bg-gray-800', 'text-gray-400');
+        embeddedServersTab.classList.add('bg-purple-600', 'text-white');
+        torrentSourcesTab.classList.remove('bg-purple-600', 'text-white');
+        torrentSourcesTab.classList.add('bg-gray-800', 'text-gray-400');
+        
+        embeddedServersSection.classList.remove('hidden');
+        torrentSourcesSection.classList.add('hidden');
+        
+        // Update warning visibility for TV shows
+        if (isTV && !currentEpisode) {
+            embeddedEpisodeWarning.classList.remove('hidden');
+        } else {
+            embeddedEpisodeWarning.classList.add('hidden');
+        }
+    });
+}
+
+if (torrentSourcesTab) {
+    torrentSourcesTab.addEventListener('click', () => {
+        torrentSourcesTab.classList.remove('bg-gray-800', 'text-gray-400');
+        torrentSourcesTab.classList.add('bg-purple-600', 'text-white');
+        embeddedServersTab.classList.remove('bg-purple-600', 'text-white');
+        embeddedServersTab.classList.add('bg-gray-800', 'text-gray-400');
+        
+        torrentSourcesSection.classList.remove('hidden');
+        embeddedServersSection.classList.add('hidden');
+        
+        // Stop any playing embedded video
+        if (embeddedPlayerIframe) {
+            embeddedPlayerIframe.src = '';
+        }
+        embeddedPlayerContainer.classList.add('hidden');
+    });
+}
+
+// Watch button for embedded servers
+if (embeddedWatchBtn) {
+    embeddedWatchBtn.addEventListener('click', () => {
+        // Check if TV show and no episode selected
+        if (isTV && !currentEpisode) {
+            embeddedEpisodeWarning.classList.remove('hidden');
+            return;
+        }
+        
+        const selectedServer = embeddedServerSelect.value;
+        const serverFn = embeddedServers[selectedServer];
+        
+        if (!serverFn) {
+            console.error('Server not found:', selectedServer);
+            return;
+        }
+        
+        const mediaType = isTV ? 'tv' : 'movie';
+        const tmdbId = id;
+        const season = currentSeason || 1;
+        const episode = currentEpisode || 1;
+        
+        const embedUrl = serverFn(mediaType, tmdbId, season, episode);
+        console.log('[Embedded Server] Loading:', selectedServer, embedUrl);
+        
+        // Save to Continue Watching with embedded server info
+        try {
+            const resumeKey = `${mediaType}_${tmdbId}${isTV ? `_s${season}_e${episode}` : ''}`;
+            const resumeData = {
+                key: resumeKey,
+                position: 0,
+                duration: 1,
+                title: currentDetails?.title || currentDetails?.name || 'Unknown',
+                poster_path: currentDetails?.poster_path || null,
+                tmdb_id: tmdbId,
+                media_type: mediaType,
+                season: isTV ? season : null,
+                episode: isTV ? episode : null,
+                sourceInfo: {
+                    provider: 'embedded',
+                    embeddedServer: selectedServer,
+                    url: embedUrl
+                }
+            };
+            
+            fetch('/api/resume', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(resumeData)
+            }).catch(e => console.warn('[Resume] Failed to save:', e));
+        } catch (e) {
+            console.warn('[Resume] Error:', e);
+        }
+        
+        // Show player and load iframe
+        embeddedPlayerContainer.classList.remove('hidden');
+        embeddedPlayerIframe.src = embedUrl;
+        
+        // Scroll to player
+        embeddedPlayerContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+}
+
+// Update embedded warning when episode changes
+const updateEmbeddedWarning = () => {
+    if (embeddedEpisodeWarning && !embeddedServersSection.classList.contains('hidden')) {
+        if (isTV && !currentEpisode) {
+            embeddedEpisodeWarning.classList.remove('hidden');
+        } else {
+            embeddedEpisodeWarning.classList.add('hidden');
+        }
+    }
+};
+
+// ============================================
+// END EMBEDDED SERVERS
+// ============================================
+
 const renderSources = async () => {
+    // Update embedded warning when sources are rendered
+    updateEmbeddedWarning();
+    
     if (isTV && !currentEpisode) {
         sourcesList.innerHTML = '';
         sourcesList.classList.add('hidden');
@@ -1486,6 +1909,7 @@ const init = async () => {
                 
                 renderDetails(data);
                 loadScreenshots();
+                loadTrailer();
                 await renderAddonTabs();
 
                 if (tmdbType === 'tv') {
@@ -1633,6 +2057,7 @@ const init = async () => {
 
             renderDetails(data);
             loadScreenshots();
+            loadTrailer();
             await renderAddonTabs();
 
             if (isTV) {
@@ -1669,7 +2094,7 @@ const init = async () => {
         contentContainer.classList.remove('hidden');
         requestAnimationFrame(() => {
             contentContainer.classList.remove('opacity-0');
-            document.querySelectorAll('#poster-anim-target, #info-anim-target, #right-panel-anim-target, #detail-overview, #cast-container, #screenshots-container').forEach(el => {
+            document.querySelectorAll('#poster-anim-target, #info-anim-target, #right-panel-anim-target, #detail-overview, #cast-container, #media-container').forEach(el => {
                el.classList.remove('opacity-0', 'translate-y-4', 'translate-x-4'); 
             });
         });

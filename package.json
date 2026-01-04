@@ -1,6 +1,6 @@
 {
   "name": "playtorrio",
-  "version": "2.4.3",
+  "version": "2.4.4",
   "description": "Ayman's PlayTorrio an all in one media center",
   "author": {
     "name": "Ayman",
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ghostery/adblocker-electron": "^2.3.0",
     "axios": "^1.7.4",
     "castv2-client": "^1.2.0",
     "cheerio": "^1.0.0",
@@ -127,16 +128,29 @@
       "icon": "build/icon.icns",
       "category": "public.app-category.entertainment",
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
       ],
       "files": [
         "macyt/**"
       ],
       "asarUnpack": [
-        "macyt/**"
+        "macyt/**",
+        "node_modules/webtorrent/**",
+        "node_modules/torrent-stream/**",
+        "node_modules/utp-native/**",
+        "node_modules/sodium-native/**",
+        "node_modules/fd-slicer/**",
+        "node_modules/node-gyp-build/**"
       ],
       "artifactName": "${productName}-mac-${arch}.${ext}",
+      "npmRebuild": true,
       "hardenedRuntime": false,
       "identity": null,
       "gatekeeperAssess": false,

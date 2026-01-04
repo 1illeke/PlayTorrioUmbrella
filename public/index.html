@@ -11277,6 +11277,9 @@ Can't find what you're looking for? Try a custom search
         </button>
     </div>
     <div class="secondary-actions">
+        <button class="btn-icon-only" id="watchTrailerBtn" title="Watch Trailer">
+            <i class="fas fa-film"></i>
+        </button>
         <button class="btn-icon-only" id="traktWatchlistBtn" style="display: none;" title="Add to Watchlist">
             <i class="fas fa-plus"></i>
         </button>
@@ -11419,6 +11422,27 @@ If you experience audio problems or no audio at all, click <strong>"Open in MPV"
 </div>
 </div>
 </div>
+</div>
+
+<!-- Trailer Modal -->
+<div id="trailerModal" class="modal" style="z-index: 10001;">
+    <div class="modal-content" style="max-width: 900px; background: #0a0a0f;">
+        <button class="modal-close" id="trailerModalClose">
+            <i class="fas fa-times"></i>
+        </button>
+        <div style="padding: 1rem;">
+            <h2 style="margin-bottom: 1rem; font-size: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-film" style="color: var(--secondary);"></i>
+                <span id="trailerModalTitle">Trailer</span>
+            </h2>
+            <div id="trailerContainer" style="aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden;">
+                <div id="trailerPlaceholder" style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: rgba(255,255,255,0.5);">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 0.5rem;"></i>
+                    <p>Loading trailer...</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Embedded Player Overlay (iframe) -->
@@ -12033,6 +12057,14 @@ Your browser does not support the video tag.
         const refreshTorrents = document.getElementById('refreshTorrents');
         const torrentsContainer = document.getElementById('torrentsContainer');
         const torrentKeywordFilter = document.getElementById('torrentKeywordFilter');
+        
+        // DOM elements - Trailer Modal
+        const trailerModal = document.getElementById('trailerModal');
+        const trailerModalClose = document.getElementById('trailerModalClose');
+        const trailerModalTitle = document.getElementById('trailerModalTitle');
+        const trailerContainer = document.getElementById('trailerContainer');
+        const trailerPlaceholder = document.getElementById('trailerPlaceholder');
+        const watchTrailerBtn = document.getElementById('watchTrailerBtn');
         
         // API Setup Modal elements - REMOVED (modal disabled)
         const apiSetupModal = null; // Modal removed
@@ -18547,6 +18579,89 @@ Your browser does not support the video tag.
                     // Update main button text and hint
                     updateWatchButtonText();
                     showNotification(`Streaming mode ${next ? 'enabled' : 'disabled'}`, next ? 'success' : 'info');
+                });
+            }
+            
+            // Watch Trailer button
+            if (watchTrailerBtn) {
+                watchTrailerBtn.addEventListener('click', async () => {
+                    if (!currentContent) return;
+                    
+                    // Show trailer modal with loading state
+                    trailerModal.classList.add('active');
+                    trailerModalTitle.textContent = `${currentContent.title || currentContent.name || 'Trailer'} - Trailer`;
+                    trailerPlaceholder.innerHTML = `
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 0.5rem;"></i>
+                        <p>Loading trailer...</p>
+                    `;
+                    trailerPlaceholder.style.display = 'flex';
+                    
+                    // Remove any existing iframe
+                    const existingIframe = trailerContainer.querySelector('iframe');
+                    if (existingIframe) existingIframe.remove();
+                    
+                    try {
+                        // Fetch videos from TMDB
+                        const videosUrl = `https://api.themoviedb.org/3/${currentMediaType}/${currentContent.id}/videos?api_key=${TMDB_API_KEY}`;
+                        const response = await fetch(videosUrl);
+                        const data = await response.json();
+                        const videos = data.results || [];
+                        
+                        // Find the best trailer (prefer official YouTube trailers)
+                        const trailer = videos.find(v => 
+                            v.site === 'YouTube' && 
+                            v.type === 'Trailer' && 
+                            v.official === true
+                        ) || videos.find(v => 
+                            v.site === 'YouTube' && 
+                            v.type === 'Trailer'
+                        ) || videos.find(v => 
+                            v.site === 'YouTube' && 
+                            (v.type === 'Teaser' || v.type === 'Clip')
+                        );
+                        
+                        if (trailer) {
+                            trailerPlaceholder.style.display = 'none';
+                            const iframe = document.createElement('iframe');
+                            iframe.style.cssText = 'width: 100%; height: 100%; border: 0;';
+                            iframe.setAttribute('allowfullscreen', '');
+                            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+                            iframe.src = `https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0`;
+                            trailerContainer.appendChild(iframe);
+                        } else {
+                            trailerPlaceholder.innerHTML = `
+                                <i class="fas fa-film" style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.5;"></i>
+                                <p>No trailer available</p>
+                            `;
+                        }
+                    } catch (error) {
+                        console.error('Error fetching trailer:', error);
+                        trailerPlaceholder.innerHTML = `
+                            <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 0.5rem; color: #ef4444;"></i>
+                            <p>Failed to load trailer</p>
+                        `;
+                    }
+                });
+            }
+            
+            // Trailer modal close
+            if (trailerModalClose) {
+                trailerModalClose.addEventListener('click', () => {
+                    trailerModal.classList.remove('active');
+                    // Stop video playback
+                    const iframe = trailerContainer.querySelector('iframe');
+                    if (iframe) iframe.src = '';
+                });
+            }
+            
+            // Close trailer modal on backdrop click
+            if (trailerModal) {
+                trailerModal.addEventListener('click', (e) => {
+                    if (e.target === trailerModal) {
+                        trailerModal.classList.remove('active');
+                        const iframe = trailerContainer.querySelector('iframe');
+                        if (iframe) iframe.src = '';
+                    }
                 });
             }
             

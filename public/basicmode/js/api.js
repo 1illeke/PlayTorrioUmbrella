@@ -45,6 +45,12 @@ export const getTVShowImages = (id) =>
 export const getEpisodeImages = (tvId, seasonNumber, episodeNumber) =>
   fetchFromTMDB(`/tv/${tvId}/season/${seasonNumber}/episode/${episodeNumber}/images`);
 
+export const getMovieVideos = (id) =>
+  fetchFromTMDB(`/movie/${id}/videos`);
+
+export const getTVShowVideos = (id) =>
+  fetchFromTMDB(`/tv/${id}/videos`);
+
 export const getSeasonEpisodes = (tvId, seasonNumber) =>
   fetchFromTMDB(`/tv/${tvId}/season/${seasonNumber}`);
 

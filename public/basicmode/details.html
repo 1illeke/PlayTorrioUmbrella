@@ -226,22 +226,50 @@
                     <div id="detail-cast" class="flex flex-wrap gap-2"></div>
                 </div>
 
-                <!-- Screenshots Gallery -->
-                <div id="screenshots-container" class="transition-all duration-700 delay-400 transform translate-y-4 opacity-0 hidden">
-                    <h3 class="text-white font-semibold mb-3 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        Screenshots
-                    </h3>
-                    <div id="screenshots-grid" class="grid grid-cols-2 gap-3">
-                        <!-- Screenshots injected here -->
+                <!-- Media Gallery (Screenshots/Trailer) -->
+                <div id="media-container" class="transition-all duration-700 delay-400 transform translate-y-4 opacity-0 hidden">
+                    <!-- Toggle Buttons -->
+                    <div class="flex items-center gap-2 mb-3">
+                        <button id="screenshots-tab" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-purple-600 text-white">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Screenshots
+                        </button>
+                        <button id="trailer-tab" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Trailer
+                        </button>
+                    </div>
+                    
+                    <!-- Screenshots Grid -->
+                    <div id="screenshots-section">
+                        <div id="screenshots-grid" class="grid grid-cols-2 gap-3">
+                            <!-- Screenshots injected here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Trailer Section -->
+                    <div id="trailer-section" class="hidden">
+                        <div id="trailer-container" class="aspect-video rounded-lg overflow-hidden bg-gray-900 border border-gray-800">
+                            <!-- Trailer iframe injected here -->
+                            <div id="trailer-placeholder" class="w-full h-full flex flex-col items-center justify-center text-gray-500">
+                                <svg class="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <p class="text-sm">No trailer available</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
              </div>
 
              <!-- RIGHT PANEL - Sources/Episodes -->
-             <div class="lg:w-1/2 xl:w-3/5 p-6 lg:p-12 lg:pt-12 bg-gradient-to-l from-black/50 to-transparent transition-all duration-700 delay-100 transform translate-x-4 opacity-0 flex flex-col h-screen overflow-hidden" id="right-panel-anim-target">
+             <div class="lg:w-1/2 xl:w-3/5 p-4 sm:p-6 lg:p-12 lg:pt-12 bg-gradient-to-l from-black/50 to-transparent transition-all duration-700 delay-100 transform translate-x-4 opacity-0 flex flex-col min-h-[50vh] lg:h-screen overflow-hidden" id="right-panel-anim-target">
                 
                 <!-- Season Selector (TV Only) -->
                 <div id="season-section" class="mb-6 flex-shrink-0 hidden">
@@ -267,46 +295,94 @@
 
                 <!-- Sources List -->
                 <div id="sources-section" class="flex flex-col flex-1 min-h-0">
-                    <div id="addon-tabs" class="flex flex-wrap gap-2 mb-4 border-b border-gray-800 pb-2">
-                        <!-- Addon tabs will be injected here -->
-                    </div>
-
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 flex-shrink-0">
-                        <h3 class="text-white font-semibold flex items-center gap-2">
-                            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <!-- Embedded Servers Tab (above other tabs) -->
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        <button id="embedded-servers-tab" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            Embedded Servers
+                        </button>
+                        <button id="torrent-sources-tab" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-purple-600 text-white flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
-                            <span id="sources-title">Available Sources</span>
-                        </h3>
-
-                        <div class="flex items-center gap-2">
-                            <select id="sort-select" class="bg-gray-800 border border-gray-700 text-gray-300 text-xs rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-1.5 transition-colors cursor-pointer outline-none">
-                                <option value="seeders">Seeders (High to Low)</option>
-                                <option value="size-desc">Size (Large to Small)</option>
-                                <option value="size-asc">Size (Small to Large)</option>
-                                <option value="quality">Quality (4K First)</option>
-                            </select>
-
-                            <select id="quality-filter" class="bg-gray-800 border border-gray-700 text-gray-300 text-xs rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-1.5 transition-colors cursor-pointer outline-none">
-                                <option value="all">All Qualities</option>
-                                <option value="4K">4K Only</option>
-                                <option value="1080p">1080p Only</option>
-                                <option value="720p">720p Only</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div id="sources-list" class="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar pb-6">
-                        <!-- Sources injected here -->
+                            Torrent Sources
+                        </button>
                     </div>
 
-                    <div id="select-episode-msg" class="flex flex-col items-center justify-center py-16 text-center hidden">
-                        <div class="w-20 h-20 bg-purple-600/20 rounded-full flex items-center justify-center mb-4">
-                            <svg class="w-10 h-10 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
+                    <!-- Embedded Servers Section (hidden by default) -->
+                    <div id="embedded-servers-section" class="hidden">
+                        <div class="bg-gray-900/80 rounded-xl p-4 border border-gray-800 mb-4">
+                            <label class="block text-gray-400 text-sm font-medium mb-2">Select Server</label>
+                            <select id="embedded-server-select" class="w-full bg-black/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all cursor-pointer mb-4">
+                                <!-- Server options will be injected here -->
+                            </select>
+                            <button id="embedded-watch-btn" class="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-semibold rounded-lg transition-all flex items-center justify-center gap-2">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z"/>
+                                </svg>
+                                Watch Now
+                            </button>
+                            <p id="embedded-episode-warning" class="text-yellow-400 text-sm mt-3 text-center hidden">
+                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                Please select an episode first
+                            </p>
                         </div>
-                        <p class="text-gray-400 text-lg">Select an episode to view sources</p>
+                        
+                        <!-- Embedded Player Container -->
+                        <div id="embedded-player-container" class="hidden">
+                            <div class="aspect-video w-full rounded-xl overflow-hidden bg-black border border-gray-800">
+                                <iframe id="embedded-player-iframe" class="w-full h-full" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"></iframe>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Torrent Sources Section -->
+                    <div id="torrent-sources-section">
+                        <div id="addon-tabs" class="flex flex-wrap gap-2 mb-4 border-b border-gray-800 pb-2">
+                            <!-- Addon tabs will be injected here -->
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 flex-shrink-0">
+                            <h3 class="text-white font-semibold flex items-center gap-2 text-sm sm:text-base">
+                                <svg class="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                <span id="sources-title">Available Sources</span>
+                            </h3>
+
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <select id="sort-select" class="bg-gray-800 border border-gray-700 text-gray-300 text-[10px] sm:text-xs rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-1 sm:p-1.5 transition-colors cursor-pointer outline-none flex-1 sm:flex-none min-w-0">
+                                    <option value="seeders">Seeders (High to Low)</option>
+                                    <option value="size-desc">Size (Large to Small)</option>
+                                    <option value="size-asc">Size (Small to Large)</option>
+                                    <option value="quality">Quality (4K First)</option>
+                                </select>
+
+                                <select id="quality-filter" class="bg-gray-800 border border-gray-700 text-gray-300 text-[10px] sm:text-xs rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-1 sm:p-1.5 transition-colors cursor-pointer outline-none flex-1 sm:flex-none min-w-0">
+                                    <option value="all">All Qualities</option>
+                                    <option value="4K">4K Only</option>
+                                    <option value="1080p">1080p Only</option>
+                                    <option value="720p">720p Only</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div id="sources-list" class="space-y-2 sm:space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-1 sm:pr-2 custom-scrollbar pb-6">
+                            <!-- Sources injected here -->
+                        </div>
+
+                        <div id="select-episode-msg" class="flex flex-col items-center justify-center py-16 text-center hidden">
+                            <div class="w-20 h-20 bg-purple-600/20 rounded-full flex items-center justify-center mb-4">
+                                <svg class="w-10 h-10 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <p class="text-gray-400 text-lg">Select an episode to view sources</p>
+                        </div>
                     </div>
                 </div>
 
@@ -352,24 +428,24 @@
     </template>
 
     <template id="source-card-template">
-        <div class="source-card bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border border-gray-800 hover:border-purple-500/50 transition-all duration-300 group opacity-0 translate-x-4">
-            <div class="flex items-center justify-between gap-4">
+        <div class="source-card bg-gray-900/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-gray-800 hover:border-purple-500/50 transition-all duration-300 group opacity-0 translate-x-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                 <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-2 flex-wrap">
-                        <span class="res-badge text-white text-sm px-3 py-1 rounded-full font-bold"></span>
-                        <span class="codec-badge bg-gray-800 text-gray-300 text-xs px-2 py-1 rounded-full"></span>
-                        <span class="hdr-badge hidden text-white text-xs px-2 py-0.5 rounded-full font-medium"></span>
+                    <div class="flex items-center gap-1.5 sm:gap-2 mb-2 flex-wrap">
+                        <span class="res-badge text-white text-xs sm:text-sm px-2 sm:px-3 py-0.5 sm:py-1 rounded-full font-bold"></span>
+                        <span class="codec-badge bg-gray-800 text-gray-300 text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full"></span>
+                        <span class="hdr-badge hidden text-white text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-medium"></span>
                     </div>
-                    <p class="release-name text-gray-400 text-sm truncate mb-2"></p>
-                    <div class="flex items-center gap-4 text-xs text-gray-500">
+                    <p class="release-name text-gray-400 text-xs sm:text-sm truncate mb-2"></p>
+                    <div class="flex items-center gap-2 sm:gap-4 text-[10px] sm:text-xs text-gray-500 flex-wrap">
                         <span class="flex items-center gap-1">
-                            <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                            <svg class="w-3 h-3 sm:w-4 sm:h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
                             </svg>
                             <span class="seeders-count text-green-400 font-medium"></span> seeders
                         </span>
                         <span class="flex items-center gap-1">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z" />
                             </svg>
                             <span class="file-size"></span>
@@ -377,14 +453,14 @@
                         <span class="provider-name text-purple-400"></span>
                     </div>
                 </div>
-                <div class="flex items-center gap-2 flex-shrink-0">
-                    <button class="copy-btn w-10 h-10 bg-white/5 hover:bg-white/10 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-all duration-300 border border-white/10 group/copy" title="Copy Link">
-                        <svg class="w-4 h-4 transition-transform group-active/copy:scale-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="flex items-center gap-2 flex-shrink-0 self-end sm:self-center">
+                    <button class="copy-btn w-9 h-9 sm:w-10 sm:h-10 bg-white/5 hover:bg-white/10 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-all duration-300 border border-white/10 group/copy" title="Copy Link">
+                        <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-active/copy:scale-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                         </svg>
                     </button>
-                    <button class="play-btn w-12 h-12 bg-white/5 hover:bg-primary-purple rounded-full flex items-center justify-center text-white transition-all duration-300 border border-white/10 hover:border-primary-purple group/play shadow-xl">
-                        <svg class="w-5 h-5 transition-transform group-hover/play:scale-110" fill="currentColor" viewBox="0 0 24 24">
+                    <button class="play-btn w-10 h-10 sm:w-12 sm:h-12 bg-white/5 hover:bg-primary-purple rounded-full flex items-center justify-center text-white transition-all duration-300 border border-white/10 hover:border-primary-purple group/play shadow-xl">
+                        <svg class="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover/play:scale-110" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M8 5v14l11-7z"/>
                         </svg>
                     </button>
