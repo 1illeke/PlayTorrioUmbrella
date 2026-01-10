@@ -2353,16 +2353,24 @@ app.get('/api/zlib/read-link', async (req, res) => {
             return res.status(400).json({ error: 'Path is required' });
         }
 
+        // Extract book ID from path (format: /book/12345/hash/title.html)
+        const bookIdMatch = bookPath.match(/\/book\/(\d+)\//);
+        const expectedBookId = bookIdMatch ? bookIdMatch[1] : null;
+
         const targetUrl = `https://z-library.mn${bookPath}`;
         console.log(`[ZLIB] Fetching book details from: ${targetUrl}`);
+        console.log(`[ZLIB] Expected book ID: ${expectedBookId}`);
 
         let readLink = null;
+        let downloadLink = null;
+        let downloadExtension = null;
+        let downloadSize = null;
         let retries = 0;
         const maxRetries = 6;
 
-        while (!readLink && retries < maxRetries) {
+        while ((!readLink && !downloadLink) && retries < maxRetries) {
             if (retries > 0) {
-                 console.log(`[ZLIB] Read link not found, retrying... (${retries}/${maxRetries})`);
+                 console.log(`[ZLIB] Links not found, retrying... (${retries}/${maxRetries})`);
                  await new Promise(r => setTimeout(r, 1500));
             }
 
@@ -2370,16 +2378,63 @@ app.get('/api/zlib/read-link', async (req, res) => {
             const $ = cheerio.load(response.body);
             
             readLink = $('a.reader-link').attr('href');
+            
+            // Find the download button that matches our expected book ID
+            // Look for a.addDownloadedBook with matching data-book_id
+            let downloadBtn = null;
+            
+            if (expectedBookId) {
+                // First try to find button with matching book ID
+                downloadBtn = $(`a.addDownloadedBook[data-book_id="${expectedBookId}"]`).first();
+                console.log(`[ZLIB] Looking for button with book_id=${expectedBookId}, found: ${downloadBtn.length}`);
+            }
+            
+            // Fallback: get the one in .book-details-button:not(.read-online)
+            if (!downloadBtn || !downloadBtn.length) {
+                downloadBtn = $('.book-details-button:not(.read-online) a.addDownloadedBook').first();
+                console.log(`[ZLIB] Fallback selector found: ${downloadBtn.length}`);
+            }
+            
+            if (downloadBtn && downloadBtn.length) {
+                const dlHref = downloadBtn.attr('href');
+                const btnBookId = downloadBtn.attr('data-book_id');
+                console.log(`[ZLIB] Download button href: ${dlHref}, data-book_id: ${btnBookId}`);
+                
+                if (dlHref && dlHref.startsWith('/dl/')) {
+                    downloadLink = `https://z-library.mn${dlHref}`;
+                    downloadExtension = downloadBtn.find('.book-property__extension').text().trim();
+                    const btnText = downloadBtn.text().trim();
+                    const sizeMatch = btnText.match(/(\d+\.?\d*\s*[KMGT]?B)/i);
+                    if (sizeMatch) {
+                        downloadSize = sizeMatch[1];
+                    }
+                }
+            }
             retries++;
         }
 
+        const result = { success: 0 };
+        
         if (readLink) {
             console.log(`[ZLIB] Found read link: ${readLink}`);
-            res.json({ success: 1, readLink: readLink });
-        } else {
-            console.log('[ZLIB] Read link not found.');
-            res.json({ success: 0, error: 'Read link not found' });
+            result.success = 1;
+            result.readLink = readLink;
         }
+        
+        if (downloadLink) {
+            console.log(`[ZLIB] Found download link: ${downloadLink}`);
+            result.success = 1;
+            result.downloadLink = downloadLink;
+            if (downloadExtension) result.downloadExtension = downloadExtension;
+            if (downloadSize) result.downloadSize = downloadSize;
+        }
+        
+        if (result.success === 0) {
+            console.log('[ZLIB] No links found.');
+            result.error = 'No links found';
+        }
+        
+        res.json(result);
 
     } catch (error) {
         console.error('[ZLIB] Error getting read link:', error.message);

@@ -294,13 +294,19 @@ const renderAddonTabs = async () => {
     
     const allAddons = await getInstalledAddons();
     
-    // Filter out subtitle-only addons. 
-    // We only want addons that provide 'stream' resources.
+    // Filter to only show addons that provide 'stream' resources.
+    // Metadata-only addons (like AIOMetadata) should NOT appear here.
     const addons = allAddons.filter(addon => {
         const resources = addon.manifest?.resources || [];
-        return resources.some(r => 
-            r === 'stream' || (typeof r === 'object' && r.name === 'stream')
-        );
+        // Check if 'stream' is in resources array (can be string or object with name property)
+        const hasStream = resources.some(r => {
+            if (typeof r === 'string') return r === 'stream';
+            if (typeof r === 'object' && r !== null) return r.name === 'stream';
+            return false;
+        });
+        // Also check if resources array includes 'stream' directly (some manifests use simple string arrays)
+        const hasStreamDirect = Array.isArray(resources) && resources.includes('stream');
+        return hasStream || hasStreamDirect;
     });
     
     // Jackett tab
@@ -1764,7 +1770,9 @@ const displaySources = (sources) => {
 const loadEpisodes = async (seasonNum) => {
     episodeGrid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-4">Loading episodes...</div>';
     try {
-        const data = await getSeasonEpisodes(id, seasonNum);
+        // Use currentTmdbId if available (for addon items), otherwise use id (for direct TMDB items)
+        const tmdbIdToUse = currentTmdbId || id;
+        const data = await getSeasonEpisodes(tmdbIdToUse, seasonNum);
         episodeGrid.innerHTML = '';
         episodesTitle.textContent = `Episodes (${data.episodes.length})`;
         data.episodes.forEach((episode) => {
@@ -1791,6 +1799,7 @@ const loadEpisodes = async (seasonNum) => {
             episodeGrid.appendChild(clone);
         });
     } catch (e) {
+        console.error('[Episodes] Failed to load:', e);
         episodeGrid.innerHTML = '<div class="col-span-full text-red-500">Failed to load episodes.</div>';
     }
 };
@@ -1972,12 +1981,82 @@ const init = async () => {
                     currentDetails.credits = { cast: currentDetails.cast.map(c => ({ name: c, id: '' })) };
                 }
 
-                currentImdbId = currentDetails.imdb_id || (id.startsWith('tt') ? id : null);
+                currentImdbId = currentDetails.imdb_id || currentDetails.imdb_id || (id.startsWith('tt') ? id : null);
+                
+                // Check if addon meta includes moviedb_id (TMDB ID) - use it for richer metadata
+                const addonTmdbId = currentDetails.moviedb_id || currentDetails.tmdb_id;
+                if (addonTmdbId) {
+                    console.log('[Details] Addon meta includes TMDB ID:', addonTmdbId);
+                    currentTmdbId = addonTmdbId;
+                    
+                    // Fetch full TMDB data for better metadata and episodes
+                    try {
+                        const tmdbFetchFn = isTV ? getTVShowDetails : getMovieDetails;
+                        const tmdbData = await tmdbFetchFn(addonTmdbId);
+                        
+                        // Merge TMDB data with addon data (prefer TMDB for most fields)
+                        currentDetails = {
+                            ...currentDetails,
+                            ...tmdbData,
+                            // Keep addon-specific fields
+                            id: currentDetails.id,
+                            imdb_id: currentImdbId
+                        };
+                        
+                        renderDetails(currentDetails);
+                        loadScreenshots();
+                        loadTrailer();
+                        await renderAddonTabs();
+                        
+                        if (isTV && tmdbData.seasons) {
+                            seasonSection.classList.remove('hidden');
+                            episodeSection.classList.remove('hidden');
+                            const regularSeasons = tmdbData.seasons.filter(s => s.season_number > 0);
+                            regularSeasons.forEach(season => {
+                                const clone = seasonBtnTemplate.content.cloneNode(true);
+                                const btn = clone.querySelector('.season-btn');
+                                btn.textContent = `Season ${season.season_number}`;
+                                btn.onclick = () => {
+                                    document.querySelectorAll('.season-btn').forEach(b => b.classList.remove('bg-purple-600', 'text-white'));
+                                    btn.classList.add('bg-purple-600', 'text-white');
+                                    currentSeason = season.season_number;
+                                    currentEpisode = null;
+                                    sourcesList.classList.add('hidden');
+                                    selectEpisodeMsg.classList.remove('hidden');
+                                    loadEpisodes(currentSeason);
+                                };
+                                if (season.season_number === (regularSeasons[0]?.season_number || 1)) {
+                                    btn.classList.add('bg-purple-600', 'text-white');
+                                    currentSeason = season.season_number;
+                                    loadEpisodes(currentSeason);
+                                }
+                                seasonList.appendChild(clone);
+                            });
+                        } else {
+                            renderSources();
+                        }
+                        
+                        // Skip the rest of addon meta handling since we used TMDB
+                        loadingOverlay.classList.add('opacity-0');
+                        setTimeout(() => loadingOverlay.remove(), 300);
+                        contentContainer.classList.remove('hidden');
+                        requestAnimationFrame(() => {
+                            contentContainer.classList.remove('opacity-0');
+                            document.querySelectorAll('#poster-anim-target, #info-anim-target, #right-panel-anim-target, #detail-overview, #cast-container, #media-container').forEach(el => {
+                                el?.classList.remove('opacity-0', 'translate-y-4');
+                            });
+                        });
+                        return; // Exit early since we handled everything with TMDB data
+                    } catch (e) {
+                        console.warn('[Details] Failed to fetch TMDB data using moviedb_id:', e);
+                        // Continue with addon meta fallback
+                    }
+                }
             
                 renderDetails(currentDetails);
                 await renderAddonTabs();
                 
-                if (isTV && currentDetails.videos) {
+                if (isTV && currentDetails.videos && currentDetails.videos.length > 0) {
                     seasonSection.classList.remove('hidden');
                     episodeSection.classList.remove('hidden');
                     
@@ -2036,6 +2115,53 @@ const init = async () => {
                         }
                         seasonList.appendChild(clone);
                     });
+                } else if (isTV) {
+                    // Addon meta doesn't have videos array - try to get episode info from TMDB using IMDB ID
+                    let tmdbData = null;
+                    if (currentImdbId) {
+                        try {
+                            const findResult = await findByExternalId(currentImdbId, 'imdb_id');
+                            const tvResult = findResult.tv_results?.[0];
+                            if (tvResult) {
+                                currentTmdbId = tvResult.id;
+                                tmdbData = await getTVShowDetails(tvResult.id);
+                            }
+                        } catch (e) {
+                            console.warn('[Details] TMDB lookup for episodes failed:', e);
+                        }
+                    }
+                    
+                    if (tmdbData && tmdbData.seasons) {
+                        seasonSection.classList.remove('hidden');
+                        episodeSection.classList.remove('hidden');
+                        const regularSeasons = tmdbData.seasons.filter(s => s.season_number > 0);
+                        regularSeasons.forEach(season => {
+                            const clone = seasonBtnTemplate.content.cloneNode(true);
+                            const btn = clone.querySelector('.season-btn');
+                            btn.textContent = `Season ${season.season_number}`;
+                            btn.onclick = () => {
+                                document.querySelectorAll('.season-btn').forEach(b => b.classList.remove('bg-purple-600', 'text-white'));
+                                btn.classList.add('bg-purple-600', 'text-white');
+                                currentSeason = season.season_number;
+                                currentEpisode = null;
+                                sourcesList.classList.add('hidden');
+                                selectEpisodeMsg.classList.remove('hidden');
+                                loadEpisodes(currentSeason);
+                            };
+                            if (season.season_number === (regularSeasons[0]?.season_number || 1)) {
+                                btn.classList.add('bg-purple-600', 'text-white');
+                                currentSeason = season.season_number;
+                                loadEpisodes(currentSeason);
+                            }
+                            seasonList.appendChild(clone);
+                        });
+                    } else {
+                        // No episode info available - show message
+                        seasonSection.classList.remove('hidden');
+                        episodeSection.classList.remove('hidden');
+                        episodeGrid.innerHTML = '<div class="col-span-full text-center text-gray-400 py-8">Episode information not available. Select a season and episode manually when searching for sources.</div>';
+                        renderSources();
+                    }
                 } else {
                     renderSources();
                 }

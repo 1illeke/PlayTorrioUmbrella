@@ -297,8 +297,12 @@ async function setSubPos(pos) {
 }
 
 async function toggleFullscreen() {
-    isFullscreen = !isFullscreen;
-    await ipcRenderer.invoke('mpv-command', 'toggle-fullscreen');
+    const result = await ipcRenderer.invoke('mpv-command', 'toggle-fullscreen');
+    if (result && result.isFullscreen !== undefined) {
+        isFullscreen = result.isFullscreen;
+    } else {
+        isFullscreen = !isFullscreen;
+    }
     fullscreenBtn.querySelector('i').textContent = isFullscreen ? 'fullscreen_exit' : 'fullscreen';
 }
 

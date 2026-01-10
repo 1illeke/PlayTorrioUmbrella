@@ -1440,6 +1440,100 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         res.json({ platform: process.platform });
     });
     
+    // Books Library endpoint - read epub files from local folder
+    app.get('/api/books/library', async (req, res) => {
+        try {
+            const os = await import('os');
+            const fsPromises = await import('fs/promises');
+            const pathModule = await import('path');
+            
+            // Determine epub folder based on platform
+            let epubFolder;
+            if (process.platform === 'win32') {
+                epubFolder = pathModule.default.join(process.env.APPDATA || '', 'PlayTorrio', 'epub');
+            } else if (process.platform === 'darwin') {
+                epubFolder = pathModule.default.join(os.default.homedir(), 'Library', 'Application Support', 'PlayTorrio', 'epub');
+            } else {
+                epubFolder = pathModule.default.join(os.default.homedir(), '.config', 'PlayTorrio', 'epub');
+            }
+            
+            // Check if folder exists
+            try {
+                await fsPromises.default.access(epubFolder);
+            } catch {
+                // Folder doesn't exist, create it and return empty
+                await fsPromises.default.mkdir(epubFolder, { recursive: true });
+                return res.json({ success: true, books: [], folder: epubFolder });
+            }
+            
+            // Read all epub files
+            const files = await fsPromises.default.readdir(epubFolder);
+            const epubFiles = files.filter(f => f.toLowerCase().endsWith('.epub'));
+            
+            const books = await Promise.all(epubFiles.map(async (filename) => {
+                const filePath = pathModule.default.join(epubFolder, filename);
+                const stats = await fsPromises.default.stat(filePath);
+                
+                // Extract title from filename (remove .epub extension)
+                const title = filename.replace(/\.epub$/i, '');
+                
+                return {
+                    title,
+                    filename,
+                    path: filePath,
+                    size: stats.size,
+                    modified: stats.mtime
+                };
+            }));
+            
+            // Sort by modified date (newest first)
+            books.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+            
+            res.json({ success: true, books, folder: epubFolder });
+        } catch (e) {
+            console.error('[Books] Library error:', e);
+            res.status(500).json({ success: false, error: e.message });
+        }
+    });
+    
+    // Read epub file content as base64
+    app.get('/api/books/read', async (req, res) => {
+        try {
+            const fsPromises = await import('fs/promises');
+            const filePath = req.query.path;
+            
+            if (!filePath) {
+                return res.status(400).json({ success: false, error: 'Missing path parameter' });
+            }
+            
+            // Security check: ensure the path is within allowed directories
+            const os = await import('os');
+            const pathModule = await import('path');
+            
+            let epubFolder;
+            if (process.platform === 'win32') {
+                epubFolder = pathModule.default.join(process.env.APPDATA || '', 'PlayTorrio', 'epub');
+            } else if (process.platform === 'darwin') {
+                epubFolder = pathModule.default.join(os.default.homedir(), 'Library', 'Application Support', 'PlayTorrio', 'epub');
+            } else {
+                epubFolder = pathModule.default.join(os.default.homedir(), '.config', 'PlayTorrio', 'epub');
+            }
+            
+            const normalizedPath = pathModule.default.normalize(filePath);
+            if (!normalizedPath.startsWith(epubFolder)) {
+                return res.status(403).json({ success: false, error: 'Access denied' });
+            }
+            
+            const fileBuffer = await fsPromises.default.readFile(filePath);
+            const base64 = fileBuffer.toString('base64');
+            
+            res.json({ success: true, base64 });
+        } catch (e) {
+            console.error('[Books] Read error:', e);
+            res.status(500).json({ success: false, error: e.message });
+        }
+    });
+    
     app.post('/api/settings', (req, res) => {
         const s = readSettings();
         const next = {
@@ -5304,6 +5398,51 @@ for (let i = 0; i < 10; i++) {
         }
     }
 
+    // ============================================================================
+    // SUBTITLE VTT CONVERSION - Convert SRT to WebVTT for Chromecast
+    // ============================================================================
+    app.get('/api/subtitles/vtt', async (req, res) => {
+        const { url } = req.query;
+        
+        if (!url) {
+            return res.status(400).json({ error: 'Missing url parameter' });
+        }
+        
+        console.log(`[Subtitles/VTT] Converting: ${url.substring(0, 80)}...`);
+        
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            });
+            
+            if (!response.ok) {
+                return res.status(response.status).json({ error: `Failed to fetch subtitle: ${response.status}` });
+            }
+            
+            let text = await response.text();
+            
+            // Check if it's already VTT
+            if (/^\s*WEBVTT/i.test(text)) {
+                res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                return res.send(text);
+            }
+            
+            // Convert SRT to VTT
+            const vtt = srtToVtt(text);
+            
+            res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.send(vtt);
+            
+        } catch (error) {
+            console.error('[Subtitles/VTT] Error:', error.message);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     // Fetch subtitles list from OpenSubtitles and Wyzie
     app.get('/api/subtitles', async (req, res) => {
         try {
@@ -6095,6 +6234,551 @@ for (let i = 0; i < 10; i++) {
         }
     });
 
+    // ============================================================================
+    // GAME DOWNLOAD MANAGER - Download games with TorBox or direct download
+    // ============================================================================
+    
+    const GAME_DOWNLOADS_PATH = path.join(userDataPath, 'game_downloads.json');
+    const activeGameDownloads = new Map(); // Track active download streams
+    
+    // Get user's Downloads folder cross-platform
+    function getDownloadsFolder() {
+        const homeDir = os.homedir();
+        return path.join(homeDir, 'Downloads', 'PlayTorrio Games');
+    }
+    
+    // Ensure downloads folder exists
+    function ensureDownloadsFolder() {
+        const folder = getDownloadsFolder();
+        if (!fs.existsSync(folder)) {
+            fs.mkdirSync(folder, { recursive: true });
+        }
+        return folder;
+    }
+    
+    // Load game downloads from disk
+    function loadGameDownloads() {
+        try {
+            if (fs.existsSync(GAME_DOWNLOADS_PATH)) {
+                return JSON.parse(fs.readFileSync(GAME_DOWNLOADS_PATH, 'utf8'));
+            }
+        } catch (e) {
+            console.error('[GameDownloads] Error loading:', e.message);
+        }
+        return { downloads: [] };
+    }
+    
+    // Save game downloads to disk
+    function saveGameDownloads(data) {
+        try {
+            fs.writeFileSync(GAME_DOWNLOADS_PATH, JSON.stringify(data, null, 2));
+        } catch (e) {
+            console.error('[GameDownloads] Error saving:', e.message);
+        }
+    }
+    
+    // Generate unique download ID
+    function generateDownloadId() {
+        return `dl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    
+    // Get file name from URL
+    function getFileNameFromUrl(url, gameName) {
+        try {
+            const urlObj = new URL(url);
+            const pathname = urlObj.pathname;
+            const fileName = pathname.split('/').pop();
+            if (fileName && fileName.length > 3 && fileName.includes('.')) {
+                return decodeURIComponent(fileName);
+            }
+        } catch (e) {}
+        // Fallback to game name
+        const safeName = (gameName || 'game').replace(/[^a-zA-Z0-9\s\-_.]/g, '').trim();
+        return `${safeName}.zip`;
+    }
+    
+    // Get library (all downloads)
+    app.get('/api/game-downloads/library', (req, res) => {
+        try {
+            const data = loadGameDownloads();
+            res.json({ success: true, downloads: data.downloads || [] });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+    
+    // Add game to library and start download
+    app.post('/api/game-downloads/add', async (req, res) => {
+        try {
+            const { url, gameName, gameImage, gameSize, provider } = req.body;
+            if (!url) return res.status(400).json({ error: 'URL is required' });
+            
+            const settings = readSettings();
+            const hasTorBox = !!settings.tbApiKey;
+            
+            const downloadId = generateDownloadId();
+            const fileName = getFileNameFromUrl(url, gameName);
+            const downloadsFolder = ensureDownloadsFolder();
+            const filePath = path.join(downloadsFolder, fileName);
+            
+            const downloadEntry = {
+                id: downloadId,
+                url: url,
+                gameName: gameName || 'Unknown Game',
+                gameImage: gameImage || null,
+                gameSize: gameSize || null,
+                provider: provider || 'direct',
+                fileName: fileName,
+                filePath: filePath,
+                status: 'pending', // pending, downloading, paused, completed, error
+                progress: 0,
+                downloadedBytes: 0,
+                totalBytes: 0,
+                speed: 0,
+                useTorBox: hasTorBox,
+                torboxId: null,
+                torboxDownloadUrl: null,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                error: null
+            };
+            
+            // Save to library
+            const data = loadGameDownloads();
+            data.downloads.push(downloadEntry);
+            saveGameDownloads(data);
+            
+            // Start download in background
+            startGameDownload(downloadId);
+            
+            res.json({ success: true, download: downloadEntry });
+        } catch (e) {
+            console.error('[GameDownloads] Add error:', e);
+            res.status(500).json({ error: e.message });
+        }
+    });
+    
+    // File hosts that require debrid service (can't be downloaded directly)
+    const DEBRID_REQUIRED_HOSTS = [
+        'megadb.net', 'mega.nz', 'mega.co.nz',
+        '1fichier.com', 'gofile.io', 'buzzheavier.com',
+        'pixeldrain.com', 'mediafire.com', 'rapidgator.net',
+        'uploaded.net', 'turbobit.net', 'nitroflare.com',
+        'katfile.com', 'filefactory.com'
+    ];
+    
+    function requiresDebrid(url) {
+        try {
+            const hostname = new URL(url).hostname.toLowerCase();
+            return DEBRID_REQUIRED_HOSTS.some(h => hostname.includes(h));
+        } catch {
+            return false;
+        }
+    }
+    
+    // Start/resume download
+    async function startGameDownload(downloadId) {
+        const data = loadGameDownloads();
+        const download = data.downloads.find(d => d.id === downloadId);
+        if (!download) return;
+        
+        try {
+            download.status = 'downloading';
+            download.updatedAt = Date.now();
+            saveGameDownloads(data);
+            
+            let downloadUrl = download.url;
+            const needsDebrid = requiresDebrid(download.url);
+            
+            // If TorBox is enabled, use it to get premium link
+            if (download.useTorBox) {
+                const settings = readSettings();
+                if (settings.tbApiKey) {
+                    try {
+                        console.log(`[GameDownloads] Using TorBox for: ${download.gameName}`);
+                        
+                        // Create web download on TorBox
+                        const createResp = await fetch('https://api.torbox.app/v1/api/webdl/createwebdownload', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${settings.tbApiKey}`,
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: new URLSearchParams({ link: download.url }).toString()
+                        });
+                        
+                        const createData = await createResp.json();
+                        console.log(`[GameDownloads] TorBox create response:`, JSON.stringify(createData));
+                        
+                        if (createData.success && createData.data?.webdownload_id) {
+                            download.torboxId = createData.data.webdownload_id;
+                            saveGameDownloads(data);
+                            
+                            // Poll for completion
+                            let attempts = 0;
+                            const maxAttempts = 180; // 15 minutes max
+                            let lastState = '';
+                            
+                            while (attempts < maxAttempts) {
+                                await new Promise(r => setTimeout(r, 3000)); // Wait 3 seconds
+                                
+                                // Reload data in case it was modified
+                                const freshData = loadGameDownloads();
+                                const freshDownload = freshData.downloads.find(d => d.id === downloadId);
+                                if (!freshDownload || freshDownload.status === 'paused') {
+                                    console.log(`[GameDownloads] Download paused or removed, stopping TorBox poll`);
+                                    return;
+                                }
+                                
+                                const statusResp = await fetch(`https://api.torbox.app/v1/api/webdl/mylist`, {
+                                    headers: { 'Authorization': `Bearer ${settings.tbApiKey}` }
+                                });
+                                const statusData = await statusResp.json();
+                                
+                                if (statusData.success && Array.isArray(statusData.data)) {
+                                    const item = statusData.data.find(i => String(i.id) === String(download.torboxId));
+                                    if (item) {
+                                        if (lastState !== item.download_state) {
+                                            console.log(`[GameDownloads] TorBox state: ${item.download_state} (${item.progress || 0}%)`);
+                                            lastState = item.download_state;
+                                        }
+                                        
+                                        if (item.download_state === 'cached' || item.download_state === 'completed' || item.download_state === 'downloading') {
+                                            // Try to get direct download link
+                                            const dlResp = await fetch(`https://api.torbox.app/v1/api/webdl/requestdl?token=${settings.tbApiKey}&web_id=${download.torboxId}&zip_link=false`);
+                                            const dlData = await dlResp.json();
+                                            console.log(`[GameDownloads] TorBox requestdl response:`, JSON.stringify(dlData));
+                                            
+                                            if (dlData.success && dlData.data) {
+                                                downloadUrl = dlData.data;
+                                                download.torboxDownloadUrl = downloadUrl;
+                                                console.log(`[GameDownloads] Got TorBox download URL: ${downloadUrl.substring(0, 80)}...`);
+                                                saveGameDownloads(data);
+                                                break;
+                                            }
+                                        } else if (item.download_state === 'error' || item.download_state === 'failed') {
+                                            throw new Error(`TorBox download failed: ${item.error || 'Unknown error'}`);
+                                        }
+                                        
+                                        // Update progress from TorBox
+                                        download.progress = Math.round(item.progress || 0);
+                                        download.updatedAt = Date.now();
+                                        saveGameDownloads(data);
+                                    }
+                                }
+                                attempts++;
+                            }
+                            
+                            if (attempts >= maxAttempts && !download.torboxDownloadUrl) {
+                                throw new Error('TorBox download timed out');
+                            }
+                        } else {
+                            throw new Error(createData.detail || createData.error || 'Failed to create TorBox download');
+                        }
+                    } catch (tbError) {
+                        console.error('[GameDownloads] TorBox error:', tbError.message);
+                        
+                        // If this host requires debrid, we can't download directly
+                        if (needsDebrid) {
+                            download.status = 'error';
+                            download.error = `TorBox failed: ${tbError.message}. This file host requires a debrid service.`;
+                            download.updatedAt = Date.now();
+                            saveGameDownloads(data);
+                            return;
+                        }
+                        
+                        // Fall back to direct download
+                        console.warn('[GameDownloads] Falling back to direct download');
+                        download.useTorBox = false;
+                        downloadUrl = download.url;
+                    }
+                }
+            } else if (needsDebrid) {
+                // No TorBox but host requires debrid
+                download.status = 'error';
+                download.error = 'This file host requires TorBox or another debrid service. Please login to TorBox in settings.';
+                download.updatedAt = Date.now();
+                saveGameDownloads(data);
+                return;
+            }
+            
+            // Direct download
+            console.log(`[GameDownloads] Starting download from: ${downloadUrl.substring(0, 80)}...`);
+            
+            const controller = new AbortController();
+            activeGameDownloads.set(downloadId, { controller, paused: false });
+            
+            // Check if we can resume
+            let startByte = 0;
+            if (fs.existsSync(download.filePath)) {
+                const stats = fs.statSync(download.filePath);
+                startByte = stats.size;
+                download.downloadedBytes = startByte;
+            }
+            
+            const headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Encoding': 'gzip, deflate, br'
+            };
+            
+            if (startByte > 0) {
+                headers['Range'] = `bytes=${startByte}-`;
+            }
+            
+            const response = await fetch(downloadUrl, {
+                headers,
+                signal: controller.signal,
+                redirect: 'follow'
+            });
+            
+            // Check if we got HTML instead of a file (common with file hosts)
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/html')) {
+                throw new Error('File host returned HTML page instead of file. This host requires TorBox.');
+            }
+            
+            if (!response.ok && response.status !== 206) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const contentLength = response.headers.get('content-length');
+            const contentRange = response.headers.get('content-range');
+            
+            if (contentRange) {
+                const match = contentRange.match(/\/(\d+)/);
+                if (match) download.totalBytes = parseInt(match[1]);
+            } else if (contentLength) {
+                download.totalBytes = startByte + parseInt(contentLength);
+            }
+            
+            // Create write stream (append if resuming)
+            const writeStream = fs.createWriteStream(download.filePath, { flags: startByte > 0 ? 'a' : 'w' });
+            
+            let lastUpdate = Date.now();
+            let lastBytes = download.downloadedBytes;
+            
+            response.body.on('data', (chunk) => {
+                const active = activeGameDownloads.get(downloadId);
+                if (!active || active.paused) {
+                    response.body.destroy();
+                    writeStream.end();
+                    return;
+                }
+                
+                download.downloadedBytes += chunk.length;
+                
+                // Calculate speed every second
+                const now = Date.now();
+                if (now - lastUpdate >= 1000) {
+                    const bytesPerSec = (download.downloadedBytes - lastBytes) / ((now - lastUpdate) / 1000);
+                    download.speed = bytesPerSec;
+                    lastBytes = download.downloadedBytes;
+                    lastUpdate = now;
+                }
+                
+                if (download.totalBytes > 0) {
+                    download.progress = Math.round((download.downloadedBytes / download.totalBytes) * 100);
+                }
+                
+                download.updatedAt = Date.now();
+                saveGameDownloads(data);
+            });
+            
+            await new Promise((resolve, reject) => {
+                response.body.pipe(writeStream);
+                writeStream.on('finish', resolve);
+                writeStream.on('error', reject);
+                response.body.on('error', reject);
+            });
+            
+            // Verify download completed properly
+            const active = activeGameDownloads.get(downloadId);
+            if (active && !active.paused) {
+                // Check if we got a reasonable file size
+                const finalSize = fs.existsSync(download.filePath) ? fs.statSync(download.filePath).size : 0;
+                
+                // If totalBytes is known and we didn't get it all, mark as error
+                if (download.totalBytes > 0 && finalSize < download.totalBytes * 0.99) {
+                    download.status = 'error';
+                    download.error = `Incomplete download: got ${(finalSize/1024/1024).toFixed(1)}MB of ${(download.totalBytes/1024/1024).toFixed(1)}MB`;
+                    download.progress = Math.round((finalSize / download.totalBytes) * 100);
+                }
+                // If file is suspiciously small (< 100KB), likely an error page
+                else if (finalSize < 100 * 1024 && !download.gameSize?.includes('KB')) {
+                    download.status = 'error';
+                    download.error = `Download failed: received only ${(finalSize/1024).toFixed(1)}KB. This host may require TorBox.`;
+                    download.progress = 0;
+                } else {
+                    download.status = 'completed';
+                    download.progress = 100;
+                    download.downloadedBytes = finalSize;
+                    console.log(`[GameDownloads] Completed: ${download.gameName} (${(finalSize/1024/1024).toFixed(1)}MB)`);
+                }
+                download.speed = 0;
+            }
+            
+            download.updatedAt = Date.now();
+            saveGameDownloads(data);
+            activeGameDownloads.delete(downloadId);
+            
+        } catch (e) {
+            if (e.name === 'AbortError') {
+                // Paused or cancelled
+                download.status = 'paused';
+            } else {
+                console.error(`[GameDownloads] Error downloading ${download.gameName}:`, e.message);
+                download.status = 'error';
+                download.error = e.message;
+            }
+            download.speed = 0;
+            download.updatedAt = Date.now();
+            saveGameDownloads(data);
+            activeGameDownloads.delete(downloadId);
+        }
+    }
+    
+    // Resume download
+    app.post('/api/game-downloads/resume/:id', (req, res) => {
+        try {
+            const { id } = req.params;
+            const data = loadGameDownloads();
+            const download = data.downloads.find(d => d.id === id);
+            
+            if (!download) {
+                return res.status(404).json({ error: 'Download not found' });
+            }
+            
+            if (download.status === 'completed') {
+                return res.json({ success: true, message: 'Already completed' });
+            }
+            
+            // Start download in background
+            startGameDownload(id);
+            
+            res.json({ success: true });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+    
+    // Pause download
+    app.post('/api/game-downloads/pause/:id', (req, res) => {
+        try {
+            const { id } = req.params;
+            const active = activeGameDownloads.get(id);
+            
+            if (active) {
+                active.paused = true;
+                active.controller.abort();
+            }
+            
+            const data = loadGameDownloads();
+            const download = data.downloads.find(d => d.id === id);
+            if (download) {
+                download.status = 'paused';
+                download.speed = 0;
+                download.updatedAt = Date.now();
+                saveGameDownloads(data);
+            }
+            
+            res.json({ success: true });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+    
+    // Remove download from library
+    app.delete('/api/game-downloads/:id', (req, res) => {
+        try {
+            const { id } = req.params;
+            const { deleteFile } = req.query;
+            
+            // Stop if active
+            const active = activeGameDownloads.get(id);
+            if (active) {
+                active.controller.abort();
+                activeGameDownloads.delete(id);
+            }
+            
+            const data = loadGameDownloads();
+            const download = data.downloads.find(d => d.id === id);
+            
+            if (download && deleteFile === 'true' && download.filePath) {
+                try {
+                    if (fs.existsSync(download.filePath)) {
+                        fs.unlinkSync(download.filePath);
+                    }
+                } catch (e) {
+                    console.warn('[GameDownloads] Could not delete file:', e.message);
+                }
+            }
+            
+            data.downloads = data.downloads.filter(d => d.id !== id);
+            saveGameDownloads(data);
+            
+            res.json({ success: true });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+    
+    // Get download status
+    app.get('/api/game-downloads/status/:id', (req, res) => {
+        try {
+            const { id } = req.params;
+            const data = loadGameDownloads();
+            const download = data.downloads.find(d => d.id === id);
+            
+            if (!download) {
+                return res.status(404).json({ error: 'Download not found' });
+            }
+            
+            res.json({ success: true, download });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+    
+    // Open downloads folder
+    app.get('/api/game-downloads/open-folder', (req, res) => {
+        try {
+            const folder = ensureDownloadsFolder();
+            res.json({ success: true, folder });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+    
+    // Check TorBox status
+    app.get('/api/game-downloads/torbox-status', (req, res) => {
+        try {
+            const settings = readSettings();
+            res.json({ 
+                success: true, 
+                hasTorBox: !!settings.tbApiKey,
+                provider: settings.tbApiKey ? 'torbox' : 'direct'
+            });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+    
+    // Resume incomplete downloads on startup
+    setTimeout(() => {
+        try {
+            const data = loadGameDownloads();
+            const incomplete = data.downloads.filter(d => d.status === 'downloading');
+            incomplete.forEach(d => {
+                d.status = 'paused'; // Mark as paused so user can resume
+                d.speed = 0;
+            });
+            if (incomplete.length > 0) {
+                saveGameDownloads(data);
+                console.log(`[GameDownloads] ${incomplete.length} incomplete downloads marked as paused`);
+            }
+        } catch (e) {}
+    }, 2000);
 
 
     // 404 handler - must come after all routes

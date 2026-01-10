@@ -1193,6 +1193,7 @@ let mpvWindow = null;
 let mpvSocket = null;
 let mpvStatusInterval = null;
 let mpvWindowBoundsBeforeFullscreen = null; // Store bounds before fullscreen
+let mpvIsFullscreen = false; // Track fullscreen state manually
 
 // Launch NodeMPV Player - MPV embedded in Electron window with transparent UI overlay
 function openInNodeMPVPlayer(win, streamUrl, startSeconds, metadata = {}) {
@@ -1257,6 +1258,7 @@ function openInNodeMPVPlayer(win, streamUrl, startSeconds, metadata = {}) {
             
             // Reset fullscreen bounds
             mpvWindowBoundsBeforeFullscreen = null;
+            mpvIsFullscreen = false;
             
             // Cleanup torrent stream if needed (supports both Stremio and alt engines)
             if (metadata.isBasicMode && streamUrl && (streamUrl.includes('/api/stream-file') || streamUrl.includes('/api/alt-stream-file'))) {
@@ -1831,7 +1833,7 @@ function createWindow() {
         if (url.startsWith('http://127.0.0.1:6987') || url.startsWith('http://localhost:6987')) {
             return; // internal app navigation
         }
-        if (isAllowedReaderDomain(url)) {
+        if (isAllowedDomain(url)) {
             event.preventDefault();
             console.log('[Books] Opening reader via navigation in external browser:', url);
             try { shell.openExternal(url); } catch(_) {}
@@ -3161,23 +3163,37 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
                     break;
                 case 'toggle-fullscreen':
                     if (mpvWindow && !mpvWindow.isDestroyed()) {
-                        const isFs = mpvWindow.isFullScreen();
-                        if (!isFs) {
+                        if (!mpvIsFullscreen) {
                             // Going fullscreen - save current bounds first
                             mpvWindowBoundsBeforeFullscreen = mpvWindow.getBounds();
-                            mpvWindow.setFullScreen(true);
+                            mpvIsFullscreen = true;
+                            // Use setSimpleFullScreen on Windows for proper taskbar hiding
+                            if (process.platform === 'win32') {
+                                mpvWindow.setSimpleFullScreen(true);
+                            } else {
+                                mpvWindow.setFullScreen(true);
+                            }
                             sendMpvCommand(['set_property', 'fullscreen', 'yes']);
+                            return { success: true, isFullscreen: true };
                         } else {
-                            // Exiting fullscreen - restore original bounds
-                            mpvWindow.setFullScreen(false);
+                            // Exiting fullscreen
+                            const savedBounds = mpvWindowBoundsBeforeFullscreen;
+                            mpvIsFullscreen = false;
+                            if (process.platform === 'win32') {
+                                mpvWindow.setSimpleFullScreen(false);
+                            } else {
+                                mpvWindow.setFullScreen(false);
+                            }
                             sendMpvCommand(['set_property', 'fullscreen', 'no']);
-                            // Restore bounds after a short delay to ensure fullscreen exit completes
-                            setTimeout(() => {
-                                if (mpvWindow && !mpvWindow.isDestroyed() && mpvWindowBoundsBeforeFullscreen) {
-                                    mpvWindow.setBounds(mpvWindowBoundsBeforeFullscreen);
-                                    mpvWindow.center(); // Re-center in case display changed
-                                }
-                            }, 100);
+                            // Restore original bounds
+                            if (savedBounds) {
+                                setTimeout(() => {
+                                    if (mpvWindow && !mpvWindow.isDestroyed()) {
+                                        mpvWindow.setBounds(savedBounds);
+                                    }
+                                }, 50);
+                            }
+                            return { success: true, isFullscreen: false };
                         }
                     }
                     break;

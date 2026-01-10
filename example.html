@@ -34328,7 +34328,15 @@ document.addEventListener('DOMContentLoaded', () => {
             container.querySelectorAll('.addon-provider-btn').forEach(b => b.remove());
 
             installedAddons.forEach(addon => {
-                if (addon.manifest.resources.some(r => r.name === 'stream' || r === 'stream')) {
+                // Check if addon provides 'stream' resources - metadata-only addons should NOT appear
+                const resources = addon.manifest?.resources || [];
+                const hasStream = resources.some(r => {
+                    if (typeof r === 'string') return r === 'stream';
+                    if (typeof r === 'object' && r !== null) return r.name === 'stream';
+                    return false;
+                }) || resources.includes('stream');
+                
+                if (hasStream) {
                     const btn = document.createElement('button');
                     btn.className = 'provider-btn addon-provider-btn';
                     btn.dataset.provider = `addon:${addon.manifest.id}`;
@@ -34791,7 +34799,15 @@ document.addEventListener('DOMContentLoaded', () => {
             container.querySelectorAll('.addon-provider-btn').forEach(b => b.remove());
 
             installedAddons.forEach(addon => {
-                if (addon.manifest.resources.some(r => r.name === 'stream' || r === 'stream')) {
+                // Check if addon provides 'stream' resources - metadata-only addons should NOT appear
+                const resources = addon.manifest?.resources || [];
+                const hasStream = resources.some(r => {
+                    if (typeof r === 'string') return r === 'stream';
+                    if (typeof r === 'object' && r !== null) return r.name === 'stream';
+                    return false;
+                }) || resources.includes('stream');
+                
+                if (hasStream) {
                     const btn = document.createElement('button');
                     btn.className = 'provider-btn addon-provider-btn';
                     btn.dataset.provider = `addon:${addon.manifest.id}`;

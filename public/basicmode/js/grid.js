@@ -188,14 +188,19 @@ const fetchGenreContent = async () => {
         const results = await Promise.all(promises);
         
         results.forEach((res, index) => {
-            const type = types[index];
+            const mediaType = types[index];
             if (res.results && res.results.length > 0) {
-                items.push(...res.results);
-                if (type === 'movie') moviePage++;
-                if (type === 'tv') tvPage++;
+                // Add media_type to each item since TMDB discover doesn't include it
+                const itemsWithType = res.results.map(item => ({
+                    ...item,
+                    media_type: mediaType
+                }));
+                items.push(...itemsWithType);
+                if (mediaType === 'movie') moviePage++;
+                if (mediaType === 'tv') tvPage++;
             } else {
-                if (type === 'movie') movieHasMore = false;
-                if (type === 'tv') tvHasMore = false;
+                if (mediaType === 'movie') movieHasMore = false;
+                if (mediaType === 'tv') tvHasMore = false;
             }
         });
 
@@ -234,7 +239,10 @@ const fetchGenreContent = async () => {
 
     } catch (e) {
         console.error('Genre fetch failed', e);
+        contentGrid.innerHTML = `<div class="col-span-full text-center text-red-500 py-8">Failed to load content. Please try again.</div>`;
         isLoading = false;
+        hasMorePages = false;
+        if (loadingSpinner) loadingSpinner.style.display = 'none';
     }
 };
 
@@ -289,13 +297,17 @@ const fetchAddonContent = async () => {
 
         let newItemsCount = 0;
         items.forEach(item => {
-            // Deduplication logic
-            if (loadedItemIds.has(item.id)) return;
-            loadedItemIds.add(item.id);
-            newItemsCount++;
-
             // Set type from catalog type, normalize 'series' to 'tv'
             if (!item.type) item.type = catalogType;
+            let itemType = item.type;
+            if (itemType === 'series') itemType = 'tv';
+            
+            // Deduplication logic - use same key format as createCard
+            const dedupKey = `${itemType}_${item.id}`;
+            if (loadedItemIds.has(dedupKey)) return;
+            // Don't add to loadedItemIds here - createCard will do it
+            newItemsCount++;
+
             item._addonId = addonId;
             const card = createCard(item);
             if (card) contentGrid.appendChild(card);
@@ -331,14 +343,33 @@ const createCard = (item) => {
     // Normalization
     const poster = item.poster_path ? getImageUrl(item.poster_path, 'w500') : (item.poster || 'https://via.placeholder.com/500x750/1a1a2e/ffffff?text=No+Poster');
     const titleText = item.title || item.name;
-    let itemType = item.media_type || item.type || 'movie';
+    let itemType = item.media_type || item.type;
+    
+    // If still no type, try to infer from properties
+    if (!itemType) {
+        // Movies have 'title', TV shows have 'name' and 'first_air_date'
+        if (item.title) {
+            itemType = 'movie';
+        } else if (item.first_air_date || item.name) {
+            itemType = 'tv';
+        } else {
+            itemType = 'movie'; // Default fallback
+        }
+    }
+    
     // Normalize 'series' to 'tv' for consistency
     if (itemType === 'series') itemType = 'tv';
+    
     const itemId = item.id;
     const rating = item.vote_average || (item.imdbRating ? parseFloat(item.imdbRating) : null);
     const dateText = item.release_date || item.first_air_date || (item.releaseInfo ? item.releaseInfo.substring(0, 4) : '') || (item.year ? item.year.toString() : '');
 
     if (!poster && !titleText) return null;
+    
+    // Deduplication check for genre view
+    const dedupKey = `${itemType}_${itemId}`;
+    if (loadedItemIds.has(dedupKey)) return null;
+    loadedItemIds.add(dedupKey);
     
     const clone = cardTemplate.content.cloneNode(true);
     const link = clone.querySelector('.poster-link');

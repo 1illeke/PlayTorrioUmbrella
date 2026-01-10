@@ -13,6 +13,9 @@ import {
 import { getJackettKey, setJackettKey, getJackettSettings } from './jackett.js';
 import { getInstalledAddons, installAddon, removeAddon } from './addons.js';
 import { initComics } from './comics.js';
+import { initBooks } from './books.js';
+import { initAudiobooks } from './audiobooks.js';
+import { initManga } from './manga.js';
 import { initDebridUI, initNodeMPVUI, initSponsorUI, loadSponsorVisibility, initTorrentEngineUI } from './debrid.js';
 
 // DOM Elements
@@ -61,46 +64,99 @@ window.showSection = (section) => {
     console.log('Showing section:', section);
     syncHomeElements();
     
+    // Clear search state when explicitly navigating to a section
+    if (section !== 'search') {
+        sessionStorage.removeItem('basicmode_search_state');
+    }
+    
     const comicsSection = document.getElementById('comics-section');
-    const mainSearchContainer = searchInput ? searchInput.closest('.relative.group') : null;
+    const booksSection = document.getElementById('books-section');
+    const audiobooksSection = document.getElementById('audiobooks-section');
+    const iptvSection = document.getElementById('iptv-section');
+    const mangaSection = document.getElementById('manga-section');
+    const iptvIframe = document.getElementById('iptv-iframe');
+    const mainSearchContainer = searchInput ? searchInput.closest('.flex.flex-col') : null;
     
     // Hide everything first
     if (heroSection) heroSection.classList.add('hidden');
     if (contentRows) contentRows.classList.add('hidden');
     if (comicsSection) comicsSection.classList.add('hidden');
+    if (booksSection) booksSection.classList.add('hidden');
+    if (audiobooksSection) audiobooksSection.classList.add('hidden');
+    if (iptvSection) iptvSection.classList.add('hidden');
+    if (mangaSection) mangaSection.classList.add('hidden');
     if (searchResultsContainer) searchResultsContainer.classList.add('hidden');
     if (genresSection) genresSection.classList.add('hidden');
     if (catalogsSection) catalogsSection.classList.add('hidden');
     
-    // Deactivate all nav links
-    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active', 'text-white'));
+    // Clear IPTV iframe when not viewing IPTV
+    if (section !== 'iptv' && iptvIframe) {
+        iptvIframe.src = '';
+    }
+    
+    // Deactivate all nav links - remove active styling
+    document.querySelectorAll('.nav-link').forEach(l => {
+        l.classList.remove('active', 'bg-purple-600/20', 'text-white');
+        l.classList.add('text-gray-300');
+    });
+
+    // Helper to activate a nav link
+    const activateNavLink = (selector) => {
+        const link = document.querySelector(selector);
+        if (link) {
+            link.classList.add('active', 'bg-purple-600/20', 'text-white');
+            link.classList.remove('text-gray-300');
+        }
+    };
 
     if (section === 'home') {
         if (heroSection) heroSection.classList.remove('hidden');
         if (contentRows) contentRows.classList.remove('hidden');
-        if (mainSearchContainer) mainSearchContainer.classList.remove('hidden');
-        document.querySelector('.nav-link[onclick*="home"]')?.classList.add('active', 'text-white');
+        activateNavLink('.nav-link[onclick*="home"]');
     } else if (section === 'comics') {
         if (comicsSection) {
             comicsSection.classList.remove('hidden');
             initComics();
         }
-        if (mainSearchContainer) mainSearchContainer.classList.add('hidden');
-        document.querySelector('.nav-link[onclick*="comics"]')?.classList.add('active', 'text-white');
+        activateNavLink('.nav-link[onclick*="comics"]');
+    } else if (section === 'books') {
+        if (booksSection) {
+            booksSection.classList.remove('hidden');
+            initBooks();
+        }
+        activateNavLink('.nav-link[onclick*="books"]');
+    } else if (section === 'audiobooks') {
+        if (audiobooksSection) {
+            audiobooksSection.classList.remove('hidden');
+            initAudiobooks();
+        }
+        activateNavLink('.nav-link[onclick*="audiobooks"]');
+    } else if (section === 'iptv') {
+        if (iptvSection) {
+            iptvSection.classList.remove('hidden');
+            if (iptvIframe && !iptvIframe.src.includes('iptvplaytorrio')) {
+                iptvIframe.src = 'https://iptvplaytorrio.pages.dev';
+            }
+        }
+        activateNavLink('.nav-link[onclick*="iptv"]');
     } else if (section === 'genres') {
         if (genresSection) {
             genresSection.classList.remove('hidden');
             initGenres();
         }
-        if (mainSearchContainer) mainSearchContainer.classList.add('hidden');
-        document.querySelector('.nav-link[onclick*="genres"]')?.classList.add('active', 'text-white');
+        activateNavLink('.nav-link[onclick*="genres"]');
     } else if (section === 'catalogs') {
         if (catalogsSection) {
             catalogsSection.classList.remove('hidden');
             initCatalogs();
         }
-        if (mainSearchContainer) mainSearchContainer.classList.add('hidden');
-        document.querySelector('.nav-link[onclick*="catalogs"]')?.classList.add('active', 'text-white');
+        activateNavLink('.nav-link[onclick*="catalogs"]');
+    } else if (section === 'manga') {
+        if (mangaSection) {
+            mangaSection.classList.remove('hidden');
+            initManga();
+        }
+        activateNavLink('.nav-link[onclick*="manga"]');
     }
 };
 
@@ -332,21 +388,27 @@ const updateSearchSources = async () => {
     searchSourceSelect.innerHTML = '<option value="tmdb">TMDB</option>';
     
     addons.forEach(addon => {
-        // Check if addon explicitly supports search
-        let supportsSearch = false;
+        // Check if addon has catalogs that could support search
+        // Addons with catalogs can potentially support search via /catalog/{type}/{id}/search={query}.json
+        let hasSearchableCatalogs = false;
         
-        if (addon.manifest.catalogs) {
-            supportsSearch = addon.manifest.catalogs.some(c => 
-                c.extra && c.extra.some(e => e.name === 'search')
-            );
+        if (addon.manifest.catalogs && addon.manifest.catalogs.length > 0) {
+            // Check if any catalog explicitly supports search OR if it's a movie/series catalog
+            hasSearchableCatalogs = addon.manifest.catalogs.some(c => {
+                // Explicit search support
+                const hasExplicitSearch = c.extra && c.extra.some(e => e.name === 'search');
+                // Or it's a movie/series catalog (most support search even without declaring it)
+                const isSearchableType = c.type === 'movie' || c.type === 'series';
+                return hasExplicitSearch || isSearchableType;
+            });
         }
         
         // Legacy support check
-        if (!supportsSearch && addon.manifest.extraSupported) {
-            supportsSearch = addon.manifest.extraSupported.includes('search');
+        if (!hasSearchableCatalogs && addon.manifest.extraSupported) {
+            hasSearchableCatalogs = addon.manifest.extraSupported.includes('search');
         }
 
-        if (supportsSearch) {
+        if (hasSearchableCatalogs) {
             const option = document.createElement('option');
             option.value = `addon:${addon.manifest.id}`;
             option.textContent = addon.manifest.name;
@@ -368,43 +430,51 @@ const searchAddon = async (addonId, query) => {
     if (url.endsWith('/')) url = url.slice(0, -1);
 
     // Try to find a catalog that supports search
-    let searchCatalog = null;
+    // First look for explicit search support, then fall back to any movie/series catalog
+    let searchCatalogs = [];
     if (addon.manifest.catalogs) {
-        searchCatalog = addon.manifest.catalogs.find(c => 
-            c.extra && c.extra.some(e => e.name === 'search')
+        // Prioritize catalogs with explicit search support
+        const explicitSearchCatalogs = addon.manifest.catalogs.filter(c => 
+            c.extra && c.extra.some(e => e.name === 'search') && (c.type === 'movie' || c.type === 'series')
         );
+        
+        if (explicitSearchCatalogs.length > 0) {
+            searchCatalogs = explicitSearchCatalogs;
+        } else {
+            // Fall back to any movie/series catalogs - try search endpoint anyway
+            searchCatalogs = addon.manifest.catalogs.filter(c => c.type === 'movie' || c.type === 'series');
+        }
     }
 
-    if (!searchCatalog) {
-        // Fallback: Check if we can search specific types
-        const types = addon.manifest.types || ['movie', 'series'];
-        let results = [];
-        
-        for (const type of types) {
-            try {
-                // If the addon doesn't explicitly advertise search but has catalogs, we try standard endpoint
-                const targetUrl = `${url}/catalog/${type}/${addon.manifest.catalogs?.[0]?.id || 'search'}/search=${encodeURIComponent(query)}.json`;
-                const res = await fetch(targetUrl);
-                const data = await res.json();
-                if (data.metas && data.metas.length > 0) {
-                    results = [...results, ...data.metas];
-                }
-            } catch (e) {
-                console.warn(`Search failed for type ${type} on addon ${addonId}`, e);
-            }
-        }
-        return { results: results.map(m => ({...m, media_type: m.type})) };
-    } else {
-        const targetUrl = `${url}/catalog/${searchCatalog.type}/${searchCatalog.id}/search=${encodeURIComponent(query)}.json`;
-        const res = await fetch(targetUrl);
-        const data = await res.json();
-        return { results: (data.metas || []).map(m => ({...m, media_type: m.type})) };
+    if (searchCatalogs.length === 0) {
+        throw new Error('No searchable catalogs found in this addon');
     }
+    
+    // Try each catalog until we get results
+    let allResults = [];
+    for (const catalog of searchCatalogs) {
+        try {
+            const targetUrl = `${url}/catalog/${catalog.type}/${catalog.id}/search=${encodeURIComponent(query)}.json`;
+            console.log('[AddonSearch] Trying:', targetUrl);
+            const res = await fetch(targetUrl);
+            if (!res.ok) continue;
+            const data = await res.json();
+            if (data.metas && data.metas.length > 0) {
+                allResults = [...allResults, ...data.metas.map(m => ({...m, media_type: m.type || catalog.type}))];
+            }
+        } catch (e) {
+            console.warn(`Search failed for catalog ${catalog.id} on addon ${addonId}`, e);
+        }
+    }
+    
+    return { results: allResults };
 };
 
 const handleSearch = async (query) => {
   const q = (query || '').trim();
   if (!q) {
+    // Clear saved search state when going back to home
+    sessionStorage.removeItem('basicmode_search_state');
     showSection('home');
     return;
   }
@@ -424,12 +494,20 @@ const handleSearch = async (query) => {
   currentFilter = 'all';
   updateFilterButtons('all');
   
+  const source = searchSourceSelect ? searchSourceSelect.value : 'tmdb';
+  
+  // Save search state for back navigation
+  sessionStorage.setItem('basicmode_search_state', JSON.stringify({
+    query: q,
+    source: source,
+    filter: currentFilter
+  }));
+  
   if (searchGrid) {
     searchGrid.innerHTML = '<div class="col-span-full text-center py-8"><div class="inline-block w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div></div>';
 
     try {
         let results = [];
-        const source = searchSourceSelect ? searchSourceSelect.value : 'tmdb';
 
         if (source === 'tmdb') {
             const data = await searchMulti(q);
@@ -855,6 +933,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleSearch(e.target.value);
             }
         });
+    }
+
+    // Check for saved search state (when returning from details page)
+    const savedSearchState = sessionStorage.getItem('basicmode_search_state');
+    if (savedSearchState) {
+        try {
+            const state = JSON.parse(savedSearchState);
+            if (state.query) {
+                // Restore search input value
+                if (searchInput) searchInput.value = state.query;
+                // Restore source selection
+                if (searchSourceSelect && state.source) {
+                    searchSourceSelect.value = state.source;
+                }
+                // Re-run the search to restore results
+                handleSearch(state.query);
+                return; // Don't show home section
+            }
+        } catch (e) {
+            console.error('Failed to restore search state:', e);
+        }
     }
 
     // Default to home section

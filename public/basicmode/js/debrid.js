@@ -340,6 +340,7 @@ export const initNodeMPVUI = async () => {
 export const initSponsorUI = async () => {
     const showSponsorToggle = document.getElementById('show-sponsor-toggle');
     const aceBetWrapper = document.getElementById('acebet-btn-wrapper');
+    const acebetSidebarWrapper = document.getElementById('acebet-sidebar-wrapper');
     
     if (!showSponsorToggle) return;
     
@@ -348,30 +349,50 @@ export const initSponsorUI = async () => {
     const showSponsor = settings.showSponsor !== false; // default ON
     showSponsorToggle.checked = showSponsor;
     
-    // Update visibility
+    // Update visibility (both header and sidebar)
     if (aceBetWrapper) {
         aceBetWrapper.style.display = showSponsor ? '' : 'none';
+    }
+    if (acebetSidebarWrapper) {
+        acebetSidebarWrapper.style.display = showSponsor ? '' : 'none';
     }
     
     // Event listener for toggle
     showSponsorToggle.addEventListener('change', (e) => {
         const show = e.target.checked;
         saveDebridSettings({ showSponsor: show });
+        
+        // Update both header and sidebar sponsor elements
         if (aceBetWrapper) {
             aceBetWrapper.style.display = show ? '' : 'none';
         }
+        if (acebetSidebarWrapper) {
+            acebetSidebarWrapper.style.display = show ? '' : 'none';
+        }
+        
+        // Update localStorage for quick access on page load
+        localStorage.setItem('sponsor_hidden_basic', show ? 'false' : 'true');
     });
 };
 
 // Load sponsor visibility on app startup (before settings modal is opened)
 export const loadSponsorVisibility = async () => {
     const aceBetWrapper = document.getElementById('acebet-btn-wrapper');
-    if (!aceBetWrapper) return;
+    const acebetSidebarWrapper = document.getElementById('acebet-sidebar-wrapper');
     
     try {
         const settings = await getDebridSettings();
         const showSponsor = settings.showSponsor !== false; // default ON
-        aceBetWrapper.style.display = showSponsor ? '' : 'none';
+        
+        if (aceBetWrapper) {
+            aceBetWrapper.style.display = showSponsor ? '' : 'none';
+        }
+        if (acebetSidebarWrapper) {
+            acebetSidebarWrapper.style.display = showSponsor ? '' : 'none';
+        }
+        
+        // Also save to localStorage for quick access on page load
+        localStorage.setItem('sponsor_hidden_basic', showSponsor ? 'false' : 'true');
     } catch (e) {
         console.error('[Sponsor] Failed to load setting:', e);
     }
@@ -381,16 +402,23 @@ export const loadSponsorVisibility = async () => {
 export const hideSponsorBasic = async () => {
     const showSponsorToggle = document.getElementById('show-sponsor-toggle');
     const aceBetWrapper = document.getElementById('acebet-btn-wrapper');
+    const acebetSidebarWrapper = document.getElementById('acebet-sidebar-wrapper');
     
     // Update toggle
     if (showSponsorToggle) {
         showSponsorToggle.checked = false;
     }
     
-    // Hide button
+    // Hide buttons (both header and sidebar)
     if (aceBetWrapper) {
         aceBetWrapper.style.display = 'none';
     }
+    if (acebetSidebarWrapper) {
+        acebetSidebarWrapper.style.display = 'none';
+    }
+    
+    // Save to localStorage for quick access
+    localStorage.setItem('sponsor_hidden_basic', 'true');
     
     // Save to server
     await saveDebridSettings({ showSponsor: false });

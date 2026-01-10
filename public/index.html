@@ -2546,8 +2546,8 @@
 
         .books-results-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1.25rem;
         }
 
         /* Music (compact) overrides using books classes */
@@ -2738,6 +2738,8 @@
             overflow: hidden;
             transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
             cursor: pointer;
+            display: flex;
+            flex-direction: column;
         }
 
         .books-book-card:hover {
@@ -2749,7 +2751,8 @@
         .books-book-cover {
             position: relative;
             width: 100%;
-            height: 200px;
+            aspect-ratio: 2/3;
+            min-height: 240px;
             overflow: hidden;
             background: linear-gradient(135deg, #374151, #1f2937);
             display: flex;
@@ -2781,21 +2784,24 @@
             color: #fff;
             padding: 0.25rem 0.75rem;
             border-radius: 12px;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 600;
             text-transform: uppercase;
         }
 
         .books-book-info {
-            padding: 1.5rem;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
         }
 
         .books-book-title {
-            font-size: 1.1rem;
+            font-size: 0.95rem;
             font-weight: 700;
             color: #fff;
-            margin-bottom: 0.5rem;
-            line-height: 1.4;
+            margin-bottom: 0.4rem;
+            line-height: 1.3;
             display: -webkit-box;
             line-clamp: 2;
             -webkit-line-clamp: 2;
@@ -2805,8 +2811,13 @@
 
         .books-book-author {
             color: #9ca3af;
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             margin-bottom: 0.75rem;
+            display: -webkit-box;
+            line-clamp: 1;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
 
         .books-book-year {
@@ -2822,29 +2833,40 @@
 
         .books-book-actions {
             display: flex;
-            gap: 0.75rem;
+            gap: 0.5rem;
+            margin-top: auto;
         }
 
         .books-read-btn {
             flex: 1;
-            padding: 0.75rem;
+            padding: 0.6rem 0.5rem;
             background: linear-gradient(135deg, #f59e0b, #d97706);
             border: none;
-            border-radius: 10px;
+            border-radius: 8px;
             color: #fff;
             font-weight: 600;
+            font-size: 0.8rem;
             cursor: pointer;
-            transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 0.5rem;
+            gap: 0.4rem;
+            white-space: nowrap;
         }
 
         .books-read-btn:hover {
             transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.3);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
         }
+        
+        .books-read-btn:disabled,
+        .books-download-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
         /* Ensure Library "Read" buttons look styled as well */
         .read-btn {
             width: 100%;
@@ -2866,21 +2888,58 @@
         .read-btn:active { transform: translateY(0); }
 
         .books-download-btn {
-            padding: 0.75rem;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 10px;
-            color: #9ca3af;
+            flex: 1;
+            padding: 0.6rem 0.5rem;
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            color: #60a5fa;
+            font-weight: 600;
+            font-size: 0.8rem;
             cursor: pointer;
-            transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 0.4rem;
+            white-space: nowrap;
         }
 
         .books-download-btn:hover {
-            background: rgba(255, 255, 255, 0.12);
-            color: #fff;
+            background: rgba(59, 130, 246, 0.25);
+            border-color: rgba(59, 130, 246, 0.5);
+            color: #93c5fd;
+            transform: translateY(-1px);
+        }
+
+        /* Responsive book cards */
+        @media (max-width: 600px) {
+            .books-results-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                gap: 0.75rem;
+            }
+            .books-book-cover {
+                min-height: 180px;
+            }
+            .books-book-info {
+                padding: 0.75rem;
+            }
+            .books-book-title {
+                font-size: 0.85rem;
+            }
+            .books-book-author {
+                font-size: 0.75rem;
+                margin-bottom: 0.5rem;
+            }
+            .books-book-actions {
+                flex-direction: column;
+                gap: 0.4rem;
+            }
+            .books-read-btn,
+            .books-download-btn {
+                padding: 0.5rem;
+                font-size: 0.75rem;
+            }
         }
 
         /* Books Reader Modal */
@@ -10215,67 +10274,111 @@
         </div>
 
         <div class="page-content">
-            <!-- Search Section -->
-            <div class="search-section" style="max-width: 800px; margin: 2rem auto; text-align: center;">
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-                    <input 
-                        type="text" 
-                        id="games-search-input" 
-                        placeholder="Search for PC games (e.g., Call of Duty, GTA, Cyberpunk)..." 
-                        style="flex: 1; padding: 0.75rem 1rem; border: 2px solid rgba(139,92,246,0.3); border-radius: 8px; background: rgba(139,92,246,0.05); color: var(--light); font-size: 1rem;"
-                    >
-                    <button 
-                        id="games-search-btn" 
-                        style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);"
-                        onmouseover="this.style.transform='scale(1.05)'" 
-                        onmouseout="this.style.transform='scale(1)'"
-                    >
-                        <i class="fas fa-search"></i> Search
-                    </button>
-                </div>
-                <button 
-                    id="games-browse-all-btn" 
-                    style="padding: 0.6rem 1.2rem; background: linear-gradient(135deg, #f97316, #ea580c); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); margin-bottom: 1rem;"
-                    onmouseover="this.style.transform='scale(1.05)'" 
-                    onmouseout="this.style.transform='scale(1)'"
-                >
-                    <i class="fas fa-th"></i> Browse All Games
+            <!-- Tab Navigation -->
+            <div style="display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 1.5rem;">
+                <button id="games-browse-tab" class="games-tab-btn active" style="padding: 0.75rem 2rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+                    <i class="fas fa-search"></i> Browse Games
                 </button>
-                <div id="games-search-status" style="color: var(--secondary); font-size: 0.9rem; min-height: 1.5rem;"></div>
+                <button id="games-library-tab" class="games-tab-btn" style="padding: 0.75rem 2rem; background: rgba(139,92,246,0.2); border: 2px solid rgba(139,92,246,0.3); border-radius: 8px; color: #a78bfa; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+                    <i class="fas fa-folder"></i> My Library <span id="games-library-count" style="background: #ef4444; color: white; padding: 0.1rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.3rem; display: none;">0</span>
+                </button>
+                <button id="games-open-folder-btn" style="padding: 0.75rem 1rem; background: rgba(16,185,129,0.2); border: 2px solid rgba(16,185,129,0.3); border-radius: 8px; color: #10b981; font-weight: 600; cursor: pointer; transition: all 0.3s;" title="Open Downloads Folder">
+                    <i class="fas fa-folder-open"></i>
+                </button>
+            </div>
+            
+            <!-- TorBox Status Banner -->
+            <div id="games-torbox-status" style="max-width: 800px; margin: 0 auto 1rem auto; padding: 0.75rem 1rem; border-radius: 8px; display: none;">
             </div>
 
-            <!-- Categories Section -->
-            <div id="games-categories-section" style="max-width: 1200px; margin: 0 auto 2rem auto; padding: 0 1rem;">
-                <h3 style="color: var(--light); margin-bottom: 1rem; text-align: center;"><i class="fas fa-tags" style="color:#8b5cf6"></i> Browse by Category</h3>
-                <div style="display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 2rem;">
-                    <select 
-                        id="games-category-select" 
-                        style="padding: 0.75rem 1rem; border: 2px solid rgba(139,92,246,0.3); border-radius: 8px; background: rgba(139,92,246,0.05); color: var(--light); font-size: 1rem; cursor: pointer; min-width: 250px;"
-                    >
-                        <option value="">Select a category...</option>
-                    </select>
+            <!-- Browse Section -->
+            <div id="games-browse-section">
+                <!-- Search Section -->
+                <div class="search-section" style="max-width: 800px; margin: 2rem auto; text-align: center;">
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                        <input 
+                            type="text" 
+                            id="games-search-input" 
+                            placeholder="Search for PC games (e.g., Call of Duty, GTA, Cyberpunk)..." 
+                            style="flex: 1; padding: 0.75rem 1rem; border: 2px solid rgba(139,92,246,0.3); border-radius: 8px; background: rgba(139,92,246,0.05); color: var(--light); font-size: 1rem;"
+                        >
+                        <button 
+                            id="games-search-btn" 
+                            style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);"
+                            onmouseover="this.style.transform='scale(1.05)'" 
+                            onmouseout="this.style.transform='scale(1)'"
+                        >
+                            <i class="fas fa-search"></i> Search
+                        </button>
+                    </div>
                     <button 
-                        id="games-category-btn" 
-                        style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);"
+                        id="games-browse-all-btn" 
+                        style="padding: 0.6rem 1.2rem; background: linear-gradient(135deg, #f97316, #ea580c); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); margin-bottom: 1rem;"
                         onmouseover="this.style.transform='scale(1.05)'" 
                         onmouseout="this.style.transform='scale(1)'"
                     >
-                        <i class="fas fa-filter"></i> Filter
+                        <i class="fas fa-th"></i> Browse All Games
                     </button>
+                    <div id="games-search-status" style="color: var(--secondary); font-size: 0.9rem; min-height: 1.5rem;"></div>
+                </div>
+
+                <!-- Categories Section -->
+                <div id="games-categories-section" style="max-width: 1200px; margin: 0 auto 2rem auto; padding: 0 1rem;">
+                    <h3 style="color: var(--light); margin-bottom: 1rem; text-align: center;"><i class="fas fa-tags" style="color:#8b5cf6"></i> Browse by Category</h3>
+                    <div style="display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 2rem;">
+                        <select 
+                            id="games-category-select" 
+                            style="padding: 0.75rem 1rem; border: 2px solid rgba(139,92,246,0.3); border-radius: 8px; background: rgba(139,92,246,0.05); color: var(--light); font-size: 1rem; cursor: pointer; min-width: 250px;"
+                        >
+                            <option value="">Select a category...</option>
+                        </select>
+                        <button 
+                            id="games-category-btn" 
+                            style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);"
+                            onmouseover="this.style.transform='scale(1.05)'" 
+                            onmouseout="this.style.transform='scale(1)'"
+                        >
+                            <i class="fas fa-filter"></i> Filter
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Results Section -->
+                <div id="games-results-section" style="display: none;">
+                    <div class="books-results-header" style="align-items:center; gap:1rem; margin-bottom: 1rem;">
+                        <h3><i class="fas fa-list" style="color:#8b5cf6"></i> Search Results</h3>
+                        <div id="games-results-count" class="books-results-count"></div>
+                    </div>
+                    <div id="games-results-grid" class="books-results-grid"></div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="games-empty-state" class="books-empty" style="display: none;">
                 </div>
             </div>
 
-            <!-- Results Section -->
-            <div id="games-results-section" style="display: none;">
-                <div class="books-results-header" style="align-items:center; gap:1rem; margin-bottom: 1rem;">
-                    <h3><i class="fas fa-list" style="color:#8b5cf6"></i> Search Results</h3>
-                    <div id="games-results-count" class="books-results-count"></div>
+            <!-- Library Section -->
+            <div id="games-library-section" style="display: none;">
+                <div style="max-width: 1200px; margin: 0 auto; padding: 0 1rem;">
+                    <div class="books-results-header" style="align-items:center; gap:1rem; margin-bottom: 1rem;">
+                        <h3><i class="fas fa-folder" style="color:#8b5cf6"></i> My Downloads</h3>
+                        <button id="games-refresh-library-btn" style="padding: 0.5rem 1rem; background: rgba(139,92,246,0.2); border: 1px solid rgba(139,92,246,0.3); border-radius: 6px; color: #a78bfa; cursor: pointer;">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    
+                    <!-- Library Grid -->
+                    <div id="games-library-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1rem;">
+                        <!-- Downloads will be rendered here -->
+                    </div>
+                    
+                    <!-- Empty Library State -->
+                    <div id="games-library-empty" style="text-align: center; padding: 3rem; color: var(--secondary);">
+                        <i class="fas fa-folder-open" style="font-size: 4rem; color: rgba(139,92,246,0.3); margin-bottom: 1rem;"></i>
+                        <h3 style="color: var(--light); margin-bottom: 0.5rem;">No Downloads Yet</h3>
+                        <p>Games you download will appear here. Browse games and click "Add to Library" to start downloading.</p>
+                    </div>
                 </div>
-                <div id="games-results-grid" class="books-results-grid"></div>
-            </div>
-
-            <!-- Empty State -->
-            <div id="games-empty-state" class="books-empty" style="display: none;">
             </div>
         </div>
     </div>
@@ -16103,6 +16206,34 @@ Your browser does not support the video tag.
             }));
         }
 
+        // TorBox supported hosts list (based on TorBox documentation)
+        const TORBOX_SUPPORTED_HOSTS = [
+            'buzzheavier.com', 'bzzhr.co', 'bzz.lol',  // BuzzHeavier and mirrors
+            'gofile.io',
+            '1fichier.com',
+            'mediafire.com',
+            'pixeldrain.com',
+            'dropbox.com',
+            'mega.nz', 'mega.co.nz',
+            'rapidgator.net',
+            'uploaded.net', 'ul.to',
+            'turbobit.net',
+            'nitroflare.com',
+            'katfile.com',
+            'filefactory.com',
+            'ddownload.com',
+            'filestore.me'
+        ];
+        
+        function isTorBoxSupported(url) {
+            try {
+                const hostname = new URL(url).hostname.toLowerCase();
+                return TORBOX_SUPPORTED_HOSTS.some(h => hostname.includes(h));
+            } catch {
+                return false;
+            }
+        }
+
         // Games Downloader page functions
         function showGamesDownloaderPage() {
             window.location.hash = '#/games-downloader';
@@ -16240,6 +16371,13 @@ Your browser does not support the video tag.
                     card.className = 'music-card';
                     card.style.cursor = 'default';
                     
+                    // Get image URL and game title for library
+                    const imageUrl = game.imgID 
+                        ? `http://localhost:6987/api/games/image/${game.imgID}`
+                        : 'https://via.placeholder.com/300x400?text=No+Image';
+                    const gameTitle = game.game || game.name || 'Unknown Game';
+                    const gameSize = game.size || '';
+                    
                     // Handle new API structure - download_links is an object with arrays
                     let downloadLinksHtml = '';
                     if (game.download_links && typeof game.download_links === 'object') {
@@ -16253,35 +16391,33 @@ Your browser does not support the video tag.
                                     // Add protocol if missing
                                     const fullUrl = url.startsWith('//') ? 'https:' + url : url;
                                     const displayName = linkType.charAt(0).toUpperCase() + linkType.slice(1) + (urls.length > 1 ? ` ${index + 1}` : '');
-                                    links.push({name: displayName, url: fullUrl});
+                                    links.push({name: displayName, url: fullUrl, provider: linkType});
                                 });
                             } else if (typeof urls === 'string') {
                                 const fullUrl = urls.startsWith('//') ? 'https:' + urls : urls;
                                 const displayName = linkType.charAt(0).toUpperCase() + linkType.slice(1);
-                                links.push({name: displayName, url: fullUrl});
+                                links.push({name: displayName, url: fullUrl, provider: linkType});
                             }
                         });
                         
                         if (links.length > 0) {
-                            downloadLinksHtml = links.map(link => `
-                                <button class="game-download-link" data-url="${link.url}" style="padding: 0.4rem 0.8rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 6px; color: white; font-size: 0.85rem; cursor: pointer; margin: 0.2rem; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                                    <i class="fas fa-download"></i> ${link.name}
+                            downloadLinksHtml = links.map(link => {
+                                const torboxSupported = isTorBoxSupported(link.url);
+                                const bgColor = torboxSupported ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #6b7280, #4b5563)';
+                                const torboxIcon = torboxSupported ? '<i class="fas fa-bolt" style="color:#fbbf24;margin-right:2px;" title="TorBox Supported"></i>' : '<i class="fas fa-external-link-alt" style="margin-right:2px;" title="Opens in Browser"></i>';
+                                const tooltip = torboxSupported ? 'TorBox supported - Click to download in-app' : 'Opens in browser (not supported by TorBox)';
+                                return `
+                                <button class="game-download-link" data-url="${link.url}" data-name="${gameTitle.replace(/"/g, '&quot;')}" data-image="${imageUrl}" data-size="${gameSize}" data-provider="${link.provider}" data-torbox="${torboxSupported}" style="padding: 0.4rem 0.8rem; background: ${bgColor}; border: none; border-radius: 6px; color: white; font-size: 0.85rem; cursor: pointer; margin: 0.2rem; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" title="${tooltip}">
+                                    ${torboxIcon} ${link.name}
                                 </button>
-                            `).join('');
+                            `;
+                            }).join('');
                         }
                     }
                     
                     if (!downloadLinksHtml) {
                         downloadLinksHtml = '<span style="color: var(--secondary); font-size: 0.85rem;">No download links available</span>';
                     }
-
-                    // Get image URL
-                    const imageUrl = game.imgID 
-                        ? `http://localhost:6987/api/games/image/${game.imgID}`
-                        : 'https://via.placeholder.com/300x400?text=No+Image';
-                    
-                    // Use game.game or game.name as title
-                    const gameTitle = game.game || game.name || 'Unknown Game';
                     
                     // Format categories
                     const categories = Array.isArray(game.category) 
@@ -16306,13 +16442,25 @@ Your browser does not support the video tag.
                     resultsGrid.appendChild(card);
                 });
 
-                // Add click handlers to download links
+                // Add click handlers to download links - left click adds to library, right click opens in browser
                 resultsGrid.querySelectorAll('.game-download-link').forEach(btn => {
                     btn.addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        const url = e.currentTarget.getAttribute('data-url');
+                        const name = e.currentTarget.getAttribute('data-name');
+                        const image = e.currentTarget.getAttribute('data-image');
+                        const size = e.currentTarget.getAttribute('data-size');
+                        const provider = e.currentTarget.getAttribute('data-provider');
+                        if (url) {
+                            addGameToLibrary(url, name, image, size, provider);
+                        }
+                    });
+                    btn.addEventListener('contextmenu', async (e) => {
+                        e.preventDefault();
                         const url = e.currentTarget.getAttribute('data-url');
                         if (url && window.electronAPI?.openExternal) {
                             await window.electronAPI.openExternal(url);
-                            showNotification('Opening download link in browser...', 'info');
+                            showNotification('Opening in browser...', 'info');
                         }
                     });
                 });
@@ -16391,6 +16539,13 @@ Your browser does not support the video tag.
                 card.className = 'music-card';
                 card.style.cursor = 'default';
                 
+                // Get image URL and game title for library
+                const imageUrl = game.imgID 
+                    ? `http://localhost:6987/api/games/image/${game.imgID}`
+                    : 'https://via.placeholder.com/300x400?text=No+Image';
+                const gameTitle = game.game || game.name || 'Unknown Game';
+                const gameSize = game.size || '';
+                
                 // Handle new API structure - download_links is an object with arrays
                 let downloadLinksHtml = '';
                 if (game.download_links && typeof game.download_links === 'object') {
@@ -16404,35 +16559,33 @@ Your browser does not support the video tag.
                                 // Add protocol if missing
                                 const fullUrl = url.startsWith('//') ? 'https:' + url : url;
                                 const displayName = linkType.charAt(0).toUpperCase() + linkType.slice(1) + (urls.length > 1 ? ` ${index + 1}` : '');
-                                links.push({name: displayName, url: fullUrl});
+                                links.push({name: displayName, url: fullUrl, provider: linkType});
                             });
                         } else if (typeof urls === 'string') {
                             const fullUrl = urls.startsWith('//') ? 'https:' + urls : urls;
                             const displayName = linkType.charAt(0).toUpperCase() + linkType.slice(1);
-                            links.push({name: displayName, url: fullUrl});
+                            links.push({name: displayName, url: fullUrl, provider: linkType});
                         }
                     });
                     
                     if (links.length > 0) {
-                        downloadLinksHtml = links.map(link => `
-                            <button class="game-download-link" data-url="${link.url}" style="padding: 0.4rem 0.8rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 6px; color: white; font-size: 0.85rem; cursor: pointer; margin: 0.2rem; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                                <i class="fas fa-download"></i> ${link.name}
+                        downloadLinksHtml = links.map(link => {
+                            const torboxSupported = isTorBoxSupported(link.url);
+                            const bgColor = torboxSupported ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #6b7280, #4b5563)';
+                            const torboxIcon = torboxSupported ? '<i class="fas fa-bolt" style="color:#fbbf24;margin-right:2px;" title="TorBox Supported"></i>' : '<i class="fas fa-external-link-alt" style="margin-right:2px;" title="Opens in Browser"></i>';
+                            const tooltip = torboxSupported ? 'TorBox supported - Click to download in-app' : 'Opens in browser (not supported by TorBox)';
+                            return `
+                            <button class="game-download-link" data-url="${link.url}" data-name="${gameTitle.replace(/"/g, '&quot;')}" data-image="${imageUrl}" data-size="${gameSize}" data-provider="${link.provider}" data-torbox="${torboxSupported}" style="padding: 0.4rem 0.8rem; background: ${bgColor}; border: none; border-radius: 6px; color: white; font-size: 0.85rem; cursor: pointer; margin: 0.2rem; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" title="${tooltip}">
+                                ${torboxIcon} ${link.name}
                             </button>
-                        `).join('');
+                        `;
+                        }).join('');
                     }
                 }
                 
                 if (!downloadLinksHtml) {
                     downloadLinksHtml = '<span style="color: var(--secondary); font-size: 0.85rem;">No download links available</span>';
                 }
-
-                // Get image URL
-                const imageUrl = game.imgID 
-                    ? `http://localhost:6987/api/games/image/${game.imgID}`
-                    : 'https://via.placeholder.com/300x400?text=No+Image';
-                
-                // Use game.game or game.name as title
-                const gameTitle = game.game || game.name || 'Unknown Game';
                 
                 // Format categories
                 const categories = Array.isArray(game.category) 
@@ -16457,13 +16610,25 @@ Your browser does not support the video tag.
                 resultsGrid.appendChild(card);
             });
 
-            // Add click handlers to download links
+            // Add click handlers to download links - left click adds to library, right click opens in browser
             resultsGrid.querySelectorAll('.game-download-link').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    const url = e.currentTarget.getAttribute('data-url');
+                    const name = e.currentTarget.getAttribute('data-name');
+                    const image = e.currentTarget.getAttribute('data-image');
+                    const size = e.currentTarget.getAttribute('data-size');
+                    const provider = e.currentTarget.getAttribute('data-provider');
+                    if (url) {
+                        addGameToLibrary(url, name, image, size, provider);
+                    }
+                });
+                btn.addEventListener('contextmenu', async (e) => {
+                    e.preventDefault();
                     const url = e.currentTarget.getAttribute('data-url');
                     if (url && window.electronAPI?.openExternal) {
                         await window.electronAPI.openExternal(url);
-                        showNotification('Opening download link in browser...', 'info');
+                        showNotification('Opening in browser...', 'info');
                     }
                 });
             });
@@ -16571,11 +16736,330 @@ Your browser does not support the video tag.
                 });
             }
 
+            // Initialize Games Library
+            initGamesLibrary();
+
             // Bind Xtream UI after DOM ready and set initial button label, then auto-restore last used mode
             try { bindXtreamUi(); updateIptvActionButton(); } catch (e) { console.warn('[XTREAM] bind failed', e); }
             iptvAutoRestore();
         });
 
+        // ============================================================================
+        // GAMES LIBRARY FUNCTIONALITY
+        // ============================================================================
+        
+        let gamesLibraryRefreshInterval = null;
+        
+        function initGamesLibrary() {
+            const browseTab = document.getElementById('games-browse-tab');
+            const libraryTab = document.getElementById('games-library-tab');
+            const browseSection = document.getElementById('games-browse-section');
+            const librarySection = document.getElementById('games-library-section');
+            const openFolderBtn = document.getElementById('games-open-folder-btn');
+            const refreshLibraryBtn = document.getElementById('games-refresh-library-btn');
+            
+            if (browseTab && libraryTab) {
+                browseTab.addEventListener('click', () => {
+                    browseTab.style.background = 'linear-gradient(135deg, #8b5cf6, #7c3aed)';
+                    browseTab.style.border = 'none';
+                    browseTab.style.color = 'white';
+                    libraryTab.style.background = 'rgba(139,92,246,0.2)';
+                    libraryTab.style.border = '2px solid rgba(139,92,246,0.3)';
+                    libraryTab.style.color = '#a78bfa';
+                    browseSection.style.display = 'block';
+                    librarySection.style.display = 'none';
+                    stopLibraryRefresh();
+                });
+                
+                libraryTab.addEventListener('click', () => {
+                    libraryTab.style.background = 'linear-gradient(135deg, #8b5cf6, #7c3aed)';
+                    libraryTab.style.border = 'none';
+                    libraryTab.style.color = 'white';
+                    browseTab.style.background = 'rgba(139,92,246,0.2)';
+                    browseTab.style.border = '2px solid rgba(139,92,246,0.3)';
+                    browseTab.style.color = '#a78bfa';
+                    browseSection.style.display = 'none';
+                    librarySection.style.display = 'block';
+                    loadGamesLibrary();
+                    startLibraryRefresh();
+                });
+            }
+            
+            if (openFolderBtn) {
+                openFolderBtn.addEventListener('click', async () => {
+                    try {
+                        const resp = await fetch('/api/game-downloads/open-folder');
+                        const data = await resp.json();
+                        if (data.folder && window.electronAPI?.openPath) {
+                            await window.electronAPI.openPath(data.folder);
+                        } else if (data.folder && window.electronAPI?.openExternal) {
+                            await window.electronAPI.openExternal('file://' + data.folder);
+                        }
+                    } catch (e) {
+                        showNotification('Could not open folder', 'error');
+                    }
+                });
+            }
+            
+            if (refreshLibraryBtn) {
+                refreshLibraryBtn.addEventListener('click', () => loadGamesLibrary());
+            }
+            
+            // Check TorBox status
+            checkTorBoxStatus();
+        }
+        
+        function startLibraryRefresh() {
+            stopLibraryRefresh();
+            gamesLibraryRefreshInterval = setInterval(() => loadGamesLibrary(true), 2000);
+        }
+        
+        function stopLibraryRefresh() {
+            if (gamesLibraryRefreshInterval) {
+                clearInterval(gamesLibraryRefreshInterval);
+                gamesLibraryRefreshInterval = null;
+            }
+        }
+        
+        async function checkTorBoxStatus() {
+            try {
+                const resp = await fetch('/api/game-downloads/torbox-status');
+                const data = await resp.json();
+                const statusEl = document.getElementById('games-torbox-status');
+                if (statusEl) {
+                    if (data.hasTorBox) {
+                        statusEl.style.display = 'block';
+                        statusEl.style.background = 'rgba(16,185,129,0.1)';
+                        statusEl.style.border = '1px solid rgba(16,185,129,0.3)';
+                        statusEl.innerHTML = '<i class="fas fa-bolt" style="color:#10b981"></i> <span style="color:#10b981">TorBox Premium enabled</span> - Downloads will use TorBox for faster speeds';
+                    } else {
+                        statusEl.style.display = 'block';
+                        statusEl.style.background = 'rgba(251,191,36,0.1)';
+                        statusEl.style.border = '1px solid rgba(251,191,36,0.3)';
+                        statusEl.innerHTML = '<i class="fas fa-info-circle" style="color:#fbbf24"></i> <span style="color:#fbbf24">Direct download mode</span> - <a href="#" onclick="showSection(\'settings\');return false;" style="color:#8b5cf6">Login to TorBox</a> for faster downloads';
+                    }
+                }
+            } catch (e) {}
+        }
+        
+        async function loadGamesLibrary(silent = false) {
+            const grid = document.getElementById('games-library-grid');
+            const emptyState = document.getElementById('games-library-empty');
+            const countBadge = document.getElementById('games-library-count');
+            
+            try {
+                const resp = await fetch('/api/game-downloads/library');
+                const data = await resp.json();
+                
+                if (!data.downloads || data.downloads.length === 0) {
+                    grid.innerHTML = '';
+                    emptyState.style.display = 'block';
+                    // Reset count badge to 0 and hide
+                    countBadge.textContent = '0';
+                    countBadge.style.display = 'none';
+                    return;
+                }
+                
+                emptyState.style.display = 'none';
+                
+                // Update count badge - count active downloads from actual data
+                const activeCount = data.downloads.filter(d => d.status === 'downloading' || d.status === 'pending').length;
+                countBadge.textContent = activeCount;
+                if (activeCount > 0) {
+                    countBadge.style.display = 'inline';
+                } else {
+                    countBadge.style.display = 'none';
+                }
+                
+                // Render downloads
+                grid.innerHTML = data.downloads.map(dl => renderDownloadCard(dl)).join('');
+                
+                // Attach event handlers
+                grid.querySelectorAll('.game-dl-pause').forEach(btn => {
+                    btn.addEventListener('click', () => pauseGameDownload(btn.dataset.id));
+                });
+                grid.querySelectorAll('.game-dl-resume').forEach(btn => {
+                    btn.addEventListener('click', () => resumeGameDownload(btn.dataset.id));
+                });
+                grid.querySelectorAll('.game-dl-remove').forEach(btn => {
+                    btn.addEventListener('click', () => removeGameDownload(btn.dataset.id));
+                });
+                grid.querySelectorAll('.game-dl-folder').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const filePath = btn.dataset.path;
+                        if (filePath && window.electronAPI?.showFolderInExplorer) {
+                            // Get the folder path from the file path
+                            const folderPath = filePath.substring(0, filePath.lastIndexOf(filePath.includes('/') ? '/' : '\\'));
+                            await window.electronAPI.showFolderInExplorer(folderPath);
+                        }
+                    });
+                });
+                
+            } catch (e) {
+                if (!silent) showNotification('Failed to load library', 'error');
+            }
+        }
+        
+        function renderDownloadCard(dl) {
+            const statusColors = {
+                'pending': '#fbbf24',
+                'downloading': '#3b82f6',
+                'paused': '#f97316',
+                'completed': '#10b981',
+                'error': '#ef4444'
+            };
+            const statusIcons = {
+                'pending': 'fa-clock',
+                'downloading': 'fa-download',
+                'paused': 'fa-pause',
+                'completed': 'fa-check-circle',
+                'error': 'fa-exclamation-circle'
+            };
+            
+            const color = statusColors[dl.status] || '#6b7280';
+            const icon = statusIcons[dl.status] || 'fa-question';
+            const speed = dl.speed > 0 ? formatSpeed(dl.speed) : '';
+            const size = dl.totalBytes > 0 ? formatBytes(dl.totalBytes) : (dl.gameSize || 'Unknown size');
+            const downloaded = dl.downloadedBytes > 0 ? formatBytes(dl.downloadedBytes) : '0 B';
+            
+            let actions = '';
+            if (dl.status === 'downloading') {
+                actions = `<button class="game-dl-pause" data-id="${dl.id}" style="padding:0.4rem 0.8rem;background:#f97316;border:none;border-radius:6px;color:white;cursor:pointer;font-size:0.85rem;"><i class="fas fa-pause"></i> Pause</button>`;
+            } else if (dl.status === 'paused' || dl.status === 'error') {
+                actions = `<button class="game-dl-resume" data-id="${dl.id}" style="padding:0.4rem 0.8rem;background:#10b981;border:none;border-radius:6px;color:white;cursor:pointer;font-size:0.85rem;"><i class="fas fa-play"></i> Resume</button>`;
+            }
+            // Add folder icon to open file location (only if file exists)
+            if (dl.filePath) {
+                actions += `<button class="game-dl-folder" data-path="${dl.filePath}" style="padding:0.4rem 0.8rem;background:#3b82f6;border:none;border-radius:6px;color:white;cursor:pointer;font-size:0.85rem;margin-left:0.5rem;" title="Open file location"><i class="fas fa-folder-open"></i></button>`;
+            }
+            actions += `<button class="game-dl-remove" data-id="${dl.id}" style="padding:0.4rem 0.8rem;background:#ef4444;border:none;border-radius:6px;color:white;cursor:pointer;font-size:0.85rem;margin-left:0.5rem;"><i class="fas fa-trash"></i></button>`;
+            
+            return `
+                <div style="background:rgba(20,20,31,0.8);border:1px solid rgba(139,92,246,0.2);border-radius:12px;padding:1rem;display:flex;gap:1rem;align-items:center;">
+                    <div style="width:80px;height:80px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#1a1a2e;">
+                        ${dl.gameImage ? `<img src="${dl.gameImage}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">` : '<i class="fas fa-gamepad" style="font-size:2rem;color:#8b5cf6;display:flex;align-items:center;justify-content:center;height:100%;"></i>'}
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;color:var(--light);margin-bottom:0.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${dl.gameName}</div>
+                        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+                            <i class="fas ${icon}" style="color:${color}"></i>
+                            <span style="color:${color};font-size:0.85rem;text-transform:capitalize;">${dl.status}</span>
+                            ${speed ? `<span style="color:var(--secondary);font-size:0.8rem;">• ${speed}</span>` : ''}
+                            ${dl.useTorBox ? '<span style="color:#10b981;font-size:0.75rem;background:rgba(16,185,129,0.2);padding:0.1rem 0.4rem;border-radius:4px;">TorBox</span>' : ''}
+                        </div>
+                        <div style="background:rgba(139,92,246,0.2);border-radius:4px;height:6px;overflow:hidden;margin-bottom:0.5rem;">
+                            <div style="background:linear-gradient(90deg,#8b5cf6,#7c3aed);height:100%;width:${dl.progress}%;transition:width 0.3s;"></div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:var(--secondary);">
+                            <span>${downloaded} / ${size}</span>
+                            <span>${dl.progress}%</span>
+                        </div>
+                        <div style="margin-top:0.5rem;">${actions}</div>
+                        ${dl.error ? `<div style="color:#ef4444;font-size:0.8rem;margin-top:0.3rem;">${dl.error}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function formatSpeed(bytesPerSec) {
+            return formatBytes(bytesPerSec) + '/s';
+        }
+        
+        async function pauseGameDownload(id) {
+            try {
+                await fetch(`/api/game-downloads/pause/${id}`, { method: 'POST' });
+                loadGamesLibrary();
+            } catch (e) {
+                showNotification('Failed to pause download', 'error');
+            }
+        }
+        
+        async function resumeGameDownload(id) {
+            try {
+                await fetch(`/api/game-downloads/resume/${id}`, { method: 'POST' });
+                loadGamesLibrary();
+            } catch (e) {
+                showNotification('Failed to resume download', 'error');
+            }
+        }
+        
+        async function removeGameDownload(id) {
+            if (!confirm('Remove this download? The file will also be deleted.')) return;
+            try {
+                // First stop/abort the download if active, then delete
+                await fetch(`/api/game-downloads/pause/${id}`, { method: 'POST' }).catch(() => {});
+                // Small delay to ensure pause completes
+                await new Promise(r => setTimeout(r, 100));
+                await fetch(`/api/game-downloads/${id}?deleteFile=true`, { method: 'DELETE' });
+                loadGamesLibrary();
+                showNotification('Download removed', 'success');
+            } catch (e) {
+                showNotification('Failed to remove download', 'error');
+            }
+        }
+        
+        async function addGameToLibrary(url, gameName, gameImage, gameSize, provider) {
+            try {
+                // Check if this host is supported by TorBox
+                const torboxSupported = isTorBoxSupported(url);
+                
+                // If host is NOT supported by TorBox, always open in browser
+                if (!torboxSupported) {
+                    if (window.electronAPI?.openExternal) {
+                        await window.electronAPI.openExternal(url);
+                        showNotification(`Opening "${gameName}" in browser - This host is not supported by TorBox`, 'info');
+                    } else {
+                        window.open(url, '_blank');
+                        showNotification(`Opening "${gameName}" in new tab - This host is not supported by TorBox`, 'info');
+                    }
+                    return;
+                }
+                
+                // Check if TorBox is logged in
+                const torboxResp = await fetch('/api/game-downloads/torbox-status');
+                const torboxData = await torboxResp.json();
+                
+                // If TorBox is NOT logged in, open URL in default browser instead
+                if (!torboxData.hasTorBox) {
+                    if (window.electronAPI?.openExternal) {
+                        await window.electronAPI.openExternal(url);
+                        showNotification(`Opening "${gameName}" in browser - Login to TorBox for in-app downloads`, 'info');
+                    } else {
+                        window.open(url, '_blank');
+                        showNotification(`Opening "${gameName}" in new tab - Login to TorBox for in-app downloads`, 'info');
+                    }
+                    return;
+                }
+                
+                const resp = await fetch('/api/game-downloads/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, gameName, gameImage, gameSize, provider })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showNotification(`Added "${gameName}" to library. Download started!`, 'success');
+                    // Refresh library to get accurate count
+                    loadGamesLibrary();
+                } else {
+                    showNotification(data.error || 'Failed to add to library', 'error');
+                }
+            } catch (e) {
+                showNotification('Failed to add to library', 'error');
+            }
+        }
+        
+        // ============================================================================
+        // END GAMES LIBRARY
+        // ============================================================================
         
         // MiniGames page functions
         function showMiniGamesPage() {
@@ -17963,6 +18447,8 @@ Your browser does not support the video tag.
                         // Clear ALL tbToken inputs
                         tbTokenInputs.forEach(input => { input.value = ''; });
                         showNotification('TorBox token saved'); 
+                        // Refresh TorBox status banner in Games Downloader
+                        if (typeof checkTorBoxStatus === 'function') checkTorBoxStatus();
                     }
                     else { const t = await r.text(); showNotification(t || 'Failed to save'); }
                 } catch { showNotification('Failed to save'); }
@@ -17977,6 +18463,8 @@ Your browser does not support the video tag.
                             status.textContent = 'Not logged in';
                         });
                         showNotification('Logged out of TorBox'); 
+                        // Refresh TorBox status banner in Games Downloader
+                        if (typeof checkTorBoxStatus === 'function') checkTorBoxStatus();
                     }
                 } catch {}
             }));
@@ -31119,6 +31607,27 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
         
         // Manga Storage Helpers
         const SAVED_MANGA_KEY = 'pt_saved_manga_v1';
+        const MANGA_PROGRESS_KEY = 'pt_manga_reading_progress_v1';
+        
+        // Reading progress helpers
+        function getAllMangaProgress() {
+            try { return JSON.parse(localStorage.getItem(MANGA_PROGRESS_KEY) || '{}'); } catch { return {}; }
+        }
+        function setAllMangaProgress(data) {
+            localStorage.setItem(MANGA_PROGRESS_KEY, JSON.stringify(data));
+        }
+        function saveMangaReadingProgress(source, mangaId, chapterId, pageIndex) {
+            const key = `${source}_${mangaId}_${chapterId}`;
+            const allProgress = getAllMangaProgress();
+            allProgress[key] = { pageIndex, timestamp: Date.now() };
+            setAllMangaProgress(allProgress);
+        }
+        function loadMangaReadingProgress(source, mangaId, chapterId) {
+            const key = `${source}_${mangaId}_${chapterId}`;
+            const allProgress = getAllMangaProgress();
+            return allProgress[key] ? allProgress[key].pageIndex : 0;
+        }
+        
         function getSavedManga() {
             try { return JSON.parse(localStorage.getItem(SAVED_MANGA_KEY) || '[]'); } catch { return []; }
         }
@@ -31309,6 +31818,33 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
             
             // Back from reader
             mangaReaderBack.addEventListener('click', () => {
+                // Save progress before leaving
+                if (window.currentMangaReadingContext) {
+                    const ctx = window.currentMangaReadingContext;
+                    const pages = document.querySelectorAll('.manga-reader-page');
+                    if (pages.length > 0) {
+                        // Find current page
+                        const viewportCenter = window.innerHeight / 3;
+                        let closestPage = 0;
+                        let closestDistance = Infinity;
+                        pages.forEach((img, index) => {
+                            const rect = img.getBoundingClientRect();
+                            const imgCenter = rect.top + rect.height / 2;
+                            const distance = Math.abs(imgCenter - viewportCenter);
+                            if (distance < closestDistance) {
+                                closestDistance = distance;
+                                closestPage = index;
+                            }
+                        });
+                        saveMangaReadingProgress(ctx.provider, ctx.mangaId, ctx.chapterId, closestPage);
+                    }
+                    window.currentMangaReadingContext = null;
+                }
+                // Remove scroll tracker
+                if (window.mangaScrollTracker) {
+                    window.removeEventListener('scroll', window.mangaScrollTracker);
+                    window.mangaScrollTracker = null;
+                }
                 mangaReaderPage.style.display = 'none';
                 document.getElementById('manga-page').style.display = '';
             });
@@ -31635,6 +32171,9 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
                 
                 if (!provider) provider = mangaSource;
 
+                // Store current reading context for progress tracking
+                window.currentMangaReadingContext = { provider, mangaId: id, chapterId };
+
                 try {
                     let url;
                     if (provider === 'comix') {
@@ -31657,13 +32196,37 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
                     }
 
                     if (pages && pages.length > 0) {
-                        pages.forEach(pageUrl => {
+                        // Load saved progress
+                        const savedPageIndex = loadMangaReadingProgress(provider, id, chapterId);
+                        
+                        pages.forEach((pageUrl, index) => {
                             const img = document.createElement('img');
                             img.src = pageUrl;
                             img.style.width = '100%';
                             img.style.marginBottom = '0.5rem';
+                            img.className = 'manga-reader-page';
+                            img.dataset.pageIndex = index;
+                            img.loading = index <= savedPageIndex + 3 ? 'eager' : 'lazy';
                             pagesContainer.appendChild(img);
                         });
+                        
+                        // Scroll to saved page after images load
+                        if (savedPageIndex > 0) {
+                            const targetImg = pagesContainer.querySelector(`img[data-page-index="${savedPageIndex}"]`);
+                            if (targetImg) {
+                                const scrollToSaved = () => {
+                                    targetImg.scrollIntoView({ behavior: 'instant', block: 'start' });
+                                };
+                                if (targetImg.complete) {
+                                    setTimeout(scrollToSaved, 100);
+                                } else {
+                                    targetImg.addEventListener('load', scrollToSaved, { once: true });
+                                }
+                            }
+                        }
+                        
+                        // Setup scroll tracking for progress saving
+                        setupMangaReaderProgressTracking(pagesContainer, provider, id, chapterId);
                     } else {
                         pagesContainer.innerHTML = '<p style="color: #ef4444;">Could not load chapter pages.</p>';
                     }
@@ -31671,6 +32234,46 @@ async function fetchMovieBoxStreams(season = null, episode = null) {
                     console.error('Error reading chapter:', error);
                     document.getElementById('mangaReaderLoading').innerHTML = '<p style="color: #ef4444;">Failed to load chapter. Please try again.</p>';
                 }
+            }
+            
+            function setupMangaReaderProgressTracking(container, provider, mangaId, chapterId) {
+                let currentPageIndex = 0;
+                let saveTimeout = null;
+                
+                const trackScroll = () => {
+                    const pages = container.querySelectorAll('.manga-reader-page');
+                    const containerRect = container.getBoundingClientRect();
+                    const viewportCenter = window.innerHeight / 3;
+                    
+                    let closestPage = 0;
+                    let closestDistance = Infinity;
+                    
+                    pages.forEach((img, index) => {
+                        const rect = img.getBoundingClientRect();
+                        const imgCenter = rect.top + rect.height / 2;
+                        const distance = Math.abs(imgCenter - viewportCenter);
+                        
+                        if (distance < closestDistance) {
+                            closestDistance = distance;
+                            closestPage = index;
+                        }
+                    });
+                    
+                    if (closestPage !== currentPageIndex) {
+                        currentPageIndex = closestPage;
+                        if (saveTimeout) clearTimeout(saveTimeout);
+                        saveTimeout = setTimeout(() => {
+                            saveMangaReadingProgress(provider, mangaId, chapterId, currentPageIndex);
+                        }, 500);
+                    }
+                };
+                
+                // Remove old listener if exists
+                if (window.mangaScrollTracker) {
+                    window.removeEventListener('scroll', window.mangaScrollTracker);
+                }
+                window.mangaScrollTracker = trackScroll;
+                window.addEventListener('scroll', trackScroll);
             }
         }
 
@@ -34682,7 +35285,15 @@ document.addEventListener('DOMContentLoaded', () => {
             container.querySelectorAll('.addon-provider-btn').forEach(b => b.remove());
 
             installedAddons.forEach(addon => {
-                if (addon.manifest.resources.some(r => r.name === 'stream' || r === 'stream')) {
+                // Check if addon provides 'stream' resources - metadata-only addons should NOT appear
+                const resources = addon.manifest?.resources || [];
+                const hasStream = resources.some(r => {
+                    if (typeof r === 'string') return r === 'stream';
+                    if (typeof r === 'object' && r !== null) return r.name === 'stream';
+                    return false;
+                }) || resources.includes('stream');
+                
+                if (hasStream) {
                     const btn = document.createElement('button');
                     btn.className = 'provider-btn addon-provider-btn';
                     btn.dataset.provider = `addon:${addon.manifest.id}`;
@@ -34864,11 +35475,21 @@ document.addEventListener('DOMContentLoaded', () => {
         defaultOpts.forEach(o => select.appendChild(o));
         
         installedAddons.forEach(addon => {
-            const hasSearch = addon.manifest.catalogs && addon.manifest.catalogs.some(c => 
-                c.extra && c.extra.some(e => e.name === 'search')
-            );
+            // Check if addon has catalogs that could support search
+            // Addons with movie/series catalogs can potentially support search
+            let hasSearchableCatalogs = false;
             
-            if (hasSearch) {
+            if (addon.manifest.catalogs && addon.manifest.catalogs.length > 0) {
+                hasSearchableCatalogs = addon.manifest.catalogs.some(c => {
+                    // Explicit search support
+                    const hasExplicitSearch = c.extra && c.extra.some(e => e.name === 'search');
+                    // Or it's a movie/series catalog (most support search even without declaring it)
+                    const isSearchableType = c.type === 'movie' || c.type === 'series';
+                    return hasExplicitSearch || isSearchableType;
+                });
+            }
+            
+            if (hasSearchableCatalogs) {
                 const opt = document.createElement('option');
                 opt.value = `addon:${addon.manifest.id}`;
                 opt.textContent = addon.manifest.name;
@@ -34891,11 +35512,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const addon = installedAddons.find(a => a.manifest.id === addonId);
         if (!addon) return;
         
-        const catalog = addon.manifest.catalogs.find(c => 
-             c.extra && c.extra.some(e => e.name === 'search') && (c.type === 'movie' || c.type === 'series' || c.type === 'channel')
-        );
+        // Find searchable catalogs - prioritize explicit search support, then fall back to movie/series catalogs
+        let searchCatalogs = [];
+        if (addon.manifest.catalogs) {
+            const explicitSearchCatalogs = addon.manifest.catalogs.filter(c => 
+                c.extra && c.extra.some(e => e.name === 'search') && (c.type === 'movie' || c.type === 'series' || c.type === 'channel')
+            );
+            
+            if (explicitSearchCatalogs.length > 0) {
+                searchCatalogs = explicitSearchCatalogs;
+            } else {
+                // Fall back to any movie/series catalogs
+                searchCatalogs = addon.manifest.catalogs.filter(c => c.type === 'movie' || c.type === 'series');
+            }
+        }
         
-        if (!catalog) {
+        if (searchCatalogs.length === 0) {
             showNotification('This addon does not support search', 'error');
             return;
         }
@@ -34922,21 +35554,34 @@ document.addEventListener('DOMContentLoaded', () => {
             let url = addon.url.replace('/manifest.json', '');
             if (url.endsWith('/')) url = url.slice(0, -1);
             
-            const searchUrl = `${url}/catalog/${catalog.type}/${catalog.id}/search=${encodeURIComponent(query)}.json`;
-            console.log('[AddonSearch] Fetching:', searchUrl);
-            
-            const res = await fetch(searchUrl);
-            const data = await res.json();
+            // Try each catalog until we get results
+            let allResults = [];
+            for (const catalog of searchCatalogs) {
+                try {
+                    const searchUrl = `${url}/catalog/${catalog.type}/${catalog.id}/search=${encodeURIComponent(query)}.json`;
+                    console.log('[AddonSearch] Trying:', searchUrl);
+                    
+                    const res = await fetch(searchUrl);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    
+                    if (data.metas && data.metas.length > 0) {
+                        allResults = [...allResults, ...data.metas];
+                    }
+                } catch (e) {
+                    console.warn(`[AddonSearch] Failed for catalog ${catalog.id}:`, e);
+                }
+            }
             
             if (loading) loading.style.display = 'none';
             
-            if (!data.metas || data.metas.length === 0) {
+            if (allResults.length === 0) {
                  if (grid) grid.innerHTML = '<div style="text-align:center; width:100%; grid-column:1/-1;">No results found</div>';
                  return;
             }
             
-            lastSearchResults = data.metas;
-            renderStremioItems(data.metas, grid);
+            lastSearchResults = allResults;
+            renderStremioItems(allResults, grid);
             
         } catch (e) {
             console.error('[AddonSearch] Error:', e);
@@ -35057,6 +35702,45 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!fullMeta) fullMeta = previewMeta;
         
+        // Check if addon meta includes moviedb_id (TMDB ID) - use it for richer metadata
+        const tmdbId = fullMeta.moviedb_id || fullMeta.tmdb_id;
+        if (tmdbId) {
+            console.log('[Addon] Found TMDB ID in meta:', tmdbId);
+            try {
+                // Fetch TMDB data for richer metadata and episodes
+                const tmdbType = fullMeta.type === 'series' ? 'tv' : fullMeta.type;
+                const tmdbRes = await fetch(`https://api.themoviedb.org/3/${tmdbType}/${tmdbId}?api_key=b3556f3b206e16f82df4d1f6fd4545e6&append_to_response=credits,external_ids`);
+                if (tmdbRes.ok) {
+                    const tmdbData = await tmdbRes.json();
+                    
+                    // Create a proper item with TMDB data
+                    const fakeItem = {
+                        id: tmdbId, // Use TMDB ID
+                        title: tmdbData.title || tmdbData.name,
+                        original_title: tmdbData.original_title || tmdbData.original_name,
+                        poster_path: tmdbData.poster_path,
+                        backdrop_path: tmdbData.backdrop_path,
+                        overview: tmdbData.overview,
+                        vote_average: tmdbData.vote_average || 0,
+                        release_date: tmdbData.release_date || tmdbData.first_air_date || '',
+                        media_type: tmdbType,
+                        seasons: tmdbData.seasons || [],
+                        credits: tmdbData.credits,
+                        external_ids: tmdbData.external_ids,
+                        _addonMeta: fullMeta // Keep original addon meta for reference
+                    };
+                    
+                    if (typeof openDetailsModal === 'function') {
+                        openDetailsModal(fakeItem);
+                    }
+                    return;
+                }
+            } catch (e) {
+                console.warn('[Addon] Failed to fetch TMDB data:', e);
+            }
+        }
+        
+        // Fallback to addon meta only
         const fakeItem = {
             id: fullMeta.id,
             title: fullMeta.name,
@@ -35145,7 +35829,15 @@ document.addEventListener('DOMContentLoaded', () => {
             container.querySelectorAll('.addon-provider-btn').forEach(b => b.remove());
 
             installedAddons.forEach(addon => {
-                if (addon.manifest.resources.some(r => r.name === 'stream' || r === 'stream')) {
+                // Check if addon provides 'stream' resources - metadata-only addons should NOT appear
+                const resources = addon.manifest?.resources || [];
+                const hasStream = resources.some(r => {
+                    if (typeof r === 'string') return r === 'stream';
+                    if (typeof r === 'object' && r !== null) return r.name === 'stream';
+                    return false;
+                }) || resources.includes('stream');
+                
+                if (hasStream) {
                     const btn = document.createElement('button');
                     btn.className = 'provider-btn addon-provider-btn';
                     btn.dataset.provider = `addon:${addon.manifest.id}`;
