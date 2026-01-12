@@ -77,19 +77,10 @@
       "engine/**/*",
       "src/**/*",
       "public/**/*",
-      "node_modules/**/*",
-      "PlayTorrioPlayer/**/*"
+      "node_modules/**/*"
     ],
     "asarUnpack": [
-      "engine/**/*",
-      "PlayTorrioPlayer/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "PlayTorrioPlayer",
-        "to": "PlayTorrioPlayer",
-        "filter": ["**/*"]
-      }
+      "engine/**/*"
     ],
     "win": {
       "icon": "build/icon.ico",
