@@ -290,7 +290,7 @@
                         </svg>
                         <span id="episodes-title">Episodes</span>
                     </h3>
-                    <div id="episode-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[350px] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar"></div>
+                    <div id="episode-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[180px] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar"></div>
                 </div>
 
                 <!-- Sources List -->
@@ -333,9 +333,9 @@
                         </div>
                         
                         <!-- Embedded Player Container -->
-                        <div id="embedded-player-container" class="hidden pb-6">
-                            <div class="aspect-video w-full rounded-xl overflow-hidden bg-black border border-gray-800">
-                                <iframe id="embedded-player-iframe" class="w-full h-full" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"></iframe>
+                        <div id="embedded-player-container" class="hidden pb-6 flex-1" style="min-height: 450px;">
+                            <div class="w-full rounded-xl overflow-hidden bg-black border border-gray-800" style="min-height: 450px; height: calc(100vh - 350px);">
+                                <iframe id="embedded-player-iframe" class="w-full h-full" style="min-height: 450px;" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"></iframe>
                             </div>
                         </div>
                     </div>

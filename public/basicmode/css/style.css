@@ -239,15 +239,16 @@ body {
 
 /* Mobile responsive fixes for details page */
 @media (max-width: 640px) {
-    /* Ensure sources list is scrollable on small screens */
+    /* Ensure sources list shows at least 3 results */
     #sources-list {
-        max-height: calc(100vh - 300px);
-        min-height: 200px;
+        max-height: none;
+        min-height: 280px;
+        flex: 1;
     }
     
-    /* Make source cards more compact */
+    /* Make source cards more compact for mobile */
     .source-card {
-        padding: 0.75rem !important;
+        padding: 0.5rem !important;
     }
     
     /* Ensure release name wraps instead of truncating on very small screens */
@@ -284,14 +285,21 @@ body {
 /* Tablet adjustments */
 @media (min-width: 641px) and (max-width: 1024px) {
     #sources-list {
-        max-height: calc(100vh - 350px);
+        max-height: none;
+        min-height: 300px;
+        flex: 1;
+    }
+    
+    .source-card {
+        padding: 0.65rem !important;
     }
 }
 
 /* Desktop - ensure sources list is scrollable */
 @media (min-width: 1025px) {
     #sources-list {
-        max-height: calc(100vh - 320px);
+        max-height: calc(100vh - 380px);
+        min-height: 320px;
         overflow-y: auto !important;
     }
     
@@ -644,4 +652,79 @@ body.sidebar-collapsed #main-content {
 .modal-select option {
     background: #1f1f1f;
     color: #f2f2f2;
+}
+
+
+/* Embedded player container - fill available space */
+#embedded-servers-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 600px;
+}
+
+#embedded-player-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#embedded-player-container > div {
+    flex: 1;
+    min-height: 450px !important;
+    height: auto;
+}
+
+#embedded-player-iframe {
+    min-height: 450px !important;
+}
+
+/* Episode grid - limit to 2 rows */
+#episode-grid {
+    max-height: 180px !important;
+}
+
+@media (min-width: 1024px) {
+    #embedded-servers-section {
+        min-height: 70vh;
+    }
+    
+    #embedded-player-container > div {
+        min-height: 500px !important;
+        height: calc(100vh - 350px);
+    }
+    
+    #embedded-player-iframe {
+        min-height: 500px !important;
+    }
+}
+
+@media (max-width: 1023px) {
+    #embedded-player-container > div {
+        min-height: 400px !important;
+    }
+    
+    #embedded-player-iframe {
+        min-height: 400px !important;
+    }
+}
+
+
+/* Source cards - ensure 3 are always visible */
+.source-card {
+    padding: 0.65rem !important;
+}
+
+/* Very small screens - extra compact */
+@media (max-height: 700px) {
+    .source-card {
+        padding: 0.5rem !important;
+    }
+    
+    #sources-list {
+        min-height: 240px;
+    }
+    
+    #episode-grid {
+        max-height: 140px !important;
+    }
 }
