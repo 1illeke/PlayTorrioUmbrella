@@ -443,29 +443,32 @@
                     </h3>
                     
                     <div class="mb-4">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" id="use-nodempv-toggle" class="form-checkbox bg-gray-800 border-gray-700 text-orange-600 rounded focus:ring-orange-500 transition-colors">
-                            <span class="text-gray-300 text-xs sm:text-sm">Use MPV Player (Better codec support)</span>
-                        </label>
-                        <p class="text-gray-500 text-[9px] sm:text-[10px] mt-1 ml-6">Requires MPV installed. Uses native MPV for better audio/video codec support.</p>
+                        <label class="block text-gray-400 text-[10px] sm:text-xs font-medium mb-2">Video Player</label>
+                        <select id="player-type-select" class="w-full bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-orange-500 transition-all">
+                            <option value="playtorrio">PlayTorrio Player (Default)</option>
+                            <option value="builtin">Built-in HTML5 Player</option>
+                            <option value="nodempv">Node MPV Player</option>
+                        </select>
+                        <p class="text-gray-500 text-[9px] sm:text-[10px] mt-1">Choose your preferred video player.</p>
                     </div>
                     
-                    <div class="mb-4">
+                    <!-- MPV Path (only shown when Node MPV is selected) -->
+                    <div id="mpv-path-section" class="mb-4 hidden">
                         <label class="block text-gray-400 text-xs sm:text-sm font-medium mb-2">Custom MPV Path (optional)</label>
                         <div class="flex gap-2">
                             <input type="text" id="mpv-path-input" placeholder="Leave empty to use global MPV" class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-xs sm:text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors">
                             <button id="browse-mpv-btn" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs sm:text-sm transition-colors">Browse</button>
                         </div>
                         <p class="text-gray-500 text-[9px] sm:text-[10px] mt-1">Path to mpv.exe (e.g., C:\mpv\mpv.exe)</p>
-                    </div>
-                    
-                    <div class="p-3 bg-orange-500/10 border-l-2 border-orange-500 rounded-r-lg">
-                        <a href="#" id="download-mpv-btn" class="text-orange-500 hover:text-orange-400 text-xs sm:text-sm flex items-center gap-2 transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            Download MPV if not installed
-                        </a>
+                        
+                        <div class="p-3 bg-orange-500/10 border-l-2 border-orange-500 rounded-r-lg mt-3">
+                            <a href="#" id="download-mpv-btn" class="text-orange-500 hover:text-orange-400 text-xs sm:text-sm flex items-center gap-2 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Download MPV if not installed
+                            </a>
+                        </div>
                     </div>
                 </div>
 

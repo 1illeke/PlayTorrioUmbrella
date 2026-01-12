@@ -3089,17 +3089,41 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
 
     const metadata = { tmdbId: finalTmdbId, imdbId: finalImdbId, seasonNum, episodeNum, isDebrid, type: (seasonNum || type === 'tv' ? 'tv' : 'movie'), isBasicMode, showName, provider, providerUrl, quality };
     
-    // Check if NodeMPV is enabled (Windows only)
+    // Check player settings (Windows only)
     if (process.platform === 'win32') {
         try {
             const settingsRes = await fetch('http://localhost:6987/api/settings');
             const settings = await settingsRes.json();
-            if (settings.useNodeMPV) {
+            
+            // Determine player type (default to playtorrio)
+            const playerType = settings.playerType || (settings.useNodeMPV ? 'nodempv' : 'playtorrio');
+            
+            if (playerType === 'nodempv') {
                 console.log('[Main] Using NodeMPV player');
                 return openInNodeMPVPlayer(mainWindow, url, null, metadata);
+            } else if (playerType === 'playtorrio') {
+                console.log('[Main] Using PlayTorrioPlayer');
+                try {
+                    const response = await fetch('http://localhost:6987/api/playtorrioplayer', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        return { success: true, message: 'PlayTorrioPlayer launched' };
+                    } else {
+                        console.warn('[Main] PlayTorrioPlayer failed:', result.error);
+                        // Fall through to HTML5 player as fallback
+                    }
+                } catch (e) {
+                    console.warn('[Main] PlayTorrioPlayer error:', e.message);
+                    // Fall through to HTML5 player as fallback
+                }
             }
+            // playerType === 'builtin' falls through to HTML5 player
         } catch(e) {
-            console.warn('[Main] Failed to check NodeMPV setting:', e.message);
+            console.warn('[Main] Failed to check player settings:', e.message);
         }
     }
     

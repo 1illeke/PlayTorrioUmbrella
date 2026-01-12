@@ -9651,37 +9651,44 @@
                     </div>
                 </div>
                 
-                <!-- NodeMPV Player Section (Windows Only) -->
+                <!-- Player Settings Section (All Platforms) -->
                 <div id="nodempvContent" class="settings-section" style="display:none;">
                     <div class="settings-card">
                         <div class="settings-card-header">
                             <h3><i class="fas fa-play-circle" style="color: #f97316;"></i> Player Settings</h3>
                         </div>
                         <div class="settings-card-body">
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="useNodeMPVToggle" />
-                                <label for="useNodeMPVToggle">Use MPV Player (Better codec support)</label>
-                            </div>
-                            <div style="margin-top:0.5rem; color:var(--gray); font-size:0.85rem;">
-                                <i class="fas fa-info-circle"></i> Requires MPV installed on your system. Uses native MPV for better audio/video codec support including DTS, TrueHD, etc.
-                            </div>
-                            
-                            <div class="form-group" style="margin-top:1rem;">
-                                <label for="mpvPathInput">Custom MPV Path (optional)</label>
-                                <div style="display:flex; gap:0.5rem;">
-                                    <input type="text" id="mpvPathInput" placeholder="Leave empty to use global MPV" style="flex:1;" />
-                                    <button class="api-btn" id="browseMpvPathBtn" style="background:var(--gray-dark);">
-                                        <i class="fas fa-folder-open"></i> Browse
-                                    </button>
-                                </div>
-                                <div style="margin-top:0.25rem; color:var(--gray); font-size:0.8rem;">
-                                    Path to mpv.exe (e.g., C:\mpv\mpv.exe)
+                            <div class="form-group">
+                                <label for="playerTypeSelect">Video Player</label>
+                                <select id="playerTypeSelect">
+                                    <option value="playtorrio">PlayTorrio Player (Default)</option>
+                                    <option value="builtin">Built-in HTML5 Player</option>
+                                    <option value="nodempv" id="nodempvOption">Node MPV Player</option>
+                                </select>
+                                <div style="margin-top:0.5rem; color:var(--gray); font-size:0.85rem;">
+                                    <i class="fas fa-info-circle"></i> Choose your preferred video player.
                                 </div>
                             </div>
                             
-                            <div style="margin-top:0.75rem; padding:0.75rem; background:rgba(249,115,22,0.1); border-left:3px solid #f97316; border-radius:4px; font-size:0.85rem;">
-                                <i class="fas fa-download" style="color:#f97316;"></i> 
-                                <a href="#" id="downloadMpvLink" style="color:#f97316; text-decoration:underline;">Download MPV</a> if not installed.
+                            <!-- MPV Path Section (Windows Only) -->
+                            <div id="mpvPathSection" style="display:none; margin-top:1rem;">
+                                <div class="form-group">
+                                    <label for="mpvPathInput">Custom MPV Path (optional)</label>
+                                    <div style="display:flex; gap:0.5rem;">
+                                        <input type="text" id="mpvPathInput" placeholder="Leave empty to use global MPV" style="flex:1;" />
+                                        <button class="api-btn" id="browseMpvPathBtn" style="background:var(--gray-dark);">
+                                            <i class="fas fa-folder-open"></i> Browse
+                                        </button>
+                                    </div>
+                                    <div style="margin-top:0.25rem; color:var(--gray); font-size:0.8rem;">
+                                        Path to mpv.exe (e.g., C:\mpv\mpv.exe)
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-top:0.75rem; padding:0.75rem; background:rgba(249,115,22,0.1); border-left:3px solid #f97316; border-radius:4px; font-size:0.85rem;">
+                                    <i class="fas fa-download" style="color:#f97316;"></i> 
+                                    <a href="#" id="downloadMpvLink" style="color:#f97316; text-decoration:underline;">Download MPV</a> if not installed.
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -11622,20 +11629,51 @@ If you experience audio problems or no audio at all, click <strong>"Open in MPV"
             quality
         } = options;
         
-        // Check if NodeMPV is enabled (Windows only) - use Electron IPC for that
-        if (window.electronAPI?.spawnMpvjsPlayer) {
-            try {
-                const settingsRes = await fetch('/api/settings');
-                const settings = await settingsRes.json();
-                if (settings.useNodeMPV) {
+        // Check player settings
+        try {
+            const settingsRes = await fetch('/api/settings');
+            const settings = await settingsRes.json();
+            
+            // Determine player type (default to playtorrio)
+            const playerType = settings.playerType || (settings.useNodeMPV ? 'nodempv' : 'playtorrio');
+            
+            if (playerType === 'nodempv') {
+                // Use NodeMPV player via Electron IPC
+                if (window.electronAPI?.spawnMpvjsPlayer) {
                     console.log('[Player] Using NodeMPV player');
                     window.electronAPI.spawnMpvjsPlayer(options);
                     return { success: true };
                 }
-            } catch (e) {
-                console.warn('[Player] Failed to check NodeMPV setting:', e);
+                // Fall through to HTML5 if electron API not available
+            } else if (playerType === 'playtorrio') {
+                // Use PlayTorrioPlayer (external player)
+                console.log('[Player] Using PlayTorrioPlayer');
+                try {
+                    const response = await fetch('/api/playtorrioplayer', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url, subtitles: [] })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        return { success: true, externalPlayer: true };
+                    } else {
+                        console.warn('[Player] PlayTorrioPlayer failed:', result.error);
+                        // Fall through to HTML5 player as fallback
+                    }
+                } catch (e) {
+                    console.warn('[Player] PlayTorrioPlayer error:', e);
+                    // Fall through to HTML5 player as fallback
+                }
             }
+            // playerType === 'builtin' falls through to HTML5 player below
+            
+        } catch (e) {
+            console.warn('[Player] Failed to check settings:', e);
         }
+        
+        // HTML5 Built-in Player (default fallback)
+        console.log('[Player] Using Built-in HTML5 player');
         
         // Build player URL with query params for HTML5 player
         const params = new URLSearchParams();
@@ -11654,18 +11692,20 @@ If you experience audio problems or no audio at all, click <strong>"Open in MPV"
         
         const playerUrl = `http://localhost:6987/player.html?${params.toString()}`;
         
-        // Extract stream hash for cleanup (if local WebTorrent stream)
+        // Extract stream hash for cleanup (if local torrent stream)
         let streamHash = null;
-        if (url && url.includes('/api/stream-file')) {
+        let isAltEngine = false;
+        if (url && (url.includes('/api/stream-file') || url.includes('/api/alt-stream-file'))) {
             try {
                 const urlObj = new URL(url);
                 streamHash = urlObj.searchParams.get('hash');
+                isAltEngine = url.includes('/api/alt-stream-file');
             } catch (e) {}
         }
         
         // Use the playerOverlay (HTML5 player)
         if (window.playerOverlay) {
-            window.playerOverlay.open(playerUrl, streamHash);
+            window.playerOverlay.open(playerUrl, streamHash, isAltEngine);
             return { success: true };
         }
         
@@ -13084,35 +13124,68 @@ Your browser does not support the video tag.
                     document.querySelectorAll('#tbSection').forEach(el => el.style.display = isTB ? '' : 'none');
                     document.querySelectorAll('#pmSection').forEach(el => el.style.display = isPM ? '' : 'none');
                     
-                    // NodeMPV Player (Windows Only)
+                    // Player Settings (All Platforms, but Node MPV only on Windows)
                     try {
                         const platformRes = await fetch('/api/platform');
                         const platformData = await platformRes.json();
                         const isWindows = platformData.platform === 'win32';
                         
-                        // Show/hide NodeMPV sections based on platform
+                        // Show Player section on all platforms
                         document.querySelectorAll('#nodempvContent').forEach(el => {
-                            el.style.display = isWindows ? '' : 'none';
+                            el.style.display = '';
                         });
-                        // Show/hide the Player tab
+                        // Show the Player tab on all platforms
                         const nodempvTab = document.getElementById('nodempvTab');
                         if (nodempvTab) {
-                            nodempvTab.style.display = isWindows ? '' : 'none';
+                            nodempvTab.style.display = '';
                         }
-                        // Show the main toggle in Nuvio section
+                        
+                        // Hide Node MPV option on non-Windows platforms
+                        const nodempvOption = document.getElementById('nodempvOption');
+                        if (nodempvOption && !isWindows) {
+                            nodempvOption.style.display = 'none';
+                        }
+                        
+                        // Show the main toggle in Nuvio section only on Windows
                         const nodempvSectionMain = document.getElementById('nodempvSectionMain');
                         if (nodempvSectionMain) {
                             nodempvSectionMain.style.display = isWindows ? '' : 'none';
                         }
                         
-                        // Load NodeMPV toggle state for all toggles
+                        // Load player type setting
+                        const playerTypeSelect = document.getElementById('playerTypeSelect');
+                        const mpvPathSection = document.getElementById('mpvPathSection');
+                        
+                        if (playerTypeSelect) {
+                            // Determine current player type
+                            let currentPlayerType = 'playtorrio'; // default
+                            if (s.playerType) {
+                                currentPlayerType = s.playerType;
+                                // If non-Windows and somehow set to nodempv, reset to playtorrio
+                                if (!isWindows && currentPlayerType === 'nodempv') {
+                                    currentPlayerType = 'playtorrio';
+                                }
+                            } else if (s.useNodeMPV && isWindows) {
+                                // Legacy support
+                                currentPlayerType = 'nodempv';
+                            }
+                            
+                            playerTypeSelect.value = currentPlayerType;
+                            
+                            // Show/hide MPV path section
+                            if (mpvPathSection) {
+                                mpvPathSection.style.display = (isWindows && currentPlayerType === 'nodempv') ? '' : 'none';
+                            }
+                        }
+                        
+                        // Legacy: sync old toggles if they exist
                         if (isWindows) {
                             document.querySelectorAll('#useNodeMPVToggle, #useNodeMPVToggleMain').forEach(toggle => {
                                 toggle.checked = !!s.useNodeMPV;
                             });
                         }
                     } catch(e) {
-                        console.warn('[Settings] Failed to check platform for NodeMPV:', e);
+                        console.warn('[Settings] Failed to check platform for Player settings:', e);
                     }
                 }
             } catch(_) {}
@@ -18538,20 +18611,68 @@ Your browser does not support the video tag.
                 } catch {}
             }));
 
-            // ===== NodeMPV Player Toggle (Windows Only) =====
-            document.querySelectorAll('#useNodeMPVToggle, #useNodeMPVToggleMain').forEach(toggle => {
-                toggle.addEventListener('change', async (e) => {
+            // ===== Player Type Select (All Platforms) =====
+            const playerTypeSelect = document.getElementById('playerTypeSelect');
+            const mpvPathSection = document.getElementById('mpvPathSection');
+            
+            if (playerTypeSelect) {
+                playerTypeSelect.addEventListener('change', async (e) => {
+                    const playerType = e.target.value;
                     try {
                         await fetch(`${API_BASE_URL}/settings`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ useNodeMPV: e.target.checked })
+                            body: JSON.stringify({ 
+                                playerType: playerType,
+                                useNodeMPV: playerType === 'nodempv' // Legacy support
+                            })
                         });
-                        // Sync all toggles (both in settings and in Nuvio section)
+                        
+                        // Show/hide MPV path section
+                        if (mpvPathSection) {
+                            const isWindows = (await fetch('/api/platform').then(r => r.json())).platform === 'win32';
+                            mpvPathSection.style.display = (isWindows && playerType === 'nodempv') ? '' : 'none';
+                        }
+                        
+                        // Sync legacy toggles
+                        document.querySelectorAll('#useNodeMPVToggle, #useNodeMPVToggleMain').forEach(t => {
+                            t.checked = playerType === 'nodempv';
+                        });
+                        
+                        const playerNames = {
+                            'playtorrio': 'PlayTorrio Player',
+                            'builtin': 'Built-in HTML5 Player',
+                            'nodempv': 'Node MPV Player'
+                        };
+                        showNotification(`${playerNames[playerType] || playerType} enabled`);
+                    } catch (err) {
+                        showNotification('Failed to save player setting');
+                    }
+                });
+            }
+            
+            // Legacy: NodeMPV Player Toggle (Windows Only) - keep for backwards compatibility
+            document.querySelectorAll('#useNodeMPVToggle, #useNodeMPVToggleMain').forEach(toggle => {
+                toggle.addEventListener('change', async (e) => {
+                    try {
+                        const playerType = e.target.checked ? 'nodempv' : 'playtorrio';
+                        await fetch(`${API_BASE_URL}/settings`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                playerType: playerType,
+                                useNodeMPV: e.target.checked 
+                            })
+                        });
+                        // Sync all toggles
                         document.querySelectorAll('#useNodeMPVToggle, #useNodeMPVToggleMain').forEach(t => {
                             t.checked = e.target.checked;
                         });
-                        showNotification(e.target.checked ? 'MPV Player enabled' : 'HTML5 Player enabled');
+                        // Sync player type select
+                        if (playerTypeSelect) {
+                            playerTypeSelect.value = playerType;
+                        }
+                        showNotification(e.target.checked ? 'MPV Player enabled' : 'PlayTorrio Player enabled');
                     } catch (err) {
                         showNotification('Failed to save player setting');
                     }

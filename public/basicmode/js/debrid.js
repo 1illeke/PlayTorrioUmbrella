@@ -253,45 +253,82 @@ export const initDebridUI = async () => {
     updateUI(settings.debridProvider || 'realdebrid');
 };
 
-// NodeMPV Player Settings (Windows Only)
+// Player Settings (All platforms, but Node MPV only on Windows)
 export const initNodeMPVUI = async () => {
     const nodempvSection = document.getElementById('nodempv-section');
-    const useNodeMPVToggle = document.getElementById('use-nodempv-toggle');
+    const playerTypeSelect = document.getElementById('player-type-select');
+    const mpvPathSection = document.getElementById('mpv-path-section');
     const mpvPathInput = document.getElementById('mpv-path-input');
     const browseMpvBtn = document.getElementById('browse-mpv-btn');
     
-    if (!nodempvSection || !useNodeMPVToggle) return;
+    if (!nodempvSection || !playerTypeSelect) return;
     
-    // Only show on Windows
+    // Check platform
+    let isWindows = false;
     try {
         const platformRes = await fetch('/api/platform');
         const platformData = await platformRes.json();
-        if (platformData.platform !== 'win32') {
-            nodempvSection.style.display = 'none';
-            return;
-        }
+        isWindows = platformData.platform === 'win32';
     } catch(e) {
-        // If we can't detect platform, hide the section
-        nodempvSection.style.display = 'none';
-        return;
+        // If we can't detect platform, assume not Windows
+        isWindows = false;
     }
     
-    // Show the section on Windows
+    // Show the section on all platforms
     nodempvSection.classList.remove('hidden');
+    
+    // Remove Node MPV option on non-Windows platforms
+    if (!isWindows) {
+        const nodempvOption = playerTypeSelect.querySelector('option[value="nodempv"]');
+        if (nodempvOption) {
+            nodempvOption.remove();
+        }
+    }
     
     // Load initial state
     const settings = await getDebridSettings();
-    useNodeMPVToggle.checked = !!settings.useNodeMPV;
+    
+    // Determine current player type from settings
+    let currentPlayerType = 'playtorrio'; // default
+    if (settings.playerType) {
+        currentPlayerType = settings.playerType;
+        // If non-Windows and somehow set to nodempv, reset to playtorrio
+        if (!isWindows && currentPlayerType === 'nodempv') {
+            currentPlayerType = 'playtorrio';
+        }
+    } else if (settings.useNodeMPV && isWindows) {
+        // Legacy support: if useNodeMPV was true on Windows, set to nodempv
+        currentPlayerType = 'nodempv';
+    }
+    
+    playerTypeSelect.value = currentPlayerType;
+    
+    // Show/hide MPV path section based on selection (Windows only)
+    const updateMpvPathVisibility = () => {
+        if (isWindows && playerTypeSelect.value === 'nodempv') {
+            mpvPathSection.classList.remove('hidden');
+        } else {
+            mpvPathSection.classList.add('hidden');
+        }
+    };
+    updateMpvPathVisibility();
+    
     if (mpvPathInput) {
         mpvPathInput.value = settings.mpvPath || '';
     }
     
-    // Event listener for toggle
-    useNodeMPVToggle.addEventListener('change', (e) => {
-        saveDebridSettings({ useNodeMPV: e.target.checked });
+    // Event listener for player type change
+    playerTypeSelect.addEventListener('change', (e) => {
+        const playerType = e.target.value;
+        // Save both new playerType and legacy useNodeMPV for backwards compatibility
+        saveDebridSettings({ 
+            playerType: playerType,
+            useNodeMPV: playerType === 'nodempv'
+        });
+        updateMpvPathVisibility();
     });
     
-    // Event listener for path input (save on blur)
+    // Event listener for path input (save on blur) - Windows only
     if (mpvPathInput) {
         mpvPathInput.addEventListener('blur', () => {
             saveDebridSettings({ mpvPath: mpvPathInput.value.trim() || null });
@@ -303,7 +340,7 @@ export const initNodeMPVUI = async () => {
         });
     }
     
-    // Browse button - use Electron dialog if available
+    // Browse button - use Electron dialog if available (Windows only)
     if (browseMpvBtn) {
         browseMpvBtn.addEventListener('click', async () => {
             if (window.electronAPI?.pickFile) {
@@ -321,7 +358,7 @@ export const initNodeMPVUI = async () => {
         });
     }
     
-    // Download MPV button - open in default browser
+    // Download MPV button - open in default browser (Windows only)
     const downloadMpvBtn = document.getElementById('download-mpv-btn');
     if (downloadMpvBtn) {
         downloadMpvBtn.addEventListener('click', (e) => {

@@ -114,6 +114,113 @@ function hidePlayLoading() {
     }
 }
 
+// Fetch subtitles for PlayTorrioPlayer with 5 second timeout
+async function fetchSubtitlesForPlayer(tmdbId, imdbId, seasonNum, episodeNum, mediaType) {
+    const subtitles = [];
+    const TIMEOUT = 5000; // 5 seconds max
+    
+    // Create a promise that resolves with current subtitles after timeout
+    const timeoutPromise = new Promise(resolve => {
+        setTimeout(() => {
+            console.log('[Subtitles] Timeout reached, returning what we have');
+            resolve('timeout');
+        }, TIMEOUT);
+    });
+    
+    // Fetch subtitles with timeout
+    const fetchPromise = (async () => {
+        const fetchPromises = [];
+        
+        // 1. Fetch from Wyzie
+        if (tmdbId) {
+            fetchPromises.push((async () => {
+                try {
+                    let wyzieUrl = `https://sub.wyzie.ru/search?id=${tmdbId}`;
+                    if (seasonNum && episodeNum) wyzieUrl += `&season=${seasonNum}&episode=${episodeNum}`;
+                    
+                    const res = await fetch(wyzieUrl);
+                    const wyzieData = await res.json();
+                    
+                    if (wyzieData && wyzieData.length > 0) {
+                        wyzieData.forEach(sub => {
+                            if (sub.url) {
+                                subtitles.push({
+                                    provider: 'Wyzie',
+                                    name: sub.display || sub.languageName || 'Unknown',
+                                    url: sub.url
+                                });
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.warn('[Subtitles] Wyzie fetch error:', e);
+                }
+            })());
+        }
+        
+        // 2. Fetch from installed Stremio addons
+        fetchPromises.push((async () => {
+            try {
+                const { getInstalledAddons } = await import('./addons.js');
+                const addons = await getInstalledAddons();
+                
+                const addonPromises = addons.map(async (addon) => {
+                    const resources = addon.manifest?.resources || [];
+                    const hasSubtitles = resources.some(r => 
+                        (typeof r === 'string' && r === 'subtitles') ||
+                        (typeof r === 'object' && r?.name === 'subtitles')
+                    );
+                    
+                    if (!hasSubtitles) return;
+                    
+                    try {
+                        let baseUrl = addon.url.replace('/manifest.json', '');
+                        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+                        
+                        const resourceId = mediaType === 'tv' && seasonNum && episodeNum
+                            ? `${imdbId}:${seasonNum}:${episodeNum}`
+                            : imdbId;
+                        
+                        const endpoint = `${baseUrl}/subtitles/${mediaType}/${encodeURIComponent(resourceId)}.json`;
+                        const res = await fetch(endpoint);
+                        
+                        if (res.ok) {
+                            const data = await res.json();
+                            const addonSubs = data.subtitles || [];
+                            const addonName = addon.manifest?.name || 'Addon';
+                            
+                            addonSubs.forEach(sub => {
+                                if (sub.url) {
+                                    subtitles.push({
+                                        provider: addonName,
+                                        name: sub.lang || sub.language || 'Unknown',
+                                        url: sub.url
+                                    });
+                                }
+                            });
+                        }
+                    } catch (e) {
+                        // Addon doesn't support subtitles for this content
+                    }
+                });
+                
+                await Promise.allSettled(addonPromises);
+            } catch (e) {
+                console.warn('[Subtitles] Addon fetch error:', e);
+            }
+        })());
+        
+        await Promise.allSettled(fetchPromises);
+        return 'done';
+    })();
+    
+    // Race between fetch and timeout
+    await Promise.race([fetchPromise, timeoutPromise]);
+    
+    console.log(`[Subtitles] Returning ${subtitles.length} subtitles`);
+    return subtitles;
+}
+
 // Open player in iframe overlay instead of separate window
 async function openPlayerInIframe(options) {
     const {
@@ -163,21 +270,65 @@ async function openPlayerInIframe(options) {
         console.warn('[Resume] Error preparing save:', e);
     }
     
-    // Check if NodeMPV is enabled (Windows only) - use Electron IPC for that
-    if (window.electronAPI?.spawnMpvjsPlayer) {
-        try {
-            const settingsRes = await fetch('/api/settings');
-            const settings = await settingsRes.json();
-            if (settings.useNodeMPV) {
+    // Check player settings
+    try {
+        const settingsRes = await fetch('/api/settings');
+        const settings = await settingsRes.json();
+        
+        // Determine player type (default to playtorrio)
+        const playerType = settings.playerType || (settings.useNodeMPV ? 'nodempv' : 'playtorrio');
+        
+        if (playerType === 'nodempv') {
+            // Use NodeMPV player via Electron IPC
+            if (window.electronAPI?.spawnMpvjsPlayer) {
                 console.log('[Player] Using NodeMPV player');
                 window.electronAPI.spawnMpvjsPlayer(options);
                 setTimeout(hidePlayLoading, 500);
                 return { success: true };
             }
-        } catch (e) {
-            console.warn('[Player] Failed to check NodeMPV setting:', e);
+            // Fall through to HTML5 if electron API not available
+        } else if (playerType === 'playtorrio') {
+            // Use PlayTorrioPlayer (external player with subtitle support)
+            console.log('[Player] Using PlayTorrioPlayer');
+            try {
+                // Fetch subtitles for the player
+                const mediaType = type || (isTV ? 'tv' : 'movie');
+                const subtitles = await fetchSubtitlesForPlayer(
+                    tmdbId || currentTmdbId || id,
+                    imdbId || currentImdbId,
+                    seasonNum,
+                    episodeNum,
+                    mediaType
+                );
+                
+                console.log(`[Player] Found ${subtitles.length} subtitles`);
+                
+                const response = await fetch('/api/playtorrioplayer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, subtitles })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    hidePlayLoading();
+                    return { success: true, externalPlayer: true };
+                } else {
+                    console.warn('[Player] PlayTorrioPlayer failed:', result.error);
+                    // Fall through to HTML5 player as fallback
+                }
+            } catch (e) {
+                console.warn('[Player] PlayTorrioPlayer error:', e);
+                // Fall through to HTML5 player as fallback
+            }
         }
+        // playerType === 'builtin' falls through to HTML5 player below
+        
+    } catch (e) {
+        console.warn('[Player] Failed to check settings:', e);
     }
+    
+    // HTML5 Built-in Player (default fallback)
+    console.log('[Player] Using Built-in HTML5 player');
     
     // Build player URL with query params for HTML5 player
     const params = new URLSearchParams();
@@ -819,10 +970,65 @@ if (embeddedWatchBtn) {
         embeddedPlayerContainer.classList.remove('hidden');
         embeddedPlayerIframe.src = embedUrl;
         
-        // Scroll to player
-        embeddedPlayerContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Scroll player into view but keep it centered, not at the very top
+        embeddedPlayerContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
 }
+
+// Function to update embedded player when episode changes (if player is visible)
+const updateEmbeddedPlayerForEpisode = () => {
+    // Only update if embedded servers section is visible and player is already showing
+    if (embeddedServersSection && 
+        !embeddedServersSection.classList.contains('hidden') && 
+        embeddedPlayerContainer && 
+        !embeddedPlayerContainer.classList.contains('hidden') &&
+        currentEpisode) {
+        
+        const selectedServer = embeddedServerSelect.value;
+        const serverFn = embeddedServers[selectedServer];
+        
+        if (!serverFn) return;
+        
+        const mediaType = isTV ? 'tv' : 'movie';
+        const tmdbId = id;
+        const season = currentSeason || 1;
+        const episode = currentEpisode;
+        
+        const embedUrl = serverFn(mediaType, tmdbId, season, episode);
+        console.log('[Embedded Server] Auto-updating for episode:', selectedServer, embedUrl);
+        
+        embeddedPlayerIframe.src = embedUrl;
+        
+        // Save to Continue Watching
+        try {
+            const resumeKey = `${mediaType}_${tmdbId}_s${season}_e${episode}`;
+            const resumeData = {
+                key: resumeKey,
+                position: 0,
+                duration: 1,
+                title: currentDetails?.title || currentDetails?.name || 'Unknown',
+                poster_path: currentDetails?.poster_path || null,
+                tmdb_id: tmdbId,
+                media_type: mediaType,
+                season: season,
+                episode: episode,
+                sourceInfo: {
+                    provider: 'embedded',
+                    embeddedServer: selectedServer,
+                    url: embedUrl
+                }
+            };
+            
+            fetch('/api/resume', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(resumeData)
+            }).catch(e => console.warn('[Resume] Failed to save:', e));
+        } catch (e) {
+            console.warn('[Resume] Error:', e);
+        }
+    }
+};
 
 // Update embedded warning when episode changes
 const updateEmbeddedWarning = () => {
@@ -1795,6 +2001,8 @@ const loadEpisodes = async (seasonNum) => {
                 btn.querySelector('.episode-overlay').classList.add('opacity-100');
                 currentEpisode = episode.episode_number;
                 renderSources();
+                // Auto-update embedded player if it's visible
+                updateEmbeddedPlayerForEpisode();
             };
             episodeGrid.appendChild(clone);
         });
@@ -2106,6 +2314,8 @@ const init = async () => {
                                     epBtn.querySelector('.episode-overlay').classList.add('opacity-100');
                                     currentEpisode = ep.episode_number;
                                     renderSources();
+                                    // Auto-update embedded player if it's visible
+                                    updateEmbeddedPlayerForEpisode();
                                 };
                                 episodeGrid.appendChild(epClone);
                             });

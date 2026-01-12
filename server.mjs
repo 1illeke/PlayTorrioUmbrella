@@ -28,6 +28,9 @@ import { clearStremioCache } from './stremio_engine.mjs';
 import { registerTorrentEngineRoutes } from './torrent_engine_routes.mjs';
 import * as TorrentEngineManager from './torrent_engine_manager.mjs';
 
+// Import the new transcoder module
+import { initTranscoder, handleTranscodeStream, getMetadata as getTranscoderMetadata } from './transcoder.js';
+
 
 
 
@@ -515,6 +518,9 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
     console.log(`[Transcoder] Active FFprobe: ${resolvedFfprobePath}`);
     console.log(`[Transcoder] Platform: ${process.platform}`);
 
+    // Initialize the new transcoder module with FFmpeg paths
+    initTranscoder(resolvedFfmpegPath, resolvedFfprobePath);
+
     // Detect best encoder on startup - CROSS-PLATFORM
     const detectBestEncoder = async () => {
         console.log('[Transcoder] Detecting hardware acceleration...');
@@ -912,324 +918,8 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
     });
 
     app.get('/api/transcode/stream', async (req, res) => {
-        const { url: videoUrl, start = 0, audioTrack = 0, quality = 'mid', forceSoftware = 'false' } = req.query;
-        if (!videoUrl) return res.status(400).send('Missing url');
-
-        // Use 127.0.0.1 for internal requests
-        const targetUrl = videoUrl.replace('localhost', '127.0.0.1');
-        
-        // Check if this is an alt-engine torrent stream (needs output seeking)
-        const isAltEngineStream = targetUrl.includes('/api/alt-stream-file');
-        const startTime = parseFloat(start) || 0;
-
-        // Allow forcing software encoding as fallback when hardware fails
-        const useSoftware = forceSoftware === 'true' || forceSoftware === '1';
-        const activeEncoder = useSoftware ? 'libx264' : bestEncoder;
-        const activePreset = useSoftware ? 'superfast' : encoderPreset;
-        const activeHwAccel = useSoftware ? 'auto' : hwAccel;
-
-        console.log(`[Transcoder] Request: ${startTime}s [Q: ${quality}] [Enc: ${activeEncoder}]${useSoftware ? ' (SOFTWARE)' : ''}${isAltEngineStream ? ' (ALT-ENGINE)' : ''}`);
-        
-        res.writeHead(200, {
-            'Content-Type': 'video/mp4',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-            'Connection': 'keep-alive',
-            'Accept-Ranges': 'bytes',
-            'Transfer-Encoding': 'chunked',
-            'X-Content-Type-Options': 'nosniff'
-        });
-
-        // Trigger metadata fetch in background (don't await) if not already cached
-        if (!metadataCache.has(videoUrl)) {
-            getVideoMetadata(videoUrl).catch(e => {
-                console.warn('[Transcoder] Background metadata fetch failed:', e.message);
-            });
-        }
-
-        // HW Encoders often need slightly higher bitrate for same visual quality
-        const isHW = activeEncoder !== 'libx264';
-        const isNVENC = activeEncoder.includes('nvenc');
-        const isQSV = activeEncoder.includes('qsv');
-        const isAMF = activeEncoder.includes('amf');
-        const isVideoToolbox = activeEncoder.includes('videotoolbox');
-        const isVAAPI = activeEncoder.includes('vaapi');
-
-        // ============ OPTIMIZED QUALITY PROFILES - SPEED FOCUSED ============
-        // Tuned for fastest startup while maintaining acceptable quality
-        let videoBitrate, maxRate, bufSize, scaleFilter, crf;
-        let preset = activePreset;
-
-        switch (quality) {
-            case 'native':
-                // Native: Preserve original quality, minimal processing
-                videoBitrate = isHW ? '50000k' : '35000k';
-                maxRate = isHW ? '60000k' : '45000k';
-                bufSize = '80000k';
-                scaleFilter = null;
-                crf = isHW ? null : '18';
-                break;
-            case 'high': // 1080p - High quality streaming
-                videoBitrate = isHW ? '8000k' : '6000k';  // Reduced for faster encoding
-                maxRate = isHW ? '12000k' : '8000k';
-                bufSize = '16000k';
-                scaleFilter = 'scale=-2:1080:flags=bilinear';  // Faster than lanczos
-                crf = isHW ? null : '22';
-                break;
-            case 'low': // 480p - Fast, low bandwidth
-                videoBitrate = '1200k';
-                maxRate = '1800k';
-                bufSize = '3000k';
-                scaleFilter = 'scale=-2:480:flags=fast_bilinear';
-                crf = isHW ? null : '28';
-                break;
-            case 'mid': // 720p - Balanced (default)
-            default:
-                videoBitrate = isHW ? '4000k' : '3500k';  // Slightly reduced for speed
-                maxRate = isHW ? '6000k' : '5000k';
-                bufSize = '8000k';
-                scaleFilter = 'scale=-2:720:flags=bilinear';  // Faster than lanczos
-                crf = isHW ? null : '24';
-                break;
-        }
-
-        // ============ BUILD FFMPEG ARGUMENTS - INSTANT START OPTIMIZED ============
-        const args = [
-            '-hide_banner', '-loglevel', 'warning',
-            
-            // ============ ULTRA-FAST INPUT OPTIMIZATION ============
-            '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            '-fflags', '+genpts+discardcorrupt+fastseek+nobuffer+igndts',
-            '-flags', 'low_delay',
-            '-probesize', '2M',        // Minimal probing for instant start
-            '-analyzeduration', '2M',  // Minimal analysis for instant start
-            '-thread_queue_size', '512', // Larger queue for smoother streaming
-        ];
-        
-        // Input seeking - works for seekable streams (including torrent streams with range support)
-        if (startTime > 0) {
-            args.push('-ss', startTime.toString());
-        }
-
-        // Hardware acceleration input decoding (only if not forcing software)
-        if (!useSoftware) {
-            if (isNVENC) {
-                args.push('-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda');
-            } else if (isQSV) {
-                args.push('-hwaccel', 'qsv', '-hwaccel_output_format', 'qsv');
-            } else if (isAMF) {
-                args.push('-hwaccel', 'd3d11va');
-            } else if (isVideoToolbox) {
-                args.push('-hwaccel', 'videotoolbox');
-            } else if (isVAAPI) {
-                // VAAPI needs device specification on some systems
-                args.push('-hwaccel', 'vaapi', '-hwaccel_output_format', 'vaapi');
-                // Try common VAAPI device paths
-                const fs = require('fs');
-                if (fs.existsSync('/dev/dri/renderD128')) {
-                    args.push('-vaapi_device', '/dev/dri/renderD128');
-                }
-            } else {
-                args.push('-hwaccel', 'auto');
-            }
-        } else {
-            // Software mode - use auto hwaccel for decoding only (not encoding)
-            args.push('-hwaccel', 'auto');
-        }
-
-        // Input with reconnection for network streams
-        args.push(
-            '-reconnect', '1',
-            '-reconnect_streamed', '1',
-            '-reconnect_on_network_error', '1',
-            '-reconnect_at_eof', '1',
-            '-reconnect_delay_max', '3',
-            '-i', targetUrl,
-            
-            // Stream mapping
-            '-map', '0:v:0',
-            '-map', `0:a:${audioTrack}?`, // ? makes it optional
-            
-            // Video encoder
-            '-c:v', activeEncoder
-        );
-
-        // ============ ENCODER-SPECIFIC OPTIMIZATIONS ============
-        const isMF = activeEncoder.includes('mf');
-        
-        if (isNVENC) {
-            // NVIDIA NVENC - Optimized for low latency streaming
-            args.push(
-                '-preset', 'p4',           // p4 = balanced speed/quality
-                '-tune', 'ull',            // Ultra low latency
-                '-rc', 'vbr',              // Variable bitrate for quality
-                '-rc-lookahead', '8',      // Small lookahead for low latency
-                '-spatial-aq', '1',        // Spatial adaptive quantization
-                '-temporal-aq', '1',       // Temporal adaptive quantization
-                '-b_ref_mode', '0',        // Disable B-frame references for speed
-                '-zerolatency', '1',
-                '-delay', '0',
-                '-bf', '0'                 // No B-frames for lowest latency
-            );
-        } else if (isQSV) {
-            // Intel QuickSync
-            args.push(
-                '-preset', 'faster',
-                '-look_ahead', '0',
-                '-global_quality', '23',
-                '-bf', '0'
-            );
-        } else if (isAMF) {
-            // AMD AMF
-            args.push(
-                '-quality', 'speed',
-                '-rc', 'vbr_latency',
-                '-bf', '0'
-            );
-        } else if (isVideoToolbox) {
-            // Apple VideoToolbox (macOS)
-            args.push(
-                '-realtime', '1',          // Prioritize speed
-                '-allow_sw', '1',          // Allow software fallback if needed
-                '-bf', '0'                 // No B-frames for lowest latency
-            );
-        } else if (isVAAPI) {
-            // VAAPI (Linux Intel/AMD)
-            args.push(
-                '-bf', '0'                 // No B-frames for lowest latency
-            );
-        } else if (isMF) {
-            // Windows MediaFoundation - minimal options, it's picky
-            args.push(
-                '-bf', '0'
-            );
-        } else {
-            // Software x264 - Optimized for speed (UNIVERSAL FALLBACK)
-            args.push(
-                '-preset', 'superfast',    // Good balance of speed/quality
-                '-tune', 'zerolatency',    // Minimize latency
-                '-profile:v', 'high',      // High profile for better compression
-                '-level', '4.1',           // Wide compatibility
-                '-bf', '0',                // No B-frames
-                '-refs', '1',              // Single reference frame
-                '-rc-lookahead', '0',      // No lookahead
-                '-sc_threshold', '0',      // Disable scene change detection
-                '-x264-params', 'nal-hrd=cbr:force-cfr=1:sliced-threads=1'
-            );
-            // Use CRF for quality-based encoding when available
-            if (crf) {
-                args.push('-crf', crf);
-            }
-        }
-
-        // ============ VIDEO FILTERS ============
-        const filters = [];
-        
-        // Scale filter with high-quality algorithm
-        if (scaleFilter) {
-            if (isNVENC) {
-                // Use CUDA scaling for NVENC
-                const heightMatch = scaleFilter.match(/:(\d+)/);
-                if (heightMatch) {
-                    filters.push(`scale_cuda=-2:${heightMatch[1]}:interp_algo=lanczos`);
-                }
-            } else if (isVAAPI) {
-                // Use VAAPI scaling for VAAPI
-                const heightMatch = scaleFilter.match(/:(\d+)/);
-                if (heightMatch) {
-                    filters.push(`scale_vaapi=-2:${heightMatch[1]}`);
-                }
-            } else {
-                filters.push(scaleFilter);
-            }
-        }
-        
-        // Frame rate and format
-        if (!isNVENC) {
-            filters.push('fps=fps=30:round=near');  // Smooth 30fps
-        }
-        filters.push('format=yuv420p');  // Universal compatibility
-
-        if (filters.length > 0) {
-            args.push('-vf', filters.join(','));
-        }
-
-        // ============ BITRATE CONTROL ============
-        args.push(
-            '-b:v', videoBitrate,
-            '-maxrate', maxRate,
-            '-bufsize', bufSize
-        );
-
-        // ============ AUDIO ENCODING ============
-        args.push(
-            '-c:a', 'aac',
-            '-b:a', '192k',              // Higher quality audio
-            '-ac', '2',                   // Stereo
-            '-ar', '48000',               // 48kHz sample rate
-            '-af', 'aresample=async=1:min_hard_comp=0.100000:first_pts=0,volume=1.0'
-        );
-
-        // ============ OUTPUT FORMAT ============
-        args.push(
-            // Fragmented MP4 for instant playback
-            '-movflags', 'frag_keyframe+empty_moov+default_base_moof+faststart+delay_moov',
-            '-frag_duration', '500000',   // 0.5s fragments for lower latency
-            '-min_frag_duration', '250000', // Minimum 0.25s
-            
-            // Keyframe interval for seeking
-            '-g', '30',                   // Keyframe every 1 second at 30fps
-            '-keyint_min', '15',          // Minimum keyframe interval
-            
-            // Force constant frame rate
-            '-vsync', 'cfr',
-            
-            // Output
-            '-f', 'mp4',
-            '-'
-        );
-
-        const ffmpeg = spawn(resolvedFfmpegPath, args, {
-            stdio: ['ignore', 'pipe', 'pipe']
-        });
-        
-        // Pipe output to response
-        ffmpeg.stdout.pipe(res);
-        
-        // Log errors from ffmpeg (only real errors)
-        ffmpeg.stderr.on('data', (data) => {
-            const msg = data.toString().trim();
-            // Filter out common non-critical messages
-            if (msg.includes('buffer underflow') || 
-                msg.includes('Past duration') ||
-                msg.includes('Discarding') ||
-                msg.includes('deprecated')) return;
-            if (msg.toLowerCase().includes('error') || msg.toLowerCase().includes('fatal')) {
-                console.error('[FFmpeg Error]', msg);
-            }
-        });
-
-        // Handle client disconnect
-        res.on('close', () => {
-            if (!ffmpeg.killed) {
-                ffmpeg.kill('SIGKILL');
-            }
-        });
-
-        // Handle ffmpeg process errors
-        ffmpeg.on('error', (err) => {
-            console.error('[FFmpeg Process Error]', err.message);
-            if (!res.writableEnded) {
-                res.end();
-            }
-        });
-
-        ffmpeg.on('exit', (code, signal) => {
-            if (code !== 0 && code !== null && signal !== 'SIGKILL') {
-                console.warn(`[FFmpeg] Exited with code ${code}, signal ${signal}`);
-            }
-        });
+        // Use the new transcoder.js implementation
+        await handleTranscodeStream(req, res);
     });
 
     // ============================================================================
@@ -6796,6 +6486,242 @@ for (let i = 0; i < 10; i++) {
         } catch (e) {}
     }, 2000);
 
+    // ============================================================================
+    // PLAYTORRIOPLAYER - Launch external player (All platforms)
+    // ============================================================================
+    app.post('/api/playtorrioplayer', async (req, res) => {
+        try {
+            const { url, subtitles = [] } = req.body;
+            if (!url) {
+                return res.status(400).json({ error: 'Missing url parameter' });
+            }
+            
+            const { spawn } = await import('child_process');
+            const path = await import('path');
+            const fs = await import('fs');
+            const { fileURLToPath } = await import('url');
+            
+            const __filename = fileURLToPath(import.meta.url);
+            const __dirname = path.dirname(__filename);
+            
+            // Path to PlayTorrioPlayer - check multiple locations for dev and built app
+            // In built app, extraResources are in process.resourcesPath
+            const possiblePlayerDirs = [
+                path.join(__dirname, 'PlayTorrioPlayer'),  // Dev mode
+                path.join(process.resourcesPath || __dirname, 'PlayTorrioPlayer'),  // Built app (extraResources)
+                path.join(__dirname, '..', 'PlayTorrioPlayer'),  // Alternative location
+            ];
+            
+            let playerDir = null;
+            for (const dir of possiblePlayerDirs) {
+                if (fs.existsSync(dir)) {
+                    playerDir = dir;
+                    break;
+                }
+            }
+            
+            if (!playerDir) {
+                console.error('[PlayTorrioPlayer] Player directory not found in any location');
+                return res.status(404).json({ 
+                    error: 'PlayTorrioPlayer directory not found',
+                    searchedPaths: possiblePlayerDirs
+                });
+            }
+            
+            let playerExe = null;
+            
+            // Find the player executable based on platform
+            if (process.platform === 'win32') {
+                // Windows: PlayTorrioPlayer.exe
+                const winExe = path.join(playerDir, 'PlayTorrioPlayer.exe');
+                if (fs.existsSync(winExe)) {
+                    playerExe = winExe;
+                }
+            } else if (process.platform === 'darwin') {
+                // macOS: Check multiple possible locations
+                const possiblePaths = [
+                    path.join(playerDir, 'PlayTorrioPlayer.app', 'Contents', 'MacOS', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'bin', 'PlayTorrioPlayer'),
+                ];
+                for (const p of possiblePaths) {
+                    if (fs.existsSync(p)) {
+                        playerExe = p;
+                        break;
+                    }
+                }
+            } else {
+                // Linux: Check for AppImage or extracted binary
+                const possiblePaths = [
+                    // AppImage (glob pattern - find any AppImage)
+                    ...(() => {
+                        try {
+                            const files = fs.readdirSync(playerDir);
+                            return files
+                                .filter(f => f.endsWith('.AppImage') && f.includes('PlayTorrioPlayer'))
+                                .map(f => path.join(playerDir, f));
+                        } catch { return []; }
+                    })(),
+                    // Extracted tar.gz structure
+                    path.join(playerDir, 'bin', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'PlayTorrioPlayer'),
+                ];
+                for (const p of possiblePaths) {
+                    if (fs.existsSync(p)) {
+                        playerExe = p;
+                        // Make sure it's executable on Linux
+                        try {
+                            fs.chmodSync(p, 0o755);
+                        } catch (e) {
+                            console.warn('[PlayTorrioPlayer] Could not set executable permission:', e.message);
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            if (!playerExe) {
+                console.error(`[PlayTorrioPlayer] Player not found in: ${playerDir}`);
+                console.error(`[PlayTorrioPlayer] Platform: ${process.platform}`);
+                return res.status(404).json({ 
+                    error: 'PlayTorrioPlayer not found',
+                    message: `Please download PlayTorrioPlayer for your platform and place it in the PlayTorrioPlayer folder.`,
+                    platform: process.platform,
+                    searchedDir: playerDir
+                });
+            }
+            
+            console.log(`[PlayTorrioPlayer] Launching with URL: ${url}`);
+            console.log(`[PlayTorrioPlayer] Player exe: ${playerExe}`);
+            console.log(`[PlayTorrioPlayer] Subtitles: ${subtitles.length} tracks`);
+            
+            // Build arguments: url [ProviderName "SubName1" "SubURL1" "SubName2" "SubURL2" ...]
+            const args = [url];
+            
+            // Group subtitles by provider
+            const subsByProvider = {};
+            subtitles.forEach(sub => {
+                const provider = sub.provider || 'Subtitles';
+                if (!subsByProvider[provider]) {
+                    subsByProvider[provider] = [];
+                }
+                subsByProvider[provider].push(sub);
+            });
+            
+            // Add subtitles to args: ProviderName "Name1" "URL1" "Name2" "URL2" ...
+            for (const [provider, subs] of Object.entries(subsByProvider)) {
+                args.push(provider);
+                subs.forEach(sub => {
+                    args.push(sub.name || 'Unknown');
+                    args.push(sub.url);
+                });
+            }
+            
+            console.log(`[PlayTorrioPlayer] Args: ${args.length} items`);
+            
+            // Extract hash from torrent stream URLs for cleanup when player closes
+            let streamHash = null;
+            let isAltEngine = false;
+            if (url.includes('/api/stream-file') || url.includes('/api/alt-stream-file')) {
+                try {
+                    const urlObj = new URL(url);
+                    streamHash = urlObj.searchParams.get('hash');
+                    isAltEngine = url.includes('/api/alt-stream-file');
+                    console.log(`[PlayTorrioPlayer] Torrent stream detected - hash: ${streamHash}, altEngine: ${isAltEngine}`);
+                } catch (e) {}
+            }
+            
+            // Spawn the player directly
+            const playerProcess = spawn(playerExe, args, {
+                stdio: 'ignore',
+                cwd: path.dirname(playerExe)
+            });
+            
+            // When player closes, stop the torrent stream
+            playerProcess.on('close', (code) => {
+                console.log(`[PlayTorrioPlayer] Player closed with code: ${code}`);
+                
+                if (streamHash) {
+                    const endpoint = isAltEngine ? '/api/alt-stop-stream' : '/api/stop-stream';
+                    console.log(`[PlayTorrioPlayer] Stopping torrent stream: ${streamHash}`);
+                    fetch(`http://localhost:6987${endpoint}?hash=${streamHash}`).catch(e => {
+                        console.warn(`[PlayTorrioPlayer] Failed to stop stream:`, e.message);
+                    });
+                }
+            });
+            
+            playerProcess.on('error', (err) => {
+                console.error(`[PlayTorrioPlayer] Process error:`, err.message);
+            });
+            
+            res.json({ success: true, message: 'PlayTorrioPlayer launched' });
+        } catch (e) {
+            console.error('[PlayTorrioPlayer] Error:', e);
+            res.status(500).json({ error: e.message });
+        }
+    });
+    
+    // Check if PlayTorrioPlayer is available
+    app.get('/api/playtorrioplayer/status', async (req, res) => {
+        try {
+            const path = await import('path');
+            const fs = await import('fs');
+            const { fileURLToPath } = await import('url');
+            
+            const __filename = fileURLToPath(import.meta.url);
+            const __dirname = path.dirname(__filename);
+            const playerDir = path.join(__dirname, 'PlayTorrioPlayer');
+            
+            let playerExe = null;
+            let searchedPaths = [];
+            
+            if (process.platform === 'win32') {
+                const winExe = path.join(playerDir, 'PlayTorrioPlayer.exe');
+                searchedPaths.push(winExe);
+                if (fs.existsSync(winExe)) playerExe = winExe;
+            } else if (process.platform === 'darwin') {
+                const possiblePaths = [
+                    path.join(playerDir, 'PlayTorrioPlayer.app', 'Contents', 'MacOS', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'bin', 'PlayTorrioPlayer'),
+                ];
+                searchedPaths = possiblePaths;
+                for (const p of possiblePaths) {
+                    if (fs.existsSync(p)) {
+                        playerExe = p;
+                        break;
+                    }
+                }
+            } else {
+                // Linux
+                try {
+                    const files = fs.readdirSync(playerDir);
+                    const appImages = files.filter(f => f.endsWith('.AppImage') && f.includes('PlayTorrioPlayer'));
+                    searchedPaths = appImages.map(f => path.join(playerDir, f));
+                } catch {}
+                searchedPaths.push(
+                    path.join(playerDir, 'bin', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'PlayTorrioPlayer')
+                );
+                for (const p of searchedPaths) {
+                    if (fs.existsSync(p)) {
+                        playerExe = p;
+                        break;
+                    }
+                }
+            }
+            
+            res.json({
+                available: !!playerExe,
+                platform: process.platform,
+                playerPath: playerExe,
+                playerDir: playerDir,
+                searchedPaths: searchedPaths
+            });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
 
     // 404 handler - must come after all routes
     app.use((req, res, next) => {

@@ -1,6 +1,6 @@
 {
   "name": "playtorrio",
-  "version": "2.4.7",
+  "version": "2.4.8",
   "description": "Ayman's PlayTorrio an all in one media center",
   "author": {
     "name": "Ayman",
@@ -13,7 +13,8 @@
     "start": "electron .",
     "serve": "node server.mjs",
     "build": "electron-builder --publish always",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "setup-player": "node setup-playtorrioplayer.js"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
@@ -61,6 +62,7 @@
       "server.mjs",
       "api.cjs",
       "chromecast.mjs",
+      "transcoder.js",
       "torrent_filter.mjs",
       "stremio_engine.mjs",
       "stremio_routes.mjs",
@@ -75,12 +77,20 @@
       "engine/**/*",
       "src/**/*",
       "public/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "PlayTorrioPlayer/**/*"
     ],
     "asarUnpack": [
-      "engine/**/*"
+      "engine/**/*",
+      "PlayTorrioPlayer/**/*"
     ],
-    "extraResources": [],
+    "extraResources": [
+      {
+        "from": "PlayTorrioPlayer",
+        "to": "PlayTorrioPlayer",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
       "icon": "build/icon.ico",
       "artifactName": "PlayTorrio-installer.${ext}",
@@ -107,6 +117,11 @@
           "filter": [
             "**/*"
           ]
+        },
+        {
+          "from": "PlayTorrioPlayer",
+          "to": "PlayTorrioPlayer",
+          "filter": ["**/*"]
         }
       ]
     },
@@ -174,6 +189,11 @@
           "filter": [
             "**/*"
           ]
+        },
+        {
+          "from": "PlayTorrioPlayer",
+          "to": "PlayTorrioPlayer",
+          "filter": ["**/*"]
         }
       ]
     },
@@ -244,6 +264,11 @@
           "filter": [
             "**/*"
           ]
+        },
+        {
+          "from": "PlayTorrioPlayer",
+          "to": "PlayTorrioPlayer",
+          "filter": ["**/*"]
         }
       ]
     },

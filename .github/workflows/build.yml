@@ -47,6 +47,63 @@ jobs:
             exit 1
           }
 
+      - name: Setup PlayTorrioPlayer (Windows)
+        run: |
+          # Remove existing PlayTorrioPlayer if any
+          if (Test-Path "PlayTorrioPlayer") {
+            Remove-Item PlayTorrioPlayer -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path PlayTorrioPlayer -Force
+          
+          # Download Windows version
+          $url = "https://github.com/ayman708-UX/PlayTorrioPlayer/releases/download/continuous/PlayTorrioPlayer-win64-portable-continuous-7-g2a16754.zip"
+          $zipPath = "PlayTorrioPlayer\player.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          
+          # Extract
+          Expand-Archive -Path $zipPath -DestinationPath PlayTorrioPlayer -Force
+          Remove-Item $zipPath -Force
+          
+          # Flatten if nested
+          $nested = Get-ChildItem -Path PlayTorrioPlayer -Directory | Select-Object -First 1
+          if ($nested -and (Test-Path "$($nested.FullName)\PlayTorrioPlayer.exe")) {
+            Get-ChildItem -Path $nested.FullName | Move-Item -Destination PlayTorrioPlayer -Force
+            Remove-Item $nested.FullName -Recurse -Force
+          }
+          
+          # Verify - MUST find PlayTorrioPlayer.exe
+          if (Test-Path "PlayTorrioPlayer\PlayTorrioPlayer.exe") {
+            Write-Host "✓ PlayTorrioPlayer.exe found - App will be able to launch it"
+          } else {
+            Write-Host "❌ PlayTorrioPlayer.exe NOT FOUND - App will NOT be able to use external player!"
+            Write-Host "Directory contents:"
+            Get-ChildItem PlayTorrioPlayer -Recurse | Select-Object FullName
+            exit 1
+          }
+
+      - name: Verify PlayTorrioPlayer can be found by app (Windows)
+        run: |
+          Write-Host "=== PlayTorrioPlayer Verification ==="
+          Write-Host "Expected path: PlayTorrioPlayer\PlayTorrioPlayer.exe"
+          
+          $exePath = "PlayTorrioPlayer\PlayTorrioPlayer.exe"
+          if (Test-Path $exePath) {
+            $fileInfo = Get-Item $exePath
+            Write-Host "✓ FOUND: $exePath"
+            Write-Host "  Size: $($fileInfo.Length / 1MB) MB"
+            Write-Host "  Modified: $($fileInfo.LastWriteTime)"
+            Write-Host ""
+            Write-Host "✓ App will successfully find and launch PlayTorrioPlayer"
+          } else {
+            Write-Host "❌ NOT FOUND: $exePath"
+            Write-Host ""
+            Write-Host "Contents of PlayTorrioPlayer folder:"
+            Get-ChildItem PlayTorrioPlayer -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
+            Write-Host ""
+            Write-Host "❌ BUILD WILL FAIL - App cannot find player executable!"
+            exit 1
+          }
+
       - name: Setup FFmpeg (Windows)
         run: node build/setup-ffmpeg.cjs win
 
@@ -93,6 +150,52 @@ jobs:
             echo "❌ yt-dlp not found" && exit 1
           fi
 
+      - name: Setup PlayTorrioPlayer (Linux)
+        run: |
+          # Remove existing PlayTorrioPlayer if any
+          rm -rf PlayTorrioPlayer
+          mkdir -p PlayTorrioPlayer
+          
+          # Download Linux AppImage
+          curl -L -o PlayTorrioPlayer/PlayTorrioPlayer.AppImage \
+            "https://github.com/ayman708-UX/PlayTorrioPlayer/releases/download/continuous/PlayTorrioPlayer-linux-portable-continuous-7-g2a16754.AppImage"
+          
+          chmod +x PlayTorrioPlayer/PlayTorrioPlayer.AppImage
+          
+          # Verify - MUST find AppImage
+          if [ -f PlayTorrioPlayer/PlayTorrioPlayer.AppImage ]; then
+            echo "✓ PlayTorrioPlayer.AppImage found - App will be able to launch it"
+            ls -la PlayTorrioPlayer/
+          else
+            echo "❌ PlayTorrioPlayer.AppImage NOT FOUND!"
+            exit 1
+          fi
+
+      - name: Verify PlayTorrioPlayer can be found by app (Linux)
+        run: |
+          echo "=== PlayTorrioPlayer Verification ==="
+          echo "Expected: Any .AppImage file containing 'PlayTorrioPlayer' in PlayTorrioPlayer/"
+          echo ""
+          
+          # Check for AppImage (same logic as server.mjs)
+          APPIMAGE=$(find PlayTorrioPlayer -maxdepth 1 -name "*.AppImage" -name "*PlayTorrioPlayer*" | head -1)
+          
+          if [ -n "$APPIMAGE" ] && [ -f "$APPIMAGE" ]; then
+            echo "✓ FOUND: $APPIMAGE"
+            echo "  Size: $(du -h "$APPIMAGE" | cut -f1)"
+            echo "  Executable: $(test -x "$APPIMAGE" && echo 'Yes' || echo 'No')"
+            echo ""
+            echo "✓ App will successfully find and launch PlayTorrioPlayer"
+          else
+            echo "❌ NO AppImage found!"
+            echo ""
+            echo "Contents of PlayTorrioPlayer folder:"
+            ls -la PlayTorrioPlayer/
+            echo ""
+            echo "❌ BUILD WILL FAIL - App cannot find player executable!"
+            exit 1
+          fi
+
       - name: Setup FFmpeg (Linux)
         run: node build/setup-ffmpeg.cjs linux
 
@@ -137,6 +240,61 @@ jobs:
             echo "❌ yt-dlp not found" && exit 1
           fi
 
+      - name: Setup PlayTorrioPlayer (macOS)
+        run: |
+          # Remove existing PlayTorrioPlayer if any
+          rm -rf PlayTorrioPlayer
+          mkdir -p PlayTorrioPlayer
+          
+          # Download macOS version
+          curl -L -o PlayTorrioPlayer/player.zip \
+            "https://github.com/ayman708-UX/PlayTorrioPlayer/releases/download/continuous/PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754.zip"
+          
+          # Extract
+          cd PlayTorrioPlayer
+          unzip -q player.zip
+          rm -f player.zip
+          
+          # Flatten if nested (but keep .app structure)
+          if [ -d "PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754" ]; then
+            mv PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754/* . 2>/dev/null || true
+            rm -rf PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754
+          fi
+          
+          # Set executable permissions
+          if [ -f "PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer" ]; then
+            chmod +x "PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
+            echo "✓ PlayTorrioPlayer.app found"
+          else
+            echo "⚠ PlayTorrioPlayer.app not found, listing contents:"
+            find . -type f | head -20
+          fi
+          cd ..
+
+      - name: Verify PlayTorrioPlayer can be found by app (macOS x64)
+        run: |
+          echo "=== PlayTorrioPlayer Verification ==="
+          echo "Expected: PlayTorrioPlayer/PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
+          echo ""
+          
+          PLAYER_PATH="PlayTorrioPlayer/PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
+          
+          if [ -f "$PLAYER_PATH" ]; then
+            echo "✓ FOUND: $PLAYER_PATH"
+            echo "  Size: $(du -h "$PLAYER_PATH" | cut -f1)"
+            echo "  Executable: $(test -x "$PLAYER_PATH" && echo 'Yes' || echo 'No')"
+            echo ""
+            echo "✓ App will successfully find and launch PlayTorrioPlayer"
+          else
+            echo "❌ NOT FOUND: $PLAYER_PATH"
+            echo ""
+            echo "Contents of PlayTorrioPlayer folder:"
+            find PlayTorrioPlayer -type f | head -20
+            echo ""
+            echo "❌ BUILD WILL FAIL - App cannot find player executable!"
+            exit 1
+          fi
+
       - name: Setup FFmpeg (macOS)
         run: node build/setup-ffmpeg.cjs mac
 
@@ -179,6 +337,61 @@ jobs:
             echo "✓ yt-dlp found"
           else
             echo "❌ yt-dlp not found" && exit 1
+          fi
+
+      - name: Setup PlayTorrioPlayer (macOS)
+        run: |
+          # Remove existing PlayTorrioPlayer if any
+          rm -rf PlayTorrioPlayer
+          mkdir -p PlayTorrioPlayer
+          
+          # Download macOS version
+          curl -L -o PlayTorrioPlayer/player.zip \
+            "https://github.com/ayman708-UX/PlayTorrioPlayer/releases/download/continuous/PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754.zip"
+          
+          # Extract
+          cd PlayTorrioPlayer
+          unzip -q player.zip
+          rm -f player.zip
+          
+          # Flatten if nested (but keep .app structure)
+          if [ -d "PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754" ]; then
+            mv PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754/* . 2>/dev/null || true
+            rm -rf PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754
+          fi
+          
+          # Set executable permissions
+          if [ -f "PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer" ]; then
+            chmod +x "PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
+            echo "✓ PlayTorrioPlayer.app found"
+          else
+            echo "⚠ PlayTorrioPlayer.app not found, listing contents:"
+            find . -type f | head -20
+          fi
+          cd ..
+
+      - name: Verify PlayTorrioPlayer can be found by app (macOS arm64)
+        run: |
+          echo "=== PlayTorrioPlayer Verification ==="
+          echo "Expected: PlayTorrioPlayer/PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
+          echo ""
+          
+          PLAYER_PATH="PlayTorrioPlayer/PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
+          
+          if [ -f "$PLAYER_PATH" ]; then
+            echo "✓ FOUND: $PLAYER_PATH"
+            echo "  Size: $(du -h "$PLAYER_PATH" | cut -f1)"
+            echo "  Executable: $(test -x "$PLAYER_PATH" && echo 'Yes' || echo 'No')"
+            echo ""
+            echo "✓ App will successfully find and launch PlayTorrioPlayer"
+          else
+            echo "❌ NOT FOUND: $PLAYER_PATH"
+            echo ""
+            echo "Contents of PlayTorrioPlayer folder:"
+            find PlayTorrioPlayer -type f | head -20
+            echo ""
+            echo "❌ BUILD WILL FAIL - App cannot find player executable!"
+            exit 1
           fi
 
       - name: Setup FFmpeg (macOS)
