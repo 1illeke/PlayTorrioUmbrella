@@ -894,7 +894,7 @@ async function fetchTmdbDetailsById(type, tmdbId) {
         if (!tmdbId) return null;
         const base = 'https://api.themoviedb.org/3';
         const endpoint = type === 'tv' ? `/tv/${tmdbId}` : `/movie/${tmdbId}`;
-        const url = `${base}${endpoint}?api_key=${TMDB_API_KEY}`;
+        const url = `${base}${endpoint}?api_key=${TMDB_API_KEY}&append_to_response=external_ids`;
         const resp = await fetch(url);
         if (!resp.ok) return null;
         const j = await resp.json();

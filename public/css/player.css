@@ -91,6 +91,27 @@
     gap: 1rem;
     max-height: 400px;
     overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 0.5rem;
+}
+
+/* Custom scrollbar for file list */
+.file-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.file-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+.file-list::-webkit-scrollbar-thumb {
+    background: var(--vlc-orange);
+    border-radius: 4px;
+}
+
+.file-list::-webkit-scrollbar-thumb:hover {
+    background: #e55a00;
 }
 
 #mpvControls {
@@ -229,11 +250,14 @@
     flex-direction: column;
     position: relative;
     z-index: 0;
+    max-height: 280px;
+    overflow: hidden;
 }
 
 .subtitle-controls h4 {
     color: var(--vlc-orange);
     margin-bottom: 1rem;
+    flex-shrink: 0;
 }
 
 .subtitle-list {
@@ -242,7 +266,29 @@
     gap: 1rem;
     max-height: 200px;
     overflow-y: auto;
-    padding-right: 1rem;
+    overflow-x: hidden;
+    padding-right: 0.5rem;
+    flex-shrink: 1;
+    min-height: 0;
+}
+
+/* Custom scrollbar for subtitle list */
+.subtitle-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.subtitle-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+.subtitle-list::-webkit-scrollbar-thumb {
+    background: var(--vlc-orange);
+    border-radius: 4px;
+}
+
+.subtitle-list::-webkit-scrollbar-thumb:hover {
+    background: #e55a00;
 }
 
 .subtitle-item {

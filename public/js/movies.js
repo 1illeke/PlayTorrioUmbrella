@@ -3897,6 +3897,7 @@ async function handlePlayNowClick() {
     }
     
     const tmdbId = currentContent?.id?.toString() || '';
+    const imdbId = currentContent?.external_ids?.imdb_id || null;
     
     // Try to use Electron MPV player if available
     if (window.electronAPI && typeof window.electronAPI.spawnMpvjsPlayer === 'function') {
@@ -3905,7 +3906,7 @@ async function handlePlayNowClick() {
             let subtitles = [];
             if (tmdbId) {
                 try {
-                    subtitles = await fetchSubtitlesForPlayer(tmdbId, null, seasonNum, episodeNum, currentMediaType || 'movie');
+                    subtitles = await fetchSubtitlesForPlayer(tmdbId, imdbId, seasonNum, episodeNum, currentMediaType || 'movie');
                     console.log(`[Streaming] Fetched ${subtitles.length} subtitles for player`);
                 } catch (e) {
                     console.warn('[Streaming] Failed to fetch subtitles:', e);
@@ -3915,6 +3916,7 @@ async function handlePlayNowClick() {
             const result = await window.electronAPI.spawnMpvjsPlayer({
                 url: currentStreamUrl,
                 tmdbId: tmdbId,
+                imdbId: imdbId,
                 seasonNum: seasonNum,
                 episodeNum: episodeNum,
                 isDebrid: false,

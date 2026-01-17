@@ -46,7 +46,7 @@ async function saveResume() {
 async function fetchTmdbDetailsById(type, tmdbId) {
     try {
         if (!tmdbId) return null;
-        const url = `https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=credits,videos`;
+        const url = `https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=credits,videos,external_ids`;
         const response = await fetch(url);
         if (!response.ok) return null;
         return await response.json();
