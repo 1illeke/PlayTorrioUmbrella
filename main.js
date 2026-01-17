@@ -1624,7 +1624,7 @@ function openInVLC(win, streamUrl, infoHash, startSeconds) {
         const vlcProcess = spawn(vlcPath, args, { stdio: 'ignore' });
 
         vlcProcess.on('close', async (code) => {
-            console.log(`VLC player closed with code ${code}. Leaving torrent active and temp files intact.`);
+            console.log(`VLC player closed with code ${code}.`);
             // Clear Discord presence when VLC closes
             try {
                 if (discordRpc && discordRpcReady) {
@@ -3104,10 +3104,12 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
             } else if (playerType === 'playtorrio') {
                 console.log('[Main] Using PlayTorrioPlayer');
                 try {
+                    // Only stop torrent on close for basicmode, keep alive for normal mode
+                    const stopOnClose = metadata.isBasicMode === true;
                     const response = await fetch('http://localhost:6987/api/playtorrioplayer', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url })
+                        body: JSON.stringify({ url, stopOnClose })
                     });
                     const result = await response.json();
                     if (result.success) {
@@ -3503,6 +3505,19 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
     // IPC handler for the new Clear Cache button
     ipcMain.handle('clear-cache', async () => {
             const results = [];
+            
+            // Stop all torrent engines first
+            try {
+                console.log('[ClearCache] Stopping all torrent engines...');
+                const stopRes = await fetch('http://localhost:6987/api/alt-stop-all', { method: 'POST' });
+                if (stopRes.ok) {
+                    results.push({ success: true, message: 'Torrent engines stopped' });
+                    console.log('[ClearCache] Torrent engines stopped');
+                }
+            } catch (e) {
+                console.warn('[ClearCache] Failed to stop torrent engines:', e.message);
+            }
+            
             const r1 = await clearWebtorrentTemp(); results.push(r1);
             const r2 = await clearPlaytorrioSubtitlesTemp(); results.push(r2);
             
@@ -3528,7 +3543,7 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
             
             const success = results.every(r => r.success);
             const message = success
-                ? 'Cache cleared: webtorrent, subtitles, API cache, and Stremio cache.'
+                ? 'Cache cleared: engines stopped, webtorrent, subtitles, API cache, and Stremio cache.'
                 : results.map(r => r.message).join(' | ');
             return { success, message };
     });

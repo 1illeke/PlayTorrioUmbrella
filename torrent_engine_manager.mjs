@@ -22,6 +22,7 @@ export const ENGINE_TYPES = {
 let currentEngine = ENGINE_TYPES.STREMIO;
 let instanceCount = 1;
 let userDataPath = null;
+let engineStopped = false; // Flag to prevent auto-restart after explicit stop
 
 /**
  * Get the active engine module
@@ -131,6 +132,7 @@ export function getEngineConfig() {
  */
 export async function startEngine() {
     console.log(`[EngineManager] Starting engine: ${currentEngine}`);
+    engineStopped = false; // Clear the stopped flag when explicitly starting
     
     switch (currentEngine) {
         case ENGINE_TYPES.WEBTORRENT:
@@ -153,6 +155,7 @@ export async function startEngine() {
  */
 export async function stopEngine() {
     console.log(`[EngineManager] Stopping engine: ${currentEngine}`);
+    engineStopped = true; // Set flag to prevent auto-restart
     
     // Stop all engines to be safe
     await Promise.all([
@@ -162,6 +165,7 @@ export async function stopEngine() {
         StremioEngine.stopEngine().catch(() => {}),
     ]);
     
+    console.log(`[EngineManager] All engines stopped, engineStopped flag set`);
     return { success: true };
 }
 
@@ -186,6 +190,12 @@ export function isEngineReady() {
  * Ensure engine is started before use
  */
 async function ensureEngineStarted() {
+    // Don't auto-restart if engine was explicitly stopped (e.g., file picker closed)
+    if (engineStopped) {
+        console.log(`[EngineManager] Engine was explicitly stopped, not auto-restarting`);
+        throw new Error('Engine stopped - please select a new torrent');
+    }
+    
     if (!isEngineReady()) {
         console.log(`[EngineManager] Engine not ready, starting ${currentEngine}...`);
         await startEngine();
@@ -196,6 +206,8 @@ async function ensureEngineStarted() {
  * Add a torrent
  */
 export async function addTorrent(magnet) {
+    // Clear the stopped flag when user explicitly adds a new torrent
+    engineStopped = false;
     await ensureEngineStarted();
     const engine = getActiveEngine();
     return engine.addTorrent(magnet);
@@ -205,6 +217,8 @@ export async function addTorrent(magnet) {
  * Get torrent files
  */
 export async function getTorrentFiles(magnet) {
+    // Clear the stopped flag when user explicitly requests torrent files
+    engineStopped = false;
     await ensureEngineStarted();
     return getActiveEngine().getTorrentFiles(magnet);
 }

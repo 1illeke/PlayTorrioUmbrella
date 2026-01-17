@@ -60,15 +60,25 @@ function initClient() {
     cachePath = getTempDir();
     
     client = new WebTorrent({
-        maxConns: 100,
+        maxConns: 200,        // Increased from 100
         dht: true,
         lsd: true,
         webSeeds: true,
         utp: true,
+        // Aggressive download settings for maximum speed
+        downloadLimit: -1,
+        uploadLimit: 5 * 1024 * 1024,  // Limit upload to 5MB/s to prioritize download
+        // Piece selection strategy
+        strategy: 'rarest',
     });
 
     client.on('error', (err) => {
         console.error('[WebTorrent] Client error:', err.message);
+    });
+    
+    // Log when torrents are added
+    client.on('torrent', (torrent) => {
+        console.log(`[WebTorrent] Torrent added to client: ${torrent.infoHash.substring(0, 8)}...`);
     });
 
     console.log(`[WebTorrent] Client created, cache: ${cachePath}`);
@@ -233,6 +243,20 @@ export async function addTorrent(magnet) {
             console.log(`[WebTorrent] Peer connected: ${wire.remoteAddress || 'unknown'}`);
         });
         
+        // Log download progress periodically
+        let lastProgress = 0;
+        const progressInterval = setInterval(() => {
+            if (resolved || !torrent) {
+                clearInterval(progressInterval);
+                return;
+            }
+            const progress = Math.round(torrent.progress * 100);
+            if (progress !== lastProgress) {
+                console.log(`[WebTorrent] Download: ${progress}%, Speed: ${(torrent.downloadSpeed / 1024 / 1024).toFixed(2)} MB/s, Peers: ${torrent.numPeers}`);
+                lastProgress = progress;
+            }
+        }, 5000);
+        
         // Timeout after 90 seconds
         setTimeout(() => {
             if (!resolved) {
@@ -327,11 +351,20 @@ export function getFile(infoHash, fileIndex) {
         return null;
     }
     
-    const file = torrent.files[fileIndex];
-    if (!file) {
-        console.error(`[WebTorrent] getFile: File index ${fileIndex} not found in torrent`);
+    // Check if torrent has files
+    if (!torrent.files || torrent.files.length === 0) {
+        console.error(`[WebTorrent] getFile: Torrent has no files yet (metadata not ready)`);
         return null;
     }
+    
+    const file = torrent.files[fileIndex];
+    if (!file) {
+        console.error(`[WebTorrent] getFile: File index ${fileIndex} not found in torrent (has ${torrent.files.length} files)`);
+        return null;
+    }
+    
+    // Log file info
+    console.log(`[WebTorrent] getFile: Found ${file.name} (${(file.length / 1024 / 1024).toFixed(1)}MB)`);
     
     return file;
 }
@@ -343,15 +376,66 @@ export function getFileStream(infoHash, fileIndex, range = null) {
     const file = getFile(infoHash, fileIndex);
     if (!file) return null;
     
-    // Prioritize this file for download
-    file.select();
+    // Get the torrent to check download status
+    const hash = infoHash.toLowerCase();
+    const torrent = torrentMap.get(hash) || (client && client.get(hash));
+    
+    if (torrent) {
+        // Log current download status
+        console.log(`[WebTorrent] Stream request - Progress: ${(torrent.progress * 100).toFixed(1)}%, Peers: ${torrent.numPeers}, Speed: ${(torrent.downloadSpeed / 1024 / 1024).toFixed(2)} MB/s`);
+        
+        // Deselect all files first
+        torrent.files.forEach((f, i) => {
+            if (i !== fileIndex) {
+                try { f.deselect(); } catch(e) {}
+            }
+        });
+    }
+    
+    // Select and prioritize this file
+    try {
+        file.select();
+        // Set highest priority for streaming
+        if (typeof file.priority === 'function') {
+            file.priority(7);
+        }
+        
+        // Prioritize first and last pieces for quick playback start
+        if (torrent && torrent.pieces) {
+            const pieceLength = torrent.pieceLength;
+            const fileStart = file._startPiece || 0;
+            const fileEnd = file._endPiece || torrent.pieces.length - 1;
+            
+            // Prioritize first 5% and last 5% of file for streaming
+            const priorityCount = Math.ceil((fileEnd - fileStart) * 0.05);
+            for (let i = 0; i < priorityCount; i++) {
+                torrent.critical(fileStart + i, fileEnd - i);
+            }
+        }
+    } catch(e) {
+        console.warn('[WebTorrent] Could not prioritize file:', e.message);
+    }
     
     console.log(`[WebTorrent] Creating stream for ${file.name}, range:`, range || 'full');
     
-    if (range && (range.start !== undefined || range.end !== undefined)) {
-        return file.createReadStream(range);
+    try {
+        let stream;
+        if (range && (range.start !== undefined || range.end !== undefined)) {
+            stream = file.createReadStream(range);
+        } else {
+            stream = file.createReadStream();
+        }
+        
+        // Add error handler to the stream
+        stream.on('error', (err) => {
+            console.error(`[WebTorrent] Stream error for ${file.name}:`, err.message);
+        });
+        
+        return stream;
+    } catch (err) {
+        console.error('[WebTorrent] Failed to create stream:', err.message);
+        return null;
     }
-    return file.createReadStream();
 }
 
 /**
@@ -383,20 +467,52 @@ export function getStats(infoHash) {
 export async function removeTorrent(infoHash) {
     const hash = infoHash.toLowerCase();
     
+    console.log(`[WebTorrent] removeTorrent called for: ${hash.substring(0, 8)}...`);
+    
     return new Promise((resolve) => {
-        const torrent = torrentMap.get(hash) || (client && client.get(hash));
+        let torrent = torrentMap.get(hash);
+        
+        // Also try to get from client directly
+        if (!torrent && client) {
+            torrent = client.get(hash);
+        }
         
         if (!torrent) {
+            console.log(`[WebTorrent] Torrent not found in map, checking client...`);
+            // Try to find by iterating client torrents
+            if (client && client.torrents) {
+                for (const t of client.torrents) {
+                    if (t.infoHash && t.infoHash.toLowerCase() === hash) {
+                        torrent = t;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (!torrent) {
+            console.log(`[WebTorrent] Torrent ${hash.substring(0, 8)}... not found, already removed`);
             torrentMap.delete(hash);
             resolve({ success: true });
             return;
         }
         
-        torrent.destroy({ destroyStore: true }, () => {
+        console.log(`[WebTorrent] Destroying torrent: ${torrent.name || hash.substring(0, 8)}... (peers: ${torrent.numPeers})`);
+        
+        try {
+            torrent.destroy({ destroyStore: true }, (err) => {
+                if (err) {
+                    console.error(`[WebTorrent] Error destroying torrent:`, err.message);
+                }
+                torrentMap.delete(hash);
+                console.log(`[WebTorrent] Torrent destroyed: ${hash.substring(0, 8)}...`);
+                resolve({ success: true });
+            });
+        } catch (err) {
+            console.error(`[WebTorrent] Exception destroying torrent:`, err.message);
             torrentMap.delete(hash);
-            console.log(`[WebTorrent] Removed: ${hash.substring(0, 8)}...`);
             resolve({ success: true });
-        });
+        }
     });
 }
 

@@ -122,7 +122,13 @@ export function registerTorrentEngineRoutes(app, dataPath) {
             
             const file = EngineManager.getFile(hash, Number(fileIndex));
             if (!file) {
-                return res.status(404).json({ error: 'File not found' });
+                return res.status(404).json({ error: 'File not found - torrent may not be ready' });
+            }
+            
+            // Log torrent stats
+            const stats = EngineManager.getStats(hash);
+            if (stats) {
+                console.log(`[TorrentEngineRoutes] Torrent stats - Progress: ${(stats.progress * 100).toFixed(1)}%, Peers: ${stats.numPeers}, Speed: ${(stats.downloadSpeed / 1024 / 1024).toFixed(2)} MB/s`);
             }
             
             const fileName = file.name || 'video.mkv';
@@ -169,14 +175,28 @@ export function registerTorrentEngineRoutes(app, dataPath) {
             }
             
             if (!inputStream) {
-                return res.status(500).json({ error: 'Failed to get file stream' });
+                console.error('[TorrentEngineRoutes] Failed to create stream - inputStream is null');
+                return res.status(500).json({ error: 'Failed to get file stream - torrent may not be downloading' });
             }
+            
+            // Log stream creation success
+            console.log(`[TorrentEngineRoutes] Stream created successfully for ${fileName}`);
             
             inputStream.on('error', (err) => {
                 if (!err.message?.includes('aborted')) {
                     console.error('[TorrentEngineRoutes] Stream error:', err.message);
                 }
                 cleanup();
+            });
+            
+            // Track data flow
+            let bytesStreamed = 0;
+            inputStream.on('data', (chunk) => {
+                bytesStreamed += chunk.length;
+                // Log every 10MB
+                if (bytesStreamed % (10 * 1024 * 1024) < chunk.length) {
+                    console.log(`[TorrentEngineRoutes] Streamed: ${(bytesStreamed / 1024 / 1024).toFixed(1)}MB`);
+                }
             });
             
             inputStream.pipe(res).on('error', () => {});
@@ -250,11 +270,28 @@ export function registerTorrentEngineRoutes(app, dataPath) {
             
             hash = hash.toLowerCase();
             
-            console.log(`[TorrentEngineRoutes] Stopping: ${hash.substring(0, 8)}...`);
-            await EngineManager.removeTorrent(hash);
+            console.log(`[TorrentEngineRoutes] *** STOP STREAM REQUESTED: ${hash.substring(0, 8)}... ***`);
+            const result = await EngineManager.removeTorrent(hash);
+            console.log(`[TorrentEngineRoutes] Stop stream result:`, result);
             
             res.json({ success: true });
         } catch (error) {
+            console.error(`[TorrentEngineRoutes] Stop stream error:`, error.message);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    /**
+     * Stop ALL torrents and reset engine - called when file picker closes
+     */
+    app.post('/api/alt-stop-all', async (req, res) => {
+        try {
+            console.log(`[TorrentEngineRoutes] *** STOPPING ALL TORRENTS ***`);
+            await EngineManager.stopEngine();
+            console.log(`[TorrentEngineRoutes] Engine stopped successfully`);
+            res.json({ success: true, message: 'All torrents stopped' });
+        } catch (error) {
+            console.error(`[TorrentEngineRoutes] Stop all error:`, error.message);
             res.status(500).json({ success: false, error: error.message });
         }
     });

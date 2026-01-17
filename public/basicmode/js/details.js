@@ -303,10 +303,11 @@ async function openPlayerInIframe(options) {
                 
                 console.log(`[Player] Found ${subtitles.length} subtitles`);
                 
+                // BasicMode: stop torrent when player closes
                 const response = await fetch('/api/playtorrioplayer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, subtitles })
+                    body: JSON.stringify({ url, subtitles, stopOnClose: true })
                 });
                 const result = await response.json();
                 if (result.success) {

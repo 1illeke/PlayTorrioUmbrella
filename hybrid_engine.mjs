@@ -94,26 +94,26 @@ export async function addTorrent(magnet) {
 }
 
 /**
- * Get file stream from the engine with best speed
+ * Get file stream from the engine with best speed and availability
  */
 export function getFileStream(infoHash, fileIndex, range = null) {
     // Get stats from both engines
     const wtStats = WebTorrentEngine.getStats(infoHash);
     const tsStats = TorrentStreamEngine.getStats(infoHash);
     
-    // Choose engine with better download speed
-    const wtSpeed = wtStats?.downloadSpeed || 0;
-    const tsSpeed = tsStats?.downloadSpeed || 0;
+    // Prefer engine with better download speed AND more peers
+    const wtScore = (wtStats?.downloadSpeed || 0) + (wtStats?.numPeers || 0) * 1000;
+    const tsScore = (tsStats?.downloadSpeed || 0) + (tsStats?.numPeers || 0) * 1000;
     
-    if (wtSpeed >= tsSpeed && wtStats) {
-        console.log(`[HybridEngine] Using WebTorrent (${(wtSpeed / 1024).toFixed(1)} KB/s)`);
+    if (wtScore >= tsScore && wtStats) {
+        console.log(`[HybridEngine] Using WebTorrent (score: ${wtScore.toFixed(0)})`);
         return WebTorrentEngine.getFileStream(infoHash, fileIndex, range);
     } else if (tsStats) {
-        console.log(`[HybridEngine] Using TorrentStream (${(tsSpeed / 1024).toFixed(1)} KB/s)`);
+        console.log(`[HybridEngine] Using TorrentStream (score: ${tsScore.toFixed(0)})`);
         return TorrentStreamEngine.getFileStream(infoHash, fileIndex, range);
     }
     
-    // Fallback
+    // Fallback to any available
     return WebTorrentEngine.getFileStream(infoHash, fileIndex, range) ||
            TorrentStreamEngine.getFileStream(infoHash, fileIndex, range);
 }

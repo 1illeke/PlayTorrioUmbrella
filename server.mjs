@@ -1116,6 +1116,7 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
             rdClientId: s.rdClientId || null,
             jackettUrl: userSettings.jackettUrl || JACKETT_URL,
             cacheLocation: userSettings.cacheLocation || CACHE_LOCATION,
+            playerType: s.playerType || 'builtin',
             useNodeMPV: !!s.useNodeMPV,
             mpvPath: s.mpvPath || null,
             discordActivity: s.discordActivity !== false,
@@ -1234,6 +1235,7 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
             useDebrid: req.body.useDebrid != null ? !!req.body.useDebrid : !!s.useDebrid,
             debridProvider: req.body.debridProvider || s.debridProvider || 'realdebrid',
             rdClientId: typeof req.body.rdClientId === 'string' ? req.body.rdClientId.trim() || null : (s.rdClientId || null),
+            playerType: req.body.playerType !== undefined ? req.body.playerType : (s.playerType || 'builtin'),
             useNodeMPV: req.body.useNodeMPV != null ? !!req.body.useNodeMPV : !!s.useNodeMPV,
             mpvPath: req.body.mpvPath !== undefined ? (req.body.mpvPath || null) : (s.mpvPath || null),
             discordActivity: req.body.discordActivity !== undefined ? !!req.body.discordActivity : (s.discordActivity !== false),
@@ -6491,7 +6493,7 @@ for (let i = 0; i < 10; i++) {
     // ============================================================================
     app.post('/api/playtorrioplayer', async (req, res) => {
         try {
-            const { url, subtitles = [] } = req.body;
+            const { url, subtitles = [], stopOnClose = true } = req.body;
             if (!url) {
                 return res.status(400).json({ error: 'Missing url parameter' });
             }
@@ -6637,16 +6639,18 @@ for (let i = 0; i < 10; i++) {
                 cwd: path.dirname(playerExe)
             });
             
-            // When player closes, stop the torrent stream
+            // When player closes, stop the torrent stream only if stopOnClose is true
             playerProcess.on('close', (code) => {
                 console.log(`[PlayTorrioPlayer] Player closed with code: ${code}`);
                 
-                if (streamHash) {
+                if (streamHash && stopOnClose) {
                     const endpoint = isAltEngine ? '/api/alt-stop-stream' : '/api/stop-stream';
                     console.log(`[PlayTorrioPlayer] Stopping torrent stream: ${streamHash}`);
                     fetch(`http://localhost:6987${endpoint}?hash=${streamHash}`).catch(e => {
                         console.warn(`[PlayTorrioPlayer] Failed to stop stream:`, e.message);
                     });
+                } else if (streamHash && !stopOnClose) {
+                    console.log(`[PlayTorrioPlayer] Keeping torrent stream alive: ${streamHash} (stopOnClose=false)`);
                 }
             });
             

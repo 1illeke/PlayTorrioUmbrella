@@ -88,16 +88,18 @@ class TorrentStreamInstance {
             }
 
             const opts = {
-                connections: 150,         // Increased max connections
-                uploads: 15,              // More upload slots
+                connections: 200,         // Increased from 150
+                uploads: 10,              // Reduced from 15 to prioritize downloads
                 tmp: this.cachePath,
                 path: this.cachePath,
                 verify: true,
-                dht: true,                // Enable DHT
-                tracker: true,            // Enable trackers
+                dht: true,
+                tracker: true,
                 trackers: TRACKERS,
                 // Aggressive settings for faster streaming
-                buffer: 20 * 1024 * 1024, // 20MB buffer for smoother playback
+                buffer: 30 * 1024 * 1024, // Increased to 30MB buffer
+                // Piece selection for streaming
+                strategy: 'rarest',
             };
 
             try {
@@ -161,7 +163,7 @@ class TorrentStreamInstance {
     }
 
     /**
-     * Get a file stream
+     * Get a file stream with streaming optimizations
      */
     getFileStream(infoHash, fileIndex, range = null) {
         const data = this.engines.get(infoHash);
@@ -173,8 +175,30 @@ class TorrentStreamInstance {
         // Update last access
         data.lastAccess = Date.now();
 
-        // Select this file for download
+        // Deselect all other files to focus bandwidth
+        data.engine.files.forEach((f, idx) => {
+            if (idx !== fileIndex) {
+                try { f.deselect(); } catch(e) {}
+            }
+        });
+
+        // Select this file for download with priority
         file.select();
+        
+        // Set high priority for streaming pieces
+        const engine = data.engine;
+        if (engine.swarm && engine.swarm.piecesGot) {
+            // Prioritize first and last 10% of pieces for quick start/seek
+            const totalPieces = engine.torrent.pieces.length;
+            const priorityCount = Math.ceil(totalPieces * 0.1);
+            
+            for (let i = 0; i < priorityCount; i++) {
+                try {
+                    engine.swarm.select(i, 2);  // High priority
+                    engine.swarm.select(totalPieces - 1 - i, 2);
+                } catch(e) {}
+            }
+        }
 
         if (range) {
             return file.createReadStream(range);

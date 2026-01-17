@@ -289,7 +289,7 @@ export const initNodeMPVUI = async () => {
     const settings = await getDebridSettings();
     
     // Determine current player type from settings
-    let currentPlayerType = 'playtorrio'; // default
+    let currentPlayerType = 'builtin'; // default
     if (settings.playerType) {
         currentPlayerType = settings.playerType;
         // If non-Windows and somehow set to nodempv, reset to playtorrio
