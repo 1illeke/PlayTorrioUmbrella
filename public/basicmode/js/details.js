@@ -330,6 +330,7 @@ async function openPlayerInIframe(options) {
     
     // HTML5 Built-in Player (default fallback)
     console.log('[Player] Using Built-in HTML5 player');
+    console.log('[Player] IDs being passed:', { tmdbId, imdbId, seasonNum, episodeNum, type });
     
     // Build player URL with query params for HTML5 player
     const params = new URLSearchParams();
@@ -347,6 +348,7 @@ async function openPlayerInIframe(options) {
     if (quality) params.append('quality', quality);
     
     const playerUrl = `http://localhost:6987/player.html?${params.toString()}`;
+    console.log('[Player] Full player URL:', playerUrl);
     
     // Extract stream hash for cleanup (if local torrent stream)
     let streamHash = null;

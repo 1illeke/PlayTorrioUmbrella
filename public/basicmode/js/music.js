@@ -802,9 +802,9 @@ async function playTrack(track, queue = null, index = 0) {
     if (currentTime) currentTime.textContent = '0:00';
     if (totalTime) totalTime.textContent = '0:00';
     
-    // Get stream URL using the same API as main app
+    // Get stream URL using direct URL (FASTER - no proxy)
     try {
-        const res = await fetch(`/api/stream-url?trackId=${encodeURIComponent(track.id)}`);
+        const res = await fetch(`/api/direct-stream-url?trackId=${encodeURIComponent(track.id)}`);
         if (!res.ok) throw new Error('Failed to get stream URL');
         const data = await res.json();
         

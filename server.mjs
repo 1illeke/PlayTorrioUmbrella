@@ -5324,6 +5324,23 @@ for (let i = 0; i < 10; i++) {
         }
     });
 
+    // Get installed Stremio addons
+    app.get('/api/addons', async (req, res) => {
+        try {
+            const addonsPath = path.join(userDataPath, 'addons.json');
+            if (fs.existsSync(addonsPath)) {
+                const data = fs.readFileSync(addonsPath, 'utf8');
+                const addons = JSON.parse(data);
+                res.json(addons);
+            } else {
+                res.json([]);
+            }
+        } catch (e) {
+            console.error('[API] Failed to read addons:', e);
+            res.json([]);
+        }
+    });
+
     // Download subtitle to temp dir (supports OpenSubtitles and Wyzie direct URL)
     app.post('/api/subtitles/download', async (req, res) => {
         try {

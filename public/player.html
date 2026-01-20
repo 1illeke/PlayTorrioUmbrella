@@ -594,12 +594,17 @@
         let currentStreamUrl = null; // The actual URL being played (HLS or direct)
 
         // --- Initialization ---
+        console.log('[Player] Initializing with params:', { videoUrl, tmdbId, imdbId, season, episode, type });
+        
         if (videoUrl) {
             initPlayer(videoUrl, initialTime);
         }
         
         if (tmdbId || imdbId) {
+            console.log('[Player] Fetching subtitles for:', { tmdbId, imdbId, season, episode, type });
             initSubtitles(tmdbId, imdbId, season, episode, type);
+        } else {
+            console.warn('[Player] No tmdbId or imdbId provided - subtitles will not be fetched');
         }
         
         // Check if this is a torrent stream (Stremio engine)

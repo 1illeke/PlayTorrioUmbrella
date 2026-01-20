@@ -652,6 +652,85 @@ function setupModalListeners() {
         });
     }
     
+    // Custom Magnet Modal
+    const customMagnetModal = document.getElementById('custom-magnet-modal');
+    const closeCustomMagnetBtn = document.getElementById('close-custom-magnet-modal');
+    const cancelCustomMagnetBtn = document.getElementById('cancel-custom-magnet-btn');
+    const playCustomMagnetBtn = document.getElementById('play-custom-magnet-btn');
+    const customMagnetInput = document.getElementById('custom-magnet-input');
+
+    const closeCustomMagnetModal = () => {
+        if (customMagnetModal) {
+            customMagnetModal.style.display = 'none';
+            customMagnetModal.classList.remove('active');
+            customMagnetModal.style.opacity = '0';
+            customMagnetModal.style.pointerEvents = 'none';
+        }
+        if (customMagnetInput) customMagnetInput.value = '';
+    };
+
+    if (closeCustomMagnetBtn) {
+        closeCustomMagnetBtn.addEventListener('click', closeCustomMagnetModal);
+    }
+
+    if (cancelCustomMagnetBtn) {
+        cancelCustomMagnetBtn.addEventListener('click', closeCustomMagnetModal);
+    }
+
+    if (customMagnetModal) {
+        customMagnetModal.addEventListener('click', (e) => {
+            if (e.target === customMagnetModal) {
+                closeCustomMagnetModal();
+            }
+        });
+    }
+
+    if (playCustomMagnetBtn && customMagnetInput) {
+        playCustomMagnetBtn.addEventListener('click', async () => {
+            const magnetLink = customMagnetInput.value.trim();
+            
+            if (!magnetLink) {
+                if (typeof showNotification === 'function') {
+                    showNotification('Please enter a magnet link', 'error');
+                } else {
+                    alert('Please enter a magnet link');
+                }
+                return;
+            }
+
+            if (!magnetLink.startsWith('magnet:')) {
+                if (typeof showNotification === 'function') {
+                    showNotification('Invalid magnet link. Must start with "magnet:"', 'error');
+                } else {
+                    alert('Invalid magnet link. Must start with "magnet:"');
+                }
+                return;
+            }
+
+            closeCustomMagnetModal();
+
+            // Call the streaming module with the magnet link
+            // This will show the file selector and handle debrid automatically
+            if (typeof window.startStream === 'function') {
+                await window.startStream(magnetLink);
+            } else {
+                // Fallback: show error
+                if (typeof showNotification === 'function') {
+                    showNotification('Streaming module not loaded. Please try again.', 'error');
+                } else {
+                    alert('Streaming module not loaded. Please try again.');
+                }
+            }
+        });
+
+        // Enter key to play
+        customMagnetInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                playCustomMagnetBtn.click();
+            }
+        });
+    }
+    
     console.log('[EventListeners] Modal listeners set up');
 }
 

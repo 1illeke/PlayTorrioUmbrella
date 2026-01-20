@@ -8,6 +8,7 @@ const NodeCache = require('node-cache');
 const { app } = require("electron");
 const os = require("os");
 const fs = require("fs");
+const ytmusic = require('youtube-music-api');
 
 
 const appName = "PlayTorrio"; 
@@ -34,6 +35,19 @@ function getSavedManifestUrl() {
 
 // Initialize cache with 1 hour TTL
 const gamesCache = new NodeCache({ stdTTL: 3600 });
+
+// Initialize YouTube Music API
+const ytMusicApi = new ytmusic();
+let ytMusicInitialized = false;
+
+// Initialize YouTube Music API
+ytMusicApi.initalize().then(() => {
+  ytMusicInitialized = true;
+  console.log('[Music] YouTube Music API initialized successfully');
+}).catch(err => {
+  console.error('[Music] Failed to initialize YouTube Music API:', err);
+  ytMusicInitialized = false;
+});
 
 // Optional MovieBox fetcher module (from bundled MovieBox API)
 let movieboxFetcher = null;
@@ -5885,8 +5899,8 @@ const { spawn } = require('child_process');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 
 // ---- CONFIG ----
-const SPOTIFY_CLIENT_ID = '6757e9618d9948b6b1f3312401bfcfa7';
-const SPOTIFY_CLIENT_SECRET = '0b7ec13743e7454981e0ad0d6b1d5aa5';
+const SPOTIFY_CLIENT_ID = '.';
+const SPOTIFY_CLIENT_SECRET = '.';
 
 // ---- STATE ----
 let spotifyToken = '';
@@ -5897,6 +5911,7 @@ let ytDlpPath = null;
 // ---- CACHE ----
 const urlCache = new Map();
 const URL_CACHE_DURATION = 5 * 60 * 1000;
+const videoIdCache = new Map(); // Cache video IDs from YouTube Music API
 
 // Store download progress: downloadId -> { progress, filePath, complete, error, proc }
 const downloadProgress = new Map();
@@ -6052,7 +6067,7 @@ function runYtDlp(args) {
   });
 }
 
-async function getYouTubeAudioUrl(searchQuery, trackId) {
+async function getYouTubeAudioUrl(ytMusicSearchQuery, ytDlpSearchQuery, trackId) {
   // Ensure yt-dlp binary is located
   try {
     initMusicDeps();
@@ -6063,58 +6078,77 @@ async function getYouTubeAudioUrl(searchQuery, trackId) {
   // Return cached URL if available and valid
   const cached = urlCache.get(trackId);
   if (cached && Date.now() < cached.expiry) {
+    console.log('[Music] Using cached stream URL');
     return cached.url;
   }
 
-  // Build yt-dlp arguments to emulate yt-dlp-wrap getVideoInfo behavior
-  const args = [
-    '--dump-single-json',
-    '--no-check-certificate',
-    '--no-warnings',
-    '--prefer-free-formats',
-    '--add-header', 'referer:https://music.youtube.com/',
-    '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    searchQuery
-  ];
-  // Run yt-dlp to obtain JSON metadata for the first search result
-  const jsonOutput = await runYtDlp(args);
-  const info = JSON.parse(jsonOutput);
-  // Some versions of yt-dlp return a playlist object with entries instead of formats directly
-  let formats = info.formats;
-  if ((!formats || formats.length === 0) && Array.isArray(info.entries) && info.entries.length > 0) {
-    formats = info.entries[0].formats;
-  }
-  let streamUrl = null;
-  if (Array.isArray(formats) && formats.length > 0) {
-    // Filter audio-only formats
-    const audioFormats = formats.filter(f =>
-      f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none') && f.url
-    );
-    if (audioFormats.length > 0) {
-      // Sort by audio bitrate (higher first)
-      audioFormats.sort((a, b) => (b.abr || 0) - (a.abr || 0));
-      streamUrl = audioFormats[0].url;
-    } else {
-      // Fallback: choose any format with audio and a URL
-      const withAudio = formats.filter(f => f.acodec && f.acodec !== 'none' && f.url);
-      if (withAudio.length > 0) {
-        withAudio.sort((a, b) => (b.abr || 0) - (a.abr || 0));
-        streamUrl = withAudio[0].url;
+  // Check if we have a cached video ID for this track
+  let videoId = videoIdCache.get(trackId);
+  
+  // Use YouTube Music API to find the video ID if not cached
+  if (!videoId && ytMusicInitialized) {
+    try {
+      console.log('[Music] Searching YouTube Music for:', ytMusicSearchQuery);
+      const searchResults = await ytMusicApi.search(ytMusicSearchQuery, 'song');
+      if (searchResults?.content && searchResults.content.length > 0) {
+        const topResult = searchResults.content[0];
+        videoId = topResult.videoId;
+        // Cache the video ID for 1 hour
+        videoIdCache.set(trackId, videoId);
+        console.log('[Music] Found and cached video ID:', videoId);
+        console.log('[Music] Match:', topResult.name, 'by', topResult.artist?.name);
       }
+    } catch (err) {
+      console.warn('[Music] YouTube Music API search failed:', err.message);
     }
+  } else if (videoId) {
+    console.log('[Music] Using cached video ID:', videoId);
   }
-  // Another fallback: use top-level URL if available
-  if (!streamUrl && info.url) {
-    streamUrl = info.url;
+
+  // Build yt-dlp arguments - optimized for INSTANT streaming
+  let args;
+  if (videoId) {
+    // Use --get-url for instant URL extraction (much faster than --dump-single-json)
+    args = [
+      '--get-url',
+      '--format', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
+      '--no-check-certificate',
+      '--no-warnings',
+      '--geo-bypass',
+      '--add-header', 'referer:https://music.youtube.com/',
+      '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      `https://music.youtube.com/watch?v=${videoId}`
+    ];
+  } else {
+    // Fallback to yt-dlp search if YouTube Music API failed
+    args = [
+      '--get-url',
+      '--format', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
+      '--no-check-certificate',
+      '--no-warnings',
+      '--geo-bypass',
+      '--add-header', 'referer:https://music.youtube.com/',
+      '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      ytDlpSearchQuery
+    ];
   }
-  if (!streamUrl) {
+
+  // Run yt-dlp to get direct stream URL (MUCH faster than JSON parsing)
+  console.log('[Music] Extracting stream URL...');
+  const output = await runYtDlp(args);
+  const streamUrl = output.trim().split('\n')[0]; // Get first URL
+  
+  if (!streamUrl || !streamUrl.startsWith('http')) {
     throw new Error('Could not extract audio URL');
   }
-  // Cache the URL for a short period
+  
+  // Cache the URL for longer (10 minutes instead of 5)
   urlCache.set(trackId, {
     url: streamUrl,
-    expiry: Date.now() + URL_CACHE_DURATION
+    expiry: Date.now() + (10 * 60 * 1000)
   });
+  
+  console.log('[Music] Stream URL extracted and cached');
   return streamUrl;
 }
 
@@ -6252,29 +6286,75 @@ function registerMusicApi(app) {
     res.json({ success: true, streamUrl: `/api/proxy-stream?trackId=${req.query.trackId}` });
   });
 
+  // Get direct stream URL (FAST - no proxy overhead)
+  app.get('/api/direct-stream-url', async (req, res) => {
+    try {
+      const trackId = req.query.trackId;
+      if (!trackId) return res.status(400).json({ error: 'Missing trackId' });
+      
+      // Get track details to construct search query using Deezer
+      let title = '';
+      let artistName = '';
+      try {
+        const trackInfo = await callDeezerApi(`https://api.deezer.com/track/${trackId}`);
+        title = trackInfo?.title || '';
+        artistName = trackInfo?.artist?.name || '';
+      } catch (err) {
+        return res.status(400).json({ error: 'Invalid track ID' });
+      }
+      
+      if (!title) {
+        return res.status(400).json({ error: 'Invalid track ID' });
+      }
+      
+      // Construct search queries
+      const ytMusicSearchQuery = `${title} ${artistName}`;
+      const ytDlpSearchQuery = `ytsearch1:${title} ${artistName} official audio topic`;
+      
+      // Get the direct stream URL
+      const streamUrl = await getYouTubeAudioUrl(ytMusicSearchQuery, ytDlpSearchQuery, trackId);
+      
+      // Return the direct URL to the client
+      res.json({ 
+        success: true, 
+        streamUrl: streamUrl,
+        title: title,
+        artist: artistName
+      });
+    } catch (err) {
+      console.error('[Music] Direct stream URL error:', err);
+      res.status(500).json({ error: 'Failed to get stream URL: ' + err.message });
+    }
+  });
+
   // Stream audio via yt-dlp; supports Range requests
   app.get('/api/proxy-stream', async (req, res) => {
     const trackId = req.query.trackId;
     if (!trackId) return res.status(400).send('Missing trackId');
     // Get track details to construct search query using Deezer
-    let searchQuery;
+    let title = '';
+    let artistName = '';
     try {
       const trackInfo = await callDeezerApi(`https://api.deezer.com/track/${trackId}`);
-      const title = trackInfo?.title || '';
-      const artistName = trackInfo?.artist?.name || '';
-      searchQuery = `ytsearch1:${title} ${artistName} official audio topic`;
+      title = trackInfo?.title || '';
+      artistName = trackInfo?.artist?.name || '';
     } catch (err) {
-      searchQuery = '';
-    }
-    if (!searchQuery) {
       return res.status(400).send('Invalid track ID');
     }
+    if (!title) {
+      return res.status(400).send('Invalid track ID');
+    }
+    
+    // Construct search queries
+    const ytMusicSearchQuery = `${title} ${artistName}`; // Clean query for YouTube Music API
+    const ytDlpSearchQuery = `ytsearch1:${title} ${artistName} official audio topic`; // Fallback for yt-dlp
+    
     // Attempt streaming up to 2 times if remote 416
     let attempt = 0;
     const maxAttempts = 2;
     while (attempt < maxAttempts) {
       try {
-        const streamUrl = await getYouTubeAudioUrl(searchQuery, trackId);
+        const streamUrl = await getYouTubeAudioUrl(ytMusicSearchQuery, ytDlpSearchQuery, trackId);
         const headers = {
           'User-Agent': 'Mozilla/5.0',
           'Referer': 'https://music.youtube.com/',

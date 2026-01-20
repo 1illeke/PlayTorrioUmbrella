@@ -1,6 +1,6 @@
 {
   "name": "playtorrio",
-  "version": "2.5.1",
+  "version": "2.5.2",
   "description": "Ayman's PlayTorrio an all in one media center",
   "author": {
     "name": "Ayman",
@@ -40,7 +40,8 @@
     "qs": "^6.14.0",
     "torrent-stream": "^1.2.1",
     "webtorrent": "^2.8.5",
-    "xml2js": "^0.6.2"
+    "xml2js": "^0.6.2",
+    "youtube-music-api": "^1.0.6"
   },
   "devDependencies": {
     "electron": "^38.2.2",
@@ -112,7 +113,9 @@
         {
           "from": "PlayTorrioPlayer",
           "to": "PlayTorrioPlayer",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         }
       ]
     },
@@ -178,7 +181,9 @@
         {
           "from": "PlayTorrioPlayer",
           "to": "PlayTorrioPlayer",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         }
       ]
     },
@@ -255,7 +260,9 @@
         {
           "from": "PlayTorrioPlayer",
           "to": "PlayTorrioPlayer",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         }
       ]
     },
