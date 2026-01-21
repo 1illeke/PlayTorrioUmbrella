@@ -444,10 +444,18 @@
         }
         
         // Close player function - works for both iframe and standalone
-        function closePlayer() {
+        function closePlayer(event) {
+            // Prevent any default behavior
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            
             if (isInIframe) {
                 // Send message to parent window
                 window.parent.postMessage({ type: 'player-close' }, '*');
+                // Don't do anything else - let parent handle cleanup
+                return false;
             } else {
                 // Standalone window - use window.close()
                 window.close();
@@ -1356,7 +1364,12 @@
         };
 
         // Back Button
-        document.getElementById('back-btn').onclick = () => { closePlayer(); };
+        document.getElementById('back-btn').onclick = (e) => { 
+            e.preventDefault();
+            e.stopPropagation();
+            closePlayer(e);
+            return false;
+        };
 
         // Mouse Hiding
         function showControls() {

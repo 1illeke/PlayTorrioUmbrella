@@ -3982,6 +3982,7 @@ window.addEventListener('DOMContentLoaded', () => {
             
             // Create overlay container
             this.overlay = document.createElement('div');
+            this.overlay.id = 'player-overlay-container';
             this.overlay.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -3991,14 +3992,17 @@ window.addEventListener('DOMContentLoaded', () => {
                 background: #000;
                 z-index: 99999;
                 display: none;
+                pointer-events: none;
             `;
             
             // Create iframe
             this.iframe = document.createElement('iframe');
+            this.iframe.id = 'player-overlay-iframe';
             this.iframe.style.cssText = `
                 width: 100%;
                 height: 100%;
                 border: none;
+                pointer-events: auto;
             `;
             this.iframe.allow = 'autoplay; fullscreen; picture-in-picture';
             this.iframe.allowFullscreen = true;
@@ -4026,9 +4030,15 @@ window.addEventListener('DOMContentLoaded', () => {
             console.log('[PlayerOverlay] Stream hash:', this.currentStreamHash);
             console.log('[PlayerOverlay] Alt engine:', this.isAltEngine);
             
-            this.iframe.src = playerUrl;
+            // Show overlay first
             this.overlay.style.display = 'block';
+            this.overlay.style.pointerEvents = 'auto';
             document.body.style.overflow = 'hidden';
+            
+            // Load iframe after overlay is visible
+            setTimeout(() => {
+                this.iframe.src = playerUrl;
+            }, 50);
         },
 
         close() {
@@ -4052,17 +4062,39 @@ window.addEventListener('DOMContentLoaded', () => {
                 this.isAltEngine = false;
             }
             
-            // Clear iframe and hide overlay
-            this.iframe.src = 'about:blank';
-            this.overlay.style.display = 'none';
+            // CRITICAL: Completely hide and disable the overlay
+            if (this.overlay) {
+                this.overlay.style.display = 'none';
+                this.overlay.style.pointerEvents = 'none';
+                this.overlay.style.visibility = 'hidden';
+            }
+            
+            // Clear iframe source
+            if (this.iframe) {
+                this.iframe.src = 'about:blank';
+            }
+            
+            // Restore body scroll
             document.body.style.overflow = '';
+            document.body.style.pointerEvents = '';
+            
+            // Force a reflow to ensure changes are applied
+            if (this.overlay) {
+                void this.overlay.offsetHeight;
+            }
             
             // Reset closing flag after a short delay
             setTimeout(() => {
                 this.isClosing = false;
+                // Double-check overlay is hidden
+                if (this.overlay) {
+                    this.overlay.style.display = 'none';
+                    this.overlay.style.pointerEvents = 'none';
+                    this.overlay.style.visibility = 'hidden';
+                }
             }, 500);
             
-            console.log('[PlayerOverlay] Player closed');
+            console.log('[PlayerOverlay] Player closed - overlay hidden and disabled');
         }
     };
     
@@ -4077,6 +4109,17 @@ window.addEventListener('DOMContentLoaded', () => {
             console.log('[PlayerOverlay] Received cleanup message:', event.data.hash);
             if (window.playerOverlay && event.data.hash) {
                 window.playerOverlay.currentStreamHash = event.data.hash;
+            }
+        }
+    });
+    
+    // Add ESC key handler to close player
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && window.playerOverlay && window.playerOverlay.overlay) {
+            const overlayVisible = window.playerOverlay.overlay.style.display !== 'none';
+            if (overlayVisible && !window.playerOverlay.isClosing) {
+                console.log('[PlayerOverlay] ESC pressed - closing player');
+                window.playerOverlay.close();
             }
         }
     });

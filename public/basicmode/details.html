@@ -487,15 +487,8 @@
     </div>
 
     <!-- Embedded Player Overlay (iframe) -->
-    <div id="player-overlay" class="fixed inset-0 z-[10000] bg-black hidden">
-        <!-- Close button -->
-        <button id="player-overlay-close" class="absolute top-4 right-4 z-[10001] bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 shadow-lg">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-            Close Player (ESC)
-        </button>
-        <iframe id="player-iframe" class="w-full h-full border-0" allowfullscreen></iframe>
+    <div id="player-overlay" class="fixed inset-0 z-[10000] bg-black hidden" style="pointer-events: none;">
+        <iframe id="player-iframe" class="w-full h-full border-0" allowfullscreen style="pointer-events: auto;" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation"></iframe>
     </div>
 
     <script>
@@ -503,7 +496,6 @@
         window.playerOverlay = {
             overlay: null,
             iframe: null,
-            closeBtn: null,
             currentStreamHash: null,
             isAltEngine: false,
             isClosing: false,
@@ -511,19 +503,23 @@
             init() {
                 this.overlay = document.getElementById('player-overlay');
                 this.iframe = document.getElementById('player-iframe');
-                this.closeBtn = document.getElementById('player-overlay-close');
                 
-                // Close button click
-                if (this.closeBtn) {
-                    this.closeBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.close();
+                // Prevent clicks on overlay from propagating
+                if (this.overlay) {
+                    this.overlay.addEventListener('click', (e) => {
+                        // Only close if clicking directly on overlay, not iframe
+                        if (e.target === this.overlay) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.close();
+                        }
                     });
                 }
                 
                 // ESC key to close
                 document.addEventListener('keydown', (e) => {
                     if (e.key === 'Escape' && !this.overlay.classList.contains('hidden')) {
+                        e.preventDefault();
                         this.close();
                     }
                 });
@@ -531,6 +527,7 @@
                 // Listen for messages from the player iframe
                 window.addEventListener('message', (event) => {
                     if (event.data?.type === 'player-close') {
+                        console.log('[PlayerOverlay] Received close message from iframe');
                         this.close();
                     } else if (event.data?.type === 'player-cleanup') {
                         // Player requests cleanup of specific hash
@@ -542,10 +539,12 @@
                 });
                 
                 // Handle iframe load errors
-                this.iframe.addEventListener('error', () => {
-                    console.error('[PlayerOverlay] Iframe load error');
-                    this.close();
-                });
+                if (this.iframe) {
+                    this.iframe.addEventListener('error', () => {
+                        console.error('[PlayerOverlay] Iframe load error');
+                        this.close();
+                    });
+                }
             },
             
             open(playerUrl, streamHash, isAltEngine = false) {
@@ -555,49 +554,100 @@
                 this.currentStreamHash = streamHash || null;
                 this.isAltEngine = isAltEngine;
                 
+                console.log('[PlayerOverlay] Opening player:', playerUrl);
+                console.log('[PlayerOverlay] Stream hash:', streamHash);
+                
                 // Clear any previous content
-                this.iframe.src = '';
+                this.iframe.src = 'about:blank';
+                
+                // Enable pointer events and show overlay
+                this.overlay.style.pointerEvents = 'auto';
+                this.overlay.style.visibility = 'visible';
+                this.overlay.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
                 
                 // Small delay to ensure clean state
                 setTimeout(() => {
-                    if (!this.isClosing) {
+                    if (!this.isClosing && this.iframe) {
                         this.iframe.src = playerUrl;
-                        this.overlay.classList.remove('hidden');
-                        document.body.style.overflow = 'hidden';
                     }
                 }, 50);
             },
             
             close() {
-                if (!this.overlay || this.isClosing) return;
+                if (!this.overlay || this.isClosing) {
+                    console.log('[PlayerOverlay] Already closing or no overlay');
+                    return;
+                }
                 
                 this.isClosing = true;
                 console.log('[PlayerOverlay] Closing player...');
+                console.log('[PlayerOverlay] Current stream hash:', this.currentStreamHash);
                 
                 // Cleanup stream if we have a hash (local torrent stream)
                 if (this.currentStreamHash) {
                     const endpoint = this.isAltEngine ? '/api/alt-stop-stream' : '/api/stop-stream';
-                    console.log('[PlayerOverlay] Stopping stream:', this.currentStreamHash);
-                    fetch(`http://localhost:6987${endpoint}?hash=${this.currentStreamHash}`)
-                        .then(() => console.log('[PlayerOverlay] Stream stopped'))
+                    const url = `http://localhost:6987${endpoint}?hash=${this.currentStreamHash}`;
+                    console.log('[PlayerOverlay] Stopping stream at:', url);
+                    
+                    fetch(url)
+                        .then(res => {
+                            console.log('[PlayerOverlay] Stream stop response:', res.status);
+                            return res.text();
+                        })
+                        .then(text => console.log('[PlayerOverlay] Stream stopped:', text))
                         .catch(e => console.warn('[PlayerOverlay] Stream stop error:', e));
+                    
                     this.currentStreamHash = null;
                     this.isAltEngine = false;
                 }
                 
-                // Hide overlay immediately for better UX
-                this.overlay.classList.add('hidden');
-                document.body.style.overflow = '';
+                // CRITICAL: Disable pointer events IMMEDIATELY to remove the invisible wall
+                if (this.overlay) {
+                    this.overlay.style.pointerEvents = 'none';
+                    this.overlay.style.visibility = 'hidden';
+                    this.overlay.style.display = 'none';
+                    this.overlay.classList.add('hidden');
+                }
                 
-                // Clear iframe after a delay to prevent freeze
+                // Restore body
+                document.body.style.overflow = '';
+                document.body.style.pointerEvents = '';
+                
+                // Force multiple reflows to ensure changes are applied
+                if (this.overlay) {
+                    void this.overlay.offsetHeight;
+                    void document.body.offsetHeight;
+                }
+                
+                // Clear iframe after a delay
                 setTimeout(() => {
                     if (this.iframe) {
-                        this.iframe.src = '';
+                        this.iframe.src = 'about:blank';
                     }
+                    
+                    // Triple-check everything is disabled
+                    if (this.overlay) {
+                        this.overlay.style.pointerEvents = 'none';
+                        this.overlay.style.visibility = 'hidden';
+                        this.overlay.style.display = 'none';
+                        this.overlay.classList.add('hidden');
+                    }
+                    
                     this.isClosing = false;
-                }, 100);
+                    console.log('[PlayerOverlay] Player fully closed and disabled');
+                }, 150);
             }
         };
+        
+        // Prevent any accidental navigation
+        window.addEventListener('beforeunload', (e) => {
+            if (window.playerOverlay && !window.playerOverlay.overlay.classList.contains('hidden')) {
+                console.log('[PlayerOverlay] Preventing navigation while player is open');
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
         
         // Initialize on DOM ready
         if (document.readyState === 'loading') {
