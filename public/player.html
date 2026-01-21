@@ -451,11 +451,40 @@
                 event.stopPropagation();
             }
             
+            // Exit fullscreen first if in fullscreen mode
+            if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement) {
+                console.log('[Player] Exiting fullscreen before closing...');
+                
+                // Exit fullscreen
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+                
+                // Wait for fullscreen to exit before closing
+                setTimeout(() => {
+                    actuallyClosePlayer();
+                }, 300);
+            } else {
+                // Not in fullscreen, close immediately
+                actuallyClosePlayer();
+            }
+            
+            return false;
+        }
+        
+        // Actual close logic separated for reuse
+        function actuallyClosePlayer() {
             if (isInIframe) {
                 // Send message to parent window
+                console.log('[Player] Sending close message to parent');
                 window.parent.postMessage({ type: 'player-close' }, '*');
                 // Don't do anything else - let parent handle cleanup
-                return false;
             } else {
                 // Standalone window - use window.close()
                 window.close();
