@@ -279,14 +279,14 @@ window.hideDiscordModal = hideDiscordModal;
 async function loadCurrentApiKey() {
     try {
         const API_BASE_URL = window.API_BASE_URL || 'http://localhost:6987';
-        const response = await fetch(`${API_BASE_URL}/key-location`);
+        const response = await fetch(`${API_BASE_URL}/api/get-api-key`);
         if (response.ok) {
             const data = await response.json();
             // Update ALL elements with id currentApiKey (there are duplicates in modal and settings page)
             const currentApiKeyEls = document.querySelectorAll('#currentApiKey');
             currentApiKeyEls.forEach(el => {
                 if (data.hasApiKey) {
-                    el.textContent = `API key configured at: ${data.path}`;
+                    el.textContent = `API key configured`;
                     el.style.color = '#10b981';
                 } else {
                     el.textContent = 'No API key configured';
@@ -300,8 +300,33 @@ async function loadCurrentApiKey() {
     }
 }
 
+async function loadCurrentProwlarrApiKey() {
+    try {
+        const API_BASE_URL = window.API_BASE_URL || 'http://localhost:6987';
+        const response = await fetch(`${API_BASE_URL}/api/get-prowlarr-api-key`);
+        if (response.ok) {
+            const data = await response.json();
+            // Update ALL elements with id currentProwlarrApiKey
+            const currentProwlarrApiKeyEls = document.querySelectorAll('#currentProwlarrApiKey');
+            currentProwlarrApiKeyEls.forEach(el => {
+                if (data.hasApiKey) {
+                    el.textContent = `API key configured`;
+                    el.style.color = '#10b981';
+                } else {
+                    el.textContent = 'No API key configured';
+                    el.style.color = '#ef4444';
+                }
+            });
+            window.hasProwlarrApiKey = data.hasApiKey;
+        }
+    } catch (error) {
+        console.error('[API] Error loading Prowlarr API key status:', error);
+    }
+}
+
 // Export additional functions
 window.loadCurrentApiKey = loadCurrentApiKey;
+window.loadCurrentProwlarrApiKey = loadCurrentProwlarrApiKey;
 
 // ===== READER FULLSCREEN FUNCTION =====
 

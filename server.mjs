@@ -311,6 +311,36 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         }
     });
 
+    // Proxy for Prowlarr (Added for Basic Mode)
+    app.get('/api/prowlarr', async (req, res) => {
+        let { apikey, q, prowlarrUrl: customUrl } = req.query;
+        
+        // If apikey is masked (contains *) or missing, use the internal PROWLARR_API_KEY
+        if (!apikey || apikey.includes('*')) {
+            if (!PROWLARR_API_KEY) loadProwlarrAPIKey();
+            apikey = PROWLARR_API_KEY;
+        }
+
+        // Use custom URL if provided, otherwise use the configured PROWLARR_URL
+        const baseUrl = customUrl || PROWLARR_URL;
+        console.log(`[Prowlarr Proxy] Using URL: ${baseUrl}`);
+        
+        const url = `${baseUrl}/api/v1/search?query=${encodeURIComponent(q || '')}&type=search`;
+
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    'X-Api-Key': apikey
+                }
+            });
+            const data = await response.json(); // Prowlarr returns JSON
+            res.json(data);
+        } catch (error) {
+            console.error('Prowlarr Proxy Error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     // ============================================================================
     // RESOLVE TORRENT FILE - Convert .torrent URL to magnet link
     // ============================================================================
@@ -1098,7 +1128,7 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
 
     app.get('/api/settings', (req, res) => {
         const s = readSettings();
-        // Also load Jackett URL and cache location from user settings
+        // Also load Jackett URL, Prowlarr URL and cache location from user settings
         const userSettings = loadUserSettings();
         // Determine auth state for the selected provider
         const provider = s.debridProvider || 'realdebrid';
@@ -1115,6 +1145,7 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
             debridAuth,
             rdClientId: s.rdClientId || null,
             jackettUrl: userSettings.jackettUrl || JACKETT_URL,
+            prowlarrUrl: userSettings.prowlarrUrl || PROWLARR_URL,
             cacheLocation: userSettings.cacheLocation || CACHE_LOCATION,
             playerType: s.playerType || 'builtin',
             useNodeMPV: !!s.useNodeMPV,
@@ -1252,6 +1283,11 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         if (req.body.jackettUrl !== undefined) {
             userSettings.jackettUrl = req.body.jackettUrl;
             JACKETT_URL = req.body.jackettUrl;
+            settingsUpdated = true;
+        }
+        if (req.body.prowlarrUrl !== undefined) {
+            userSettings.prowlarrUrl = req.body.prowlarrUrl;
+            PROWLARR_URL = req.body.prowlarrUrl;
             settingsUpdated = true;
         }
         if (req.body.cacheLocation !== undefined) {
@@ -4519,6 +4555,56 @@ for (let i = 0; i < 10; i++) {
         return false;
     }
 
+    // Prowlarr API Key Management (same pattern as Jackett)
+    const resolveProwlarrReadCandidates = () => [
+        path.join(userDataPath, 'prowlarr_api_key.json'),
+        path.join(installDir, 'prowlarr_api_key.json'),
+        path.join(devRoot, 'prowlarr_api_key.json'),
+        path.join(process.cwd(), 'prowlarr_api_key.json')
+    ];
+
+    const resolveProwlarrWritePath = () => {
+        return path.join(userDataPath, 'prowlarr_api_key.json');
+    };
+
+    function loadProwlarrAPIKey() {
+        try {
+            for (const candidate of resolveProwlarrReadCandidates()) {
+                try {
+                    if (fs.existsSync(candidate)) {
+                        const raw = fs.readFileSync(candidate, 'utf8');
+                        
+                        let key = '';
+                        try {
+                            const parsed = JSON.parse(raw);
+                            key = parsed.apiKey || '';
+                        } catch (jsonErr) {
+                            key = raw.trim();
+                        }
+                        
+                        if (key) {
+                            PROWLARR_API_KEY = key;
+                            console.log(`✅ Prowlarr API Key loaded from ${candidate}`);
+                            return true;
+                        } else {
+                            console.warn(`⚠️ Prowlarr API Key file exists but is empty: ${candidate}`);
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`⚠️ Error reading Prowlarr API key from ${candidate}:`, e?.message);
+                }
+            }
+
+            if (PROWLARR_API_KEY) {
+                console.log('ℹ️ No Prowlarr API key file found, clearing cached key');
+            }
+            PROWLARR_API_KEY = '';
+        } catch (error) {
+            console.error('❌ Error loading Prowlarr API key:', error);
+        }
+        return false;
+    }
+
     function saveAPIKey(apiKey) {
         const payload = JSON.stringify({ apiKey }, null, 2);
         
@@ -4612,12 +4698,15 @@ for (let i = 0; i < 10; i++) {
 
     // Load any existing key at startup
     const hasAPIKey = loadAPIKey();
+    const hasProwlarrAPIKey = loadProwlarrAPIKey();
 
     // Configuration defaults
     let JACKETT_URL = 'http://127.0.0.1:9117/api/v2.0/indexers/all/results/torznab';
+    let PROWLARR_URL = 'http://127.0.0.1:9696';
+    let PROWLARR_API_KEY = '';
     let CACHE_LOCATION = os.tmpdir(); // Default to system temp
 
-    // Load user settings for Jackett URL and cache location
+    // Load user settings for Jackett URL, Prowlarr URL and cache location
     function loadUserSettings() {
         const settingsPath = path.join(userDataPath, 'user_settings.json');
         try {
@@ -4626,6 +4715,10 @@ for (let i = 0; i < 10; i++) {
                 if (settings.jackettUrl) {
                     JACKETT_URL = settings.jackettUrl;
                     console.log(`Loaded custom Jackett URL: ${JACKETT_URL}`);
+                }
+                if (settings.prowlarrUrl) {
+                    PROWLARR_URL = settings.prowlarrUrl;
+                    console.log(`Loaded custom Prowlarr URL: ${PROWLARR_URL}`);
                 }
                 if (settings.cacheLocation) {
                     CACHE_LOCATION = settings.cacheLocation;
@@ -4636,7 +4729,7 @@ for (let i = 0; i < 10; i++) {
         } catch (error) {
             console.error('Error loading user settings:', error);
         }
-        return { jackettUrl: JACKETT_URL, cacheLocation: CACHE_LOCATION };
+        return { jackettUrl: JACKETT_URL, prowlarrUrl: PROWLARR_URL, cacheLocation: CACHE_LOCATION };
     }
 
     function saveUserSettings(settings) {
@@ -4873,6 +4966,65 @@ for (let i = 0; i < 10; i++) {
         }
     });
 
+    // Prowlarr API Key endpoints (same pattern as Jackett)
+    app.post('/api/set-prowlarr-api-key', (req, res) => {
+        if (!req.body.apiKey) return res.status(400).json({ error: 'Invalid API key' });
+        const key = req.body.apiKey.trim();
+
+        if (key.includes('*')) {
+            return res.json({ 
+                success: true, 
+                message: 'API key is masked, not updating' 
+            });
+        }
+        
+        console.log('[Prowlarr API Key] Save request received');
+        
+        const writePath = resolveProwlarrWritePath();
+        try {
+            const dir = path.dirname(writePath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+            
+            fs.writeFileSync(writePath, JSON.stringify({ apiKey: key }, null, 2), 'utf8');
+            console.log(`[Prowlarr API Key] Saved to ${writePath}`);
+            
+            // Verify by reading it back
+            loadProwlarrAPIKey();
+            if (PROWLARR_API_KEY === key) {
+                console.log('[Prowlarr API Key] Verification successful');
+                res.json({ 
+                    success: true, 
+                    message: 'Prowlarr API key saved successfully',
+                    path: writePath 
+                });
+            } else {
+                console.error('[Prowlarr API Key] Verification failed');
+                res.status(500).json({ 
+                    error: 'API key saved but verification failed'
+                });
+            }
+        } catch (error) {
+            console.error('[Prowlarr API Key] Save failed:', error);
+            res.status(500).json({ 
+                error: 'Failed to save Prowlarr API key',
+                details: error.message,
+                attemptedPath: writePath
+            });
+        }
+    });
+
+    app.get('/api/get-prowlarr-api-key', (req, res) => {
+        loadProwlarrAPIKey();
+        if (PROWLARR_API_KEY) {
+            const masked = PROWLARR_API_KEY.substring(0, 4) + '*'.repeat(Math.max(0, PROWLARR_API_KEY.length - 8)) + PROWLARR_API_KEY.substring(Math.max(4, PROWLARR_API_KEY.length - 4));
+            res.json({ apiKey: masked, hasApiKey: true });
+        } else {
+            res.json({ apiKey: '', hasApiKey: false });
+        }
+    });
+
     // NOTE: Torrent streaming routes (/api/torrent-files, /api/stream-file, /api/prepare-file, 
     // /api/stop-stream, /api/torrent-stats, /api/webtorrent-status, /api/resolve-torrent-file)
     // are now handled by TorrServer routes registered above via registerTorrServerRoutes()
@@ -4882,11 +5034,58 @@ for (let i = 0; i < 10; i++) {
     // ============================================================================
 
     app.get('/api/torrents', async (req, res) => {
-        const { q: query, page, season, episode, title } = req.query;
+        const { q: query, page, season, episode, title, useProwlarr } = req.query;
         if (!query) return res.status(400).json({ error: 'Missing query' });
         const s = readSettings();
         const useTorrentless = !!s.useTorrentless;
-        console.log(`[/api/torrents] query="${query}", useTorrentless=${useTorrentless}, will use: ${useTorrentless ? 'TORRENTLESS' : 'JACKETT'}`);
+        const shouldUseProwlarr = useProwlarr === 'true' || useProwlarr === true;
+        
+        console.log(`[/api/torrents] query="${query}", useTorrentless=${useTorrentless}, useProwlarr=${shouldUseProwlarr}`);
+        
+        // If Prowlarr is explicitly requested
+        if (shouldUseProwlarr) {
+            if (!PROWLARR_API_KEY) loadProwlarrAPIKey();
+            console.log(`[Prowlarr] API_KEY check: ${PROWLARR_API_KEY ? 'KEY EXISTS (length=' + PROWLARR_API_KEY.length + ')' : 'KEY IS EMPTY'}`);
+            if (!PROWLARR_API_KEY) return res.status(400).json({ error: 'Prowlarr API key not configured' });
+            
+            try {
+                const url = `${PROWLARR_URL}/api/v1/search?query=${encodeURIComponent(query)}&type=search`;
+                const response = await fetch(url, {
+                    headers: {
+                        'X-Api-Key': PROWLARR_API_KEY
+                    }
+                });
+                if (!response.ok) throw new Error(`Prowlarr error: ${response.statusText}`);
+                const results = await response.json();
+                
+                let torrents = results.map(item => {
+                    const isMagnet = item.magnetUrl || (item.downloadUrl && item.downloadUrl.startsWith('magnet:'));
+                    const isHttpDownload = item.downloadUrl && item.downloadUrl.startsWith('http');
+                    
+                    return {
+                        title: item.title,
+                        magnet: isMagnet ? (item.magnetUrl || item.downloadUrl) : null,
+                        torrentFileUrl: isHttpDownload ? item.downloadUrl : null,
+                        seeders: item.seeders || 0,
+                        size: item.size || 0
+                    };
+                }).filter(t => t.magnet || t.torrentFileUrl);
+                
+                // Apply strict filtering
+                if (season || episode || title) {
+                    console.log(`[Prowlarr Filter] Applying strict filter: Title="${title}", S=${season}, E=${episode}`);
+                    const showTitle = title || query.replace(/s\d+e\d+.*$/i, '').replace(/s\d+.*$/i, '').trim();
+                    torrents = filterTorrents(torrents, showTitle, season, episode);
+                    console.log(`[Prowlarr Filter] Remaining torrents: ${torrents.length}`);
+                }
+                
+                return res.json(torrents);
+            } catch (error) {
+                console.error('[Prowlarr] Error fetching torrents:', error);
+                return res.status(500).json({ error: 'Failed to fetch from Prowlarr', message: error.message });
+            }
+        }
+        
         // If Torrentless is enabled, prefer it
         if (useTorrentless) {
             try {

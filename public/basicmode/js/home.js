@@ -11,6 +11,7 @@ import {
   getGenresList
 } from './api.js';
 import { getJackettKey, setJackettKey, getJackettSettings } from './jackett.js';
+import { getProwlarrKey, setProwlarrKey, getProwlarrSettings } from './prowlarr.js';
 import { getInstalledAddons, installAddon, removeAddon } from './addons.js';
 import { initComics } from './comics.js';
 import { initBooks } from './books.js';
@@ -22,7 +23,7 @@ import { initDebridUI, initNodeMPVUI, initSponsorUI, loadSponsorVisibility, init
 
 // DOM Elements
 let contentRows, searchResultsContainer, searchGrid, searchInput, searchSourceSelect, heroSection, heroBackdrop, heroTitle, heroOverview, heroInfoBtn;
-let settingsBtn, settingsModal, settingsContent, closeSettingsBtn, saveSettingsBtn, jackettApiInput, jackettUrlInput;
+let settingsBtn, settingsModal, settingsContent, closeSettingsBtn, saveSettingsBtn, jackettApiInput, jackettUrlInput, prowlarrApiInput, prowlarrUrlInput;
 let addonManifestInput, installAddonBtn, installedAddonsList, addonItemTemplate;
 let rowTemplate, cardTemplate;
 let genresSection, genresList, catalogsSection, catalogsList;
@@ -46,6 +47,8 @@ const syncHomeElements = () => {
     saveSettingsBtn = document.getElementById('save-settings');
     jackettApiInput = document.getElementById('jackett-api-input');
     jackettUrlInput = document.getElementById('jackett-url-input');
+    prowlarrApiInput = document.getElementById('prowlarr-api-input');
+    prowlarrUrlInput = document.getElementById('prowlarr-url-input');
 
     addonManifestInput = document.getElementById('addon-manifest-input');
     installAddonBtn = document.getElementById('install-addon-btn');
@@ -867,8 +870,10 @@ const renderAddonsList = async () => {
 // Settings Logic
 const openSettings = async () => {
     jackettApiInput.value = await getJackettKey() || '';
+    prowlarrApiInput.value = await getProwlarrKey() || '';
     const settings = await getJackettSettings();
     if (jackettUrlInput) jackettUrlInput.value = settings.jackettUrl || '';
+    if (prowlarrUrlInput) prowlarrUrlInput.value = settings.prowlarrUrl || '';
     await renderAddonsList();
     await initDebridUI();
     await initNodeMPVUI();
@@ -953,20 +958,30 @@ document.addEventListener('DOMContentLoaded', () => {
     saveSettingsBtn?.addEventListener('click', async () => {
         const key = jackettApiInput.value.trim();
         const url = jackettUrlInput ? jackettUrlInput.value.trim() : null;
+        const prowlarrKey = prowlarrApiInput.value.trim();
+        const prowlarrUrl = prowlarrUrlInput ? prowlarrUrlInput.value.trim() : null;
 
         if (key && !key.includes('*')) {
             await setJackettKey(key);
         }
 
-        if (url !== null) {
+        if (prowlarrKey && !prowlarrKey.includes('*')) {
+            await setProwlarrKey(prowlarrKey);
+        }
+
+        if (url !== null || prowlarrUrl !== null) {
             try {
+                const body = {};
+                if (url !== null) body.jackettUrl = url;
+                if (prowlarrUrl !== null) body.prowlarrUrl = prowlarrUrl;
+                
                 await fetch('/api/settings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ jackettUrl: url })
+                    body: JSON.stringify(body)
                 });
             } catch (e) {
-                console.error("Failed to save Jackett URL", e);
+                console.error("Failed to save settings", e);
             }
         }
 

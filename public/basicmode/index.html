@@ -378,6 +378,18 @@
                 </div>
 
                 <div>
+                    <label class="block text-gray-400 text-xs sm:text-sm font-medium mb-2">Prowlarr API Key</label>
+                    <input type="password" id="prowlarr-api-input" class="w-full bg-black/50 border border-gray-700 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-white focus:outline-none focus:border-primary-purple focus:ring-1 focus:ring-primary-purple transition-all" placeholder="Enter your Prowlarr API key">
+                    <p class="text-gray-500 text-[10px] sm:text-xs mt-1.5">Required for fetching sources via Prowlarr.</p>
+                </div>
+
+                <div>
+                    <label class="block text-gray-400 text-xs sm:text-sm font-medium mb-2">Prowlarr Base URL</label>
+                    <input type="text" id="prowlarr-url-input" class="w-full bg-black/50 border border-gray-700 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-white focus:outline-none focus:border-primary-purple focus:ring-1 focus:ring-primary-purple transition-all" placeholder="http://127.0.0.1:9696">
+                    <p class="text-gray-500 text-[10px] sm:text-xs mt-1.5 break-all">Default: http://127.0.0.1:9696</p>
+                </div>
+
+                <div>
                     <label class="block text-gray-400 text-xs sm:text-sm font-medium mb-2">Stremio Addons</label>
                     <div class="flex gap-2 mb-3">
                         <input type="text" id="addon-manifest-input" class="flex-1 min-w-0 bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-primary-purple transition-all" placeholder="https://addon.com/manifest.json">

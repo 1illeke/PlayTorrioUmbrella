@@ -13,6 +13,7 @@ import {
     searchMulti
 } from './api.js';
 import { searchJackett, getJackettKey, setJackettKey, getJackettSettings } from './jackett.js';
+import { searchProwlarr, getProwlarrKey, setProwlarrKey, getProwlarrSettings } from './prowlarr.js';
 import { getInstalledAddons, installAddon, removeAddon, fetchAddonStreams, parseAddonStream } from './addons.js';
 import { initDebridUI, initNodeMPVUI, getDebridSettings } from './debrid.js';
 import { 
@@ -490,6 +491,23 @@ const renderAddonTabs = async () => {
         await renderSources();
     };
     addonTabsContainer.appendChild(jackettTab);
+
+    // Prowlarr tab
+    const prowlarrTab = document.createElement('button');
+    prowlarrTab.className = `px-4 py-1.5 rounded-full text-xs font-bold transition-all ${currentProvider === 'prowlarr' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:text-white'}`;
+    prowlarrTab.textContent = 'Prowlarr';
+    prowlarrTab.onclick = async () => {
+        console.log('[AddonTabs] Prowlarr clicked');
+        currentProvider = 'prowlarr';
+        document.querySelectorAll('#addon-tabs button').forEach(btn => {
+            btn.classList.remove('bg-purple-600', 'text-white', 'shadow-lg');
+            btn.classList.add('bg-gray-800', 'text-gray-400');
+        });
+        prowlarrTab.classList.remove('bg-gray-800', 'text-gray-400');
+        prowlarrTab.classList.add('bg-purple-600', 'text-white', 'shadow-lg');
+        await renderSources();
+    };
+    addonTabsContainer.appendChild(prowlarrTab);
 
     // 111477 tab (native source)
     const tab111477 = document.createElement('button');
@@ -1161,6 +1179,72 @@ const renderSources = async () => {
                             <p class="text-gray-400 text-sm max-w-md mx-auto">
                                 Jackett is not installed, turned off, or the API key is incorrect. 
                                 Please ensure Jackett is running and configured correctly in Settings.
+                            </p>
+                        </div>`;
+                    return;
+                }
+                throw err; // Re-throw if it's a different error
+            }
+        } else if (currentProvider === 'prowlarr') {
+            let queries = [];
+            const title = currentDetails.title || currentDetails.name;
+            
+            // Extract year from release_date or first_air_date
+            let year = '';
+            if (currentDetails.release_date) {
+                year = String(currentDetails.release_date).split('-')[0];
+            } else if (currentDetails.first_air_date) {
+                year = String(currentDetails.first_air_date).split('-')[0];
+            } else if (currentDetails.releaseInfo) {
+                year = String(currentDetails.releaseInfo).match(/\d{4}/)?.[0] || '';
+            }
+            
+            const metadata = { 
+                title: title, 
+                type: type, 
+                year: year 
+            };
+            
+            console.log('[Prowlarr] Searching for:', { title, year, type, isTV });
+            
+            if (isTV) {
+                const s = String(currentSeason).padStart(2, '0');
+                metadata.season = currentSeason;
+                if (currentEpisode) {
+                    const e = String(currentEpisode).padStart(2, '0');
+                    queries.push(`${title} S${s}E${e}`);
+                    queries.push(`${title} S${s}`);
+                    metadata.episode = currentEpisode;
+                } else {
+                    queries.push(`${title} S${s}`);
+                    metadata.episode = null;
+                }
+            } else {
+                // For movies, try with and without year
+                if (year) {
+                    queries.push(`${title} ${year}`);
+                }
+                queries.push(title); // Also try without year
+            }
+            
+            console.log('[Prowlarr] Queries:', queries);
+            
+            try {
+                allSources = await searchProwlarr(queries, metadata);
+                console.log('[Prowlarr] Found sources:', allSources.length);
+            } catch (err) {
+                if (err.message === 'PROWLARR_CONNECTION_ERROR') {
+                    sourcesList.innerHTML = `
+                        <div class="col-span-full text-center py-12 px-6">
+                            <div class="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <h3 class="text-white font-bold text-lg mb-2">Prowlarr Connection Failed</h3>
+                            <p class="text-gray-400 text-sm max-w-md mx-auto">
+                                Prowlarr is not installed, turned off, or the API key is incorrect. 
+                                Please ensure Prowlarr is running and configured correctly in Settings.
                             </p>
                         </div>`;
                     return;

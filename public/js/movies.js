@@ -2672,6 +2672,8 @@ async function fetchTorrents(season = null, episode = null) {
         return fetchTorrentlessTorrents(season, episode);
     } else if (selectedProvider === 'jackett') {
         return fetchJackettTorrents(season, episode);
+    } else if (selectedProvider === 'prowlarr') {
+        return fetchProwlarrTorrents(season, episode);
     }
 
     // Default behavior based on settings
@@ -2865,6 +2867,51 @@ async function fetchJackettTorrents(season, episode) {
     }
 }
 
+// Fetch from Prowlarr
+async function fetchProwlarrTorrents(season, episode) {
+    const torrentsList = document.getElementById('torrentsList');
+    if (torrentsList) {
+        torrentsList.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Searching Prowlarr...</div>';
+    }
+
+    try {
+        let query = currentContent.title || currentContent.name;
+        if (currentMediaType === 'movie') {
+            const year = (currentContent.release_date || '').substring(0, 4);
+            if (year) query = `${query} ${year}`;
+        } else if (currentMediaType === 'tv') {
+            if (season && episode) {
+                const seasonStr = String(season).padStart(2, '0');
+                const episodeStr = String(episode).padStart(2, '0');
+                query = `${query} S${seasonStr}.E${episodeStr}`;
+            } else if (season) {
+                const seasonStr = String(season).padStart(2, '0');
+                query = `${query} S${seasonStr}`;
+            }
+        }
+
+        const API_BASE_URL = window.API_BASE_URL || 'http://localhost:6987/api';
+        const showTitle = currentContent.title || currentContent.name;
+        const prowlarrUrl = `${API_BASE_URL}/torrents?q=${encodeURIComponent(query)}&title=${encodeURIComponent(showTitle)}&season=${season||''}&episode=${episode||''}&useProwlarr=true`;
+        console.log('[Prowlarr] Fetching:', prowlarrUrl);
+        
+        const response = await fetch(prowlarrUrl);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
+        
+        const torrents = await response.json();
+        console.log('[Prowlarr] Got', torrents?.length || 0, 'torrents from API');
+        displayTorrents(torrents, season, episode);
+    } catch (error) {
+        console.error('[Prowlarr] Error:', error);
+        if (torrentsList) {
+            torrentsList.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-triangle"></i> Prowlarr Error: ${error.message}</div>`;
+        }
+    }
+}
+
 // Export torrent functions
 window.showTorrents = showTorrents;
 window.showStreamingServerSelection = showStreamingServerSelection;
@@ -2872,6 +2919,7 @@ window.fetchTorrents = fetchTorrents;
 window.fetchTorrentioTorrents = fetchTorrentioTorrents;
 window.fetchTorrentlessTorrents = fetchTorrentlessTorrents;
 window.fetchJackettTorrents = fetchJackettTorrents;
+window.fetchProwlarrTorrents = fetchProwlarrTorrents;
 
 // Export state variables for use in other modules
 Object.defineProperty(window, 'selectedProvider', {
@@ -3230,7 +3278,8 @@ function initializeModalButtons() {
                               selectedProvider === 'aiostreams' ? 'AIOStreams' :
                               selectedProvider === 'torrentio' ? 'Torrentio' :
                               selectedProvider === 'torrentless' ? 'PlayTorrio' :
-                              selectedProvider === 'jackett' ? 'Jackett' : 'torrents';
+                              selectedProvider === 'jackett' ? 'Jackett' :
+                              selectedProvider === 'prowlarr' ? 'Prowlarr' : 'torrents';
                 tl.innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> Searching ${label}...</div>`;
             }
 

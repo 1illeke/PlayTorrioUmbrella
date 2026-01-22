@@ -57,6 +57,11 @@ function updateSettingsUI(settings) {
         loadCurrentApiKey();
     }
     
+    // Load Prowlarr API key status
+    if (typeof loadCurrentProwlarrApiKey === 'function') {
+        loadCurrentProwlarrApiKey();
+    }
+    
     // Theme selectors
     const themeSelectors = document.querySelectorAll('#themeSelector');
     themeSelectors.forEach(selector => {
@@ -104,6 +109,14 @@ function updateSettingsUI(settings) {
     if (jackettUrlElements.length > 0 && settings.jackettUrl) {
         jackettUrlElements.forEach(input => {
             input.value = settings.jackettUrl;
+        });
+    }
+    
+    // Prowlarr URL
+    const prowlarrUrlElements = document.querySelectorAll('#prowlarrUrl');
+    if (prowlarrUrlElements.length > 0 && settings.prowlarrUrl) {
+        prowlarrUrlElements.forEach(input => {
+            input.value = settings.prowlarrUrl;
         });
     }
     
@@ -191,6 +204,30 @@ async function saveSettings_() {
         }
     }
     console.log('[Settings] Jackett URL:', jackettUrl || 'not provided');
+    
+    // Get Prowlarr API key (prefer visible, else any non-empty)
+    const prowlarrApiKeyElements = document.querySelectorAll('#newProwlarrApiKey');
+    let prowlarrApiKey = '';
+    for (const el of prowlarrApiKeyElements) {
+        const val = (el.value || '').trim();
+        if (val) {
+            prowlarrApiKey = val;
+            if (el.offsetParent !== null) break;
+        }
+    }
+    console.log('[Settings] Prowlarr API key:', prowlarrApiKey ? 'provided' : 'not provided');
+    
+    // Get Prowlarr URL (prefer visible, else any non-empty)
+    const prowlarrUrlElements = document.querySelectorAll('#prowlarrUrl');
+    let prowlarrUrl = '';
+    for (const el of prowlarrUrlElements) {
+        const val = (el.value || '').trim();
+        if (val) {
+            prowlarrUrl = val;
+            if (el.offsetParent !== null) break;
+        }
+    }
+    console.log('[Settings] Prowlarr URL:', prowlarrUrl || 'not provided');
     
     // Get cache location (prefer visible, else any non-empty)
     const cacheLocationElements = document.querySelectorAll('#cacheLocation');
@@ -300,6 +337,7 @@ async function saveSettings_() {
             showSponsor: !!showSponsorEnabled
         };
         if (jackettUrl) settings.jackettUrl = jackettUrl;
+        if (prowlarrUrl) settings.prowlarrUrl = prowlarrUrl;
         if (cacheLocation) settings.cacheLocation = cacheLocation;
         
         console.log('[Settings] Saving settings:', settings);
@@ -351,13 +389,39 @@ async function saveSettings_() {
             if (response.ok) {
                 if (typeof hasApiKey !== 'undefined') hasApiKey = true;
                 if (typeof loadCurrentApiKey === 'function') await loadCurrentApiKey();
-                showNotification('Settings saved. API key updated.');
+                showNotification('Settings saved. Jackett API key updated.');
                 // Clear ALL API key inputs after success
                 document.querySelectorAll('#newApiKey').forEach(el => { el.value = ''; });
             } else {
-                showNotification(apiResult?.error || 'Failed to update API key');
+                showNotification(apiResult?.error || 'Failed to update Jackett API key');
             }
-        } else {
+        }
+        
+        // If Prowlarr API key was provided, attempt to save it
+        if (prowlarrApiKey) {
+            console.log('[Settings] Saving Prowlarr API key');
+            const response = await fetch(`${API_BASE_URL}/set-prowlarr-api-key`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey: prowlarrApiKey })
+            });
+            let apiResult = null;
+            try {
+                apiResult = await response.json();
+            } catch(_) { apiResult = null; }
+            
+            if (response.ok) {
+                if (typeof hasProwlarrApiKey !== 'undefined') hasProwlarrApiKey = true;
+                if (typeof loadCurrentProwlarrApiKey === 'function') await loadCurrentProwlarrApiKey();
+                showNotification('Settings saved. Prowlarr API key updated.');
+                // Clear ALL Prowlarr API key inputs after success
+                document.querySelectorAll('#newProwlarrApiKey').forEach(el => { el.value = ''; });
+            } else {
+                showNotification(apiResult?.error || 'Failed to update Prowlarr API key');
+            }
+        }
+        
+        if (!apiKey && !prowlarrApiKey) {
             showNotification('Settings saved.');
         }
         

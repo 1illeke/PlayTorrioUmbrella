@@ -35,6 +35,8 @@ async function openInMPV() {
     let provider;
     if (selectedProvider === 'jackett') {
         provider = 'Jackett';
+    } else if (selectedProvider === 'prowlarr') {
+        provider = 'Prowlarr';
     } else if (selectedProvider === 'nuvio') {
         provider = 'Nuvio';
     } else if (selectedProvider === 'comet') {
@@ -84,6 +86,7 @@ async function openInVLC() {
     const title = currentContent?.title || currentContent?.name || 'Video';
     let provider;
     if (selectedProvider === 'jackett') provider = 'Jackett';
+    else if (selectedProvider === 'prowlarr') provider = 'Prowlarr';
     else if (selectedProvider === 'nuvio') provider = 'Nuvio';
     else if (selectedProvider === 'comet') provider = 'Comet';
     else if (selectedProvider === '111477') provider = '111477';
@@ -122,6 +125,8 @@ function openCustomPlayer() {
     let provider;
     if (selectedProvider === 'jackett') {
         provider = 'Jackett';
+    } else if (selectedProvider === 'prowlarr') {
+        provider = 'Prowlarr';
     } else if (selectedProvider === 'nuvio') {
         provider = 'Nuvio';
     } else if (selectedProvider === 'comet') {
