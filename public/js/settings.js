@@ -92,12 +92,6 @@ function updateSettingsUI(settings) {
     const discordActivityToggles = document.querySelectorAll('#discordActivityToggle');
     discordActivityToggles.forEach(t => { t.checked = !!discordActivity; });
     
-    // Show Sponsor toggle
-    const showSponsor = settings.showSponsor === undefined ? true : settings.showSponsor;
-    const showSponsorToggles = document.querySelectorAll('#showSponsorToggle');
-    showSponsorToggles.forEach(t => { t.checked = !!showSponsor; });
-    updateSponsorVisibility(showSponsor);
-    
     // Torrentless toggles
     const useTorrentlessToggles = document.querySelectorAll('#useTorrentlessToggle, #useStreamingServersToggle');
     useTorrentlessToggles.forEach(toggle => {
@@ -263,23 +257,6 @@ async function saveSettings_() {
     }
     console.log('[Settings] Discord activity:', newDiscordActivityEnabled);
     
-    // Get Show Sponsor setting (prefer visible, fallback to any)
-    const showSponsorToggles = document.querySelectorAll('#showSponsorToggle');
-    let showSponsorEnabled = null;
-    for (const el of showSponsorToggles) {
-        if (el.offsetParent !== null) {
-            showSponsorEnabled = !!el.checked;
-            break;
-        }
-    }
-    if (showSponsorEnabled === null && showSponsorToggles.length > 0) {
-        showSponsorEnabled = !!showSponsorToggles[0].checked;
-    }
-    if (showSponsorEnabled === null) {
-        showSponsorEnabled = true;
-    }
-    console.log('[Settings] Show sponsor:', showSponsorEnabled);
-    
     // Handle fullscreen toggle
     const fullscreenToggles = document.querySelectorAll('#fullscreenToggle');
     let fullscreenToggle = null;
@@ -333,17 +310,13 @@ async function saveSettings_() {
         const settings = { 
             useTorrentless: desiredTorrentless, 
             autoUpdate: !!autoUpdateEnabled,
-            discordActivity: !!newDiscordActivityEnabled,
-            showSponsor: !!showSponsorEnabled
+            discordActivity: !!newDiscordActivityEnabled
         };
         if (jackettUrl) settings.jackettUrl = jackettUrl;
         if (prowlarrUrl) settings.prowlarrUrl = prowlarrUrl;
         if (cacheLocation) settings.cacheLocation = cacheLocation;
         
         console.log('[Settings] Saving settings:', settings);
-        
-        // Update sponsor visibility immediately
-        updateSponsorVisibility(showSponsorEnabled);
         
         // Persist all settings
         const response = await fetch(`${API_BASE_URL}/settings`, {
@@ -437,24 +410,6 @@ async function saveSettings_() {
             hideSettingsModal();
         }
     }
-}
-
-// Update sponsor visibility
-function updateSponsorVisibility(show) {
-    const sponsorElements = document.querySelectorAll('.acebet-nav-item, #acebet-nav-btn, #acebet-floating-btn');
-    sponsorElements.forEach(el => {
-        el.style.display = show ? '' : 'none';
-    });
-}
-
-// Hide sponsor (close button)
-function hideSponsor() {
-    updateSponsorVisibility(false);
-    fetch(`${API_BASE_URL}/settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ showSponsor: false })
-    }).catch(err => console.error('Error saving sponsor visibility:', err));
 }
 
 // ===== TRAKT INTEGRATION =====
@@ -1623,8 +1578,6 @@ window.showSettingsModal = showSettingsModal;
 window.hideSettingsModal = hideSettingsModal;
 window.loadSettings = loadSettings;
 window.saveSettings_ = saveSettings_;
-window.updateSponsorVisibility = updateSponsorVisibility;
-window.hideSponsor = hideSponsor;
 window.initializeSettingsPage = initializeSettingsPage;
 window.startTraktLogin = startTraktLogin;
 window.disconnectTrakt = disconnectTrakt;

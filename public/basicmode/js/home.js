@@ -21,7 +21,7 @@ import { initMediaDownloader } from './mediadownloader.js';
 import { initMusic } from './music.js';
 import { initJellyfin } from './jellyfin.js';
 import { initPlex } from './plex.js';
-import { initDebridUI, initNodeMPVUI, initSponsorUI, loadSponsorVisibility, initTorrentEngineUI } from './debrid.js';
+import { initDebridUI, initNodeMPVUI, initTorrentEngineUI } from './debrid.js';
 
 // DOM Elements
 let contentRows, searchResultsContainer, searchGrid, searchInput, searchSourceSelect, heroSection, heroBackdrop, heroTitle, heroOverview, heroInfoBtn;
@@ -890,7 +890,6 @@ const openSettings = async () => {
     await renderAddonsList();
     await initDebridUI();
     await initNodeMPVUI();
-    await initSponsorUI();
     await initTorrentEngineUI();
     settingsModal.classList.remove('hidden');
     requestAnimationFrame(() => {
@@ -909,39 +908,7 @@ const closeSettings = () => {
     }, 300);
 };
 
-// Welcome Popup Logic
-const initWelcomePopup = () => {
-    const popup = document.getElementById('welcome-popup');
-    const closeBtn = document.getElementById('close-welcome');
-    const dontShowBtn = document.getElementById('dont-show-welcome');
-    
-    if (!popup) return;
 
-    // Check if user has already dismissed the popup
-    const hideWelcome = localStorage.getItem('hide_welcome_basic');
-    if (hideWelcome === 'true') return;
-
-    // Show popup with a slight delay
-    setTimeout(() => {
-        popup.classList.remove('hidden');
-        requestAnimationFrame(() => {
-            popup.classList.add('visible');
-            popup.classList.remove('opacity-0');
-        });
-    }, 1000);
-
-    const closePopup = () => {
-        popup.classList.remove('visible');
-        popup.classList.add('opacity-0');
-        setTimeout(() => popup.classList.add('hidden'), 300);
-    };
-
-    closeBtn?.addEventListener('click', closePopup);
-    dontShowBtn?.addEventListener('click', () => {
-        localStorage.setItem('hide_welcome_basic', 'true');
-        closePopup();
-    });
-};
 
 // Init
 document.addEventListener('DOMContentLoaded', () => {
@@ -949,8 +916,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initHero();
     updateSearchSources(); // Initial load of search sources
     initRows();
-    initWelcomePopup();
-    loadSponsorVisibility(); // Load sponsor visibility on startup
     
     // Check for search parameter in URL
     const urlParams = new URLSearchParams(window.location.search);
