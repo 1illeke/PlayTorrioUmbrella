@@ -19,6 +19,9 @@
 - **Anime** - Dedicated anime section with subtitle support
 - **Debrid Services** - TorBox, Real-Debrid, AllDebrid, and more for premium streaming
 - **Jackett Integration** - Search across hundreds of torrent sites
+- **Prowlarr Integration** - Search across 600+ Torrent indexers
+- **Jellyfin Integration** - Connect multiple Jellyfin servers, browse libraries, stream content
+- **Plex Integration** - Single account support, browse libraries, stream with TMDB subtitle matching
 
 ### 🎮 Media Players
 - **MPV Player** - High-performance with hardware acceleration
@@ -171,11 +174,28 @@ sudo pacman -S vlc          # Arch
    - Settings → Jackett
    - Enter your Jackett URL and API key for torrent search
 
-3. **Real-Debrid** (Optional)
+3. **Prowlarr Integration** (Optional)
+   - Settings → Prowlarr
+   - Enter your Prowlarr URL and API key for advanced torrent indexing
+   - Search across all configured indexers in Prowlarr
+
+4. **Real-Debrid** (Optional)
    - Settings → Real-Debrid
    - Enter your API key for premium streaming
 
-4. **Cache Location** (Optional)
+5. **Jellyfin Servers** (Optional)
+   - Navigate to Custom Servers → Jellyfin
+   - Add multiple Jellyfin servers with credentials
+   - Switch between servers and browse libraries
+   - Automatic TMDB subtitle matching for content
+
+6. **Plex Account** (Optional)
+   - Navigate to Custom Servers → Plex
+   - Login with your Plex account (OAuth)
+   - Browse all accessible servers and libraries
+   - Automatic TMDB subtitle matching for content
+
+7. **Cache Location** (Optional)
    - Settings → Cache Location
    - Select where to store temporary files
 
@@ -216,6 +236,12 @@ sudo pacman -S vlc          # Arch
 - Runs on `http://localhost:6987`
 - RESTful API for all features
 - Supports external player integration
+
+### Custom Server Integration
+- **Jellyfin**: Multi-server support with library browsing and st
+- **Plex**: Single account with OAuth authentication and library access
+- Automatic TMDB metadata matching for subtitles
+- Built-in subtitle fetching from Jellyfin/Plex servers
 
 ### Stremio Routes
 - `/api/torrent-files` - Get files from torrent
@@ -282,7 +308,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📝 License
 
-This project is licensed under the CUSTOM License - see the LICENSE file for details.
+This project is licensed under the GPL 2 License - see the LICENSE file for details.
 
 ## 🐛 Issues & Support
 

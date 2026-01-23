@@ -1,39 +1,88 @@
-import { searchMulti, getMovieDetails, getTVShowDetails, getExternalIds } from './api.js';
+// TMDB API functions - inline to avoid module issues
+const TMDB_API_KEY = 'c3515fdc674ea2bd7b514f4bc3616a4a';
 
-const JELLYFIN_STORAGE_KEY = 'pt_jellyfin_config';
+const fetchFromTMDB = async (endpoint, params = {}) => {
+    const url = new URL(`https://api.themoviedb.org/3${endpoint}`);
+    url.searchParams.append('api_key', TMDB_API_KEY);
+    Object.entries(params).forEach(([key, value]) => {
+        url.searchParams.append(key, value);
+    });
+    const response = await fetch(url);
+    return response.json();
+};
 
-let jellyfinConfig = null;
+const searchMulti = (query) => fetchFromTMDB('/search/multi', { query, include_adult: false });
+const getMovieDetails = (id) => fetchFromTMDB(`/movie/${id}`, { append_to_response: 'credits' });
+const getTVShowDetails = (id) => fetchFromTMDB(`/tv/${id}`, { append_to_response: 'credits' });
+const getExternalIds = (id, type) => fetchFromTMDB(`/${type}/${id}/external_ids`);
+
+const JELLYFIN_SERVERS_KEY = 'pt_jellyfin_servers'; // Changed to store array of servers
+const JELLYFIN_ACTIVE_SERVER_KEY = 'pt_jellyfin_active_server';
+
+let jellyfinServers = []; // Array of server configs
+let activeServerId = null;
 let currentLibraryId = null;
 let currentShowId = null;
 let currentLibraryItems = []; // Store all items for search
 let currentShowSeasons = []; // Store all seasons/episodes for search
 
-// Storage helpers
-function saveJellyfinConfig(config) {
+// Storage helpers for multiple servers
+function saveJellyfinServers(servers) {
     try {
-        localStorage.setItem(JELLYFIN_STORAGE_KEY, JSON.stringify(config));
-        jellyfinConfig = config;
+        localStorage.setItem(JELLYFIN_SERVERS_KEY, JSON.stringify(servers));
+        jellyfinServers = servers;
     } catch (e) {
-        console.error('Failed to save Jellyfin config:', e);
+        console.error('Failed to save Jellyfin servers:', e);
     }
 }
 
-function loadJellyfinConfig() {
+function loadJellyfinServers() {
     try {
-        const stored = localStorage.getItem(JELLYFIN_STORAGE_KEY);
+        const stored = localStorage.getItem(JELLYFIN_SERVERS_KEY);
         if (stored) {
-            jellyfinConfig = JSON.parse(stored);
-            return jellyfinConfig;
+            jellyfinServers = JSON.parse(stored);
+            return jellyfinServers;
         }
     } catch (e) {
-        console.error('Failed to load Jellyfin config:', e);
+        console.error('Failed to load Jellyfin servers:', e);
     }
-    return null;
+    return [];
 }
 
-function clearJellyfinConfig() {
-    localStorage.removeItem(JELLYFIN_STORAGE_KEY);
-    jellyfinConfig = null;
+function addJellyfinServer(config) {
+    const serverId = `${config.serverUrl}_${config.username}_${Date.now()}`;
+    const serverConfig = { ...config, id: serverId };
+    jellyfinServers.push(serverConfig);
+    saveJellyfinServers(jellyfinServers);
+    return serverId;
+}
+
+function removeJellyfinServer(serverId) {
+    jellyfinServers = jellyfinServers.filter(s => s.id !== serverId);
+    saveJellyfinServers(jellyfinServers);
+    if (activeServerId === serverId) {
+        activeServerId = null;
+        localStorage.removeItem(JELLYFIN_ACTIVE_SERVER_KEY);
+    }
+}
+
+function setActiveServer(serverId) {
+    activeServerId = serverId;
+    localStorage.setItem(JELLYFIN_ACTIVE_SERVER_KEY, serverId);
+}
+
+function getActiveServer() {
+    if (!activeServerId) {
+        activeServerId = localStorage.getItem(JELLYFIN_ACTIVE_SERVER_KEY);
+    }
+    return jellyfinServers.find(s => s.id === activeServerId);
+}
+
+function clearAllJellyfinServers() {
+    localStorage.removeItem(JELLYFIN_SERVERS_KEY);
+    localStorage.removeItem(JELLYFIN_ACTIVE_SERVER_KEY);
+    jellyfinServers = [];
+    activeServerId = null;
 }
 
 // Show notification
@@ -81,12 +130,13 @@ async function jellyfinAuth(serverUrl, username, password) {
 }
 
 async function jellyfinRequest(endpoint) {
-    if (!jellyfinConfig) throw new Error('Not authenticated');
+    const activeServer = getActiveServer();
+    if (!activeServer) throw new Error('Not authenticated');
     
-    const url = `${jellyfinConfig.serverUrl}${endpoint}`;
+    const url = `${activeServer.serverUrl}${endpoint}`;
     const response = await fetch(url, {
         headers: {
-            'X-Emby-Authorization': `MediaBrowser Client="PlayTorrio", Device="Web", DeviceId="playtorrio-web", Version="1.0.0", Token="${jellyfinConfig.accessToken}"`
+            'X-Emby-Authorization': `MediaBrowser Client="PlayTorrio", Device="Web", DeviceId="playtorrio-web", Version="1.0.0", Token="${activeServer.accessToken}"`
         }
     });
     
@@ -99,13 +149,15 @@ async function jellyfinRequest(endpoint) {
 
 // Get libraries
 async function getJellyfinLibraries() {
-    const data = await jellyfinRequest(`/Users/${jellyfinConfig.userId}/Views`);
+    const activeServer = getActiveServer();
+    const data = await jellyfinRequest(`/Users/${activeServer.userId}/Views`);
     return data.Items || [];
 }
 
 // Get items from a library
 async function getJellyfinItems(libraryId, itemType = null) {
-    let endpoint = `/Users/${jellyfinConfig.userId}/Items?ParentId=${libraryId}&SortBy=SortName&SortOrder=Ascending`;
+    const activeServer = getActiveServer();
+    let endpoint = `/Users/${activeServer.userId}/Items?ParentId=${libraryId}&SortBy=SortName&SortOrder=Ascending`;
     if (itemType) {
         endpoint += `&IncludeItemTypes=${itemType}`;
     }
@@ -115,40 +167,45 @@ async function getJellyfinItems(libraryId, itemType = null) {
 
 // Get seasons for a show
 async function getJellyfinSeasons(showId) {
-    const data = await jellyfinRequest(`/Shows/${showId}/Seasons?UserId=${jellyfinConfig.userId}`);
+    const activeServer = getActiveServer();
+    const data = await jellyfinRequest(`/Shows/${showId}/Seasons?UserId=${activeServer.userId}`);
     return data.Items || [];
 }
 
 // Get episodes for a season
 async function getJellyfinEpisodes(showId, seasonId) {
-    const data = await jellyfinRequest(`/Shows/${showId}/Episodes?SeasonId=${seasonId}&UserId=${jellyfinConfig.userId}`);
+    const activeServer = getActiveServer();
+    const data = await jellyfinRequest(`/Shows/${showId}/Episodes?SeasonId=${seasonId}&UserId=${activeServer.userId}`);
     return data.Items || [];
 }
 
 // Get image URL
 function getJellyfinImageUrl(itemId, imageType = 'Primary', tag = null) {
-    if (!jellyfinConfig || !itemId) return 'https://via.placeholder.com/300x450/1a1a2e/ffffff?text=No+Image';
+    const activeServer = getActiveServer();
+    if (!activeServer || !itemId) return 'https://via.placeholder.com/300x450/1a1a2e/ffffff?text=No+Image';
     
-    let url = `${jellyfinConfig.serverUrl}/Items/${itemId}/Images/${imageType}`;
+    let url = `${activeServer.serverUrl}/Items/${itemId}/Images/${imageType}`;
     if (tag) url += `?tag=${tag}`;
-    url += `&api_key=${jellyfinConfig.accessToken}`;
+    url += `&api_key=${activeServer.accessToken}`;
     
     return url;
 }
 
 // Get stream URL
 function getJellyfinStreamUrl(itemId) {
-    if (!jellyfinConfig || !itemId) return null;
-    return `${jellyfinConfig.serverUrl}/Videos/${itemId}/stream?static=true&api_key=${jellyfinConfig.accessToken}`;
+    const activeServer = getActiveServer();
+    if (!activeServer || !itemId) return null;
+    return `${activeServer.serverUrl}/Videos/${itemId}/stream?static=true&api_key=${activeServer.accessToken}`;
 }
 
 // Get subtitles from Jellyfin
 async function getJellyfinSubtitles(itemId) {
-    if (!jellyfinConfig || !itemId) return [];
+    const activeServer = getActiveServer();
+    if (!activeServer || !itemId) return [];
     
     try {
         // Get item details which includes MediaStreams (subtitles)
-        const item = await jellyfinRequest(`/Users/${jellyfinConfig.userId}/Items/${itemId}`);
+        const item = await jellyfinRequest(`/Users/${activeServer.userId}/Items/${itemId}`);
         const subtitles = [];
         
         if (item.MediaStreams) {
@@ -163,7 +220,7 @@ async function getJellyfinSubtitles(itemId) {
                     
                     // Build subtitle URL - Jellyfin format: /Videos/{itemId}/{mediaSourceId}/Subtitles/{streamIndex}/0/Stream.srt
                     // The format can be srt, vtt, or js (JSON) - we'll use srt for compatibility
-                    const subUrl = `${jellyfinConfig.serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${streamIndex}/0/Stream.srt?api_key=${jellyfinConfig.accessToken}`;
+                    const subUrl = `${activeServer.serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${streamIndex}/0/Stream.srt?api_key=${activeServer.accessToken}`;
                     
                     // Use "Built-in" as provider name for PlayTorrioPlayer grouping
                     const displayName = `${title} (${language})`;
@@ -318,6 +375,7 @@ async function matchWithTMDB(item) {
 function showJellyfinView(view) {
     console.log('[Jellyfin] Showing view:', view);
     const serverSelection = document.getElementById('cs-server-selection');
+    const jellyfinServerList = document.getElementById('cs-jellyfin-server-list');
     const jellyfinLogin = document.getElementById('cs-jellyfin-login');
     const jellyfinBrowser = document.getElementById('cs-jellyfin-browser');
     const jellyfinLibraries = document.getElementById('cs-jellyfin-libraries');
@@ -326,6 +384,7 @@ function showJellyfinView(view) {
     
     // Hide all using inline styles
     if (serverSelection) serverSelection.style.display = 'none';
+    if (jellyfinServerList) jellyfinServerList.style.display = 'none';
     if (jellyfinLogin) jellyfinLogin.style.display = 'none';
     if (jellyfinBrowser) jellyfinBrowser.style.display = 'none';
     if (jellyfinLibraries) jellyfinLibraries.style.display = 'none';
@@ -336,6 +395,10 @@ function showJellyfinView(view) {
     switch(view) {
         case 'selection':
             if (serverSelection) serverSelection.style.display = 'grid';
+            break;
+        case 'serverlist':
+            if (jellyfinServerList) jellyfinServerList.style.display = 'block';
+            renderJellyfinServerList();
             break;
         case 'login':
             if (jellyfinLogin) jellyfinLogin.style.display = 'block';
@@ -355,11 +418,90 @@ function showJellyfinView(view) {
     }
 }
 
+function renderJellyfinServerList() {
+    const grid = document.getElementById('cs-jellyfin-servers-grid');
+    const noServers = document.getElementById('cs-jellyfin-no-servers');
+    
+    if (!grid) return;
+    
+    grid.innerHTML = '';
+    
+    if (jellyfinServers.length === 0) {
+        if (noServers) noServers.style.display = 'block';
+        return;
+    }
+    
+    if (noServers) noServers.style.display = 'none';
+    
+    jellyfinServers.forEach(server => {
+        const card = document.createElement('div');
+        card.className = 'media-card';
+        card.style.cssText = 'padding: 1.5rem; display: flex; align-items: center; justify-content: space-between; cursor: pointer; border: 1px solid rgba(168, 85, 247, 0.3);';
+        
+        const isActive = server.id === activeServerId;
+        if (isActive) {
+            card.style.borderColor = 'rgba(168, 85, 247, 0.6)';
+            card.style.background = 'rgba(168, 85, 247, 0.1)';
+        }
+        
+        card.innerHTML = `
+            <div style="flex: 1; min-width: 0;" class="server-info-${server.id}">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                    <i class="fas fa-server" style="color: #a855f7; font-size: 1.25rem;"></i>
+                    <h4 style="font-size: 1.125rem; font-weight: 600; color: var(--text-primary); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${server.serverName || 'Jellyfin Server'}</h4>
+                    ${isActive ? '<span style="background: #a855f7; color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-weight: 600;">ACTIVE</span>' : ''}
+                </div>
+                <p style="font-size: 0.875rem; color: var(--text-secondary); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${server.username} • ${server.serverUrl}</p>
+            </div>
+            <button class="delete-server-btn" data-server-id="${server.id}" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; transition: all 0.2s; font-weight: 600; margin-left: 1rem;">
+                <i class="fas fa-trash"></i>
+            </button>
+        `;
+        
+        // Click on card to load server
+        const serverInfo = card.querySelector(`.server-info-${server.id}`);
+        serverInfo.addEventListener('click', () => {
+            setActiveServer(server.id);
+            showJellyfinView('browser');
+            renderJellyfinLibraries();
+        });
+        
+        // Delete button
+        const deleteBtn = card.querySelector('.delete-server-btn');
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm(`Remove server "${server.serverName || server.serverUrl}"?`)) {
+                removeJellyfinServer(server.id);
+                renderJellyfinServerList();
+                showJellyfinNotification('Server removed', 'success');
+            }
+        });
+        
+        deleteBtn.addEventListener('mouseenter', () => {
+            deleteBtn.style.background = 'rgba(239, 68, 68, 0.2)';
+            deleteBtn.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+        });
+        
+        deleteBtn.addEventListener('mouseleave', () => {
+            deleteBtn.style.background = 'rgba(239, 68, 68, 0.1)';
+            deleteBtn.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+        });
+        
+        grid.appendChild(card);
+    });
+}
+
 async function renderJellyfinLibraries() {
     const grid = document.getElementById('cs-jellyfin-libraries-grid');
     const serverName = document.getElementById('cs-jellyfin-server-name');
     
     if (!grid) return;
+    
+    const activeServer = getActiveServer();
+    if (!activeServer) {
+        showJellyfinView('serverlist');
+        return;
+    }
     
     grid.innerHTML = '<div class="col-span-full text-center py-8"><div class="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div><p class="text-gray-400 mt-2 text-sm">Loading libraries...</p></div>';
     
@@ -367,8 +509,8 @@ async function renderJellyfinLibraries() {
         const libraries = await getJellyfinLibraries();
         grid.innerHTML = '';
         
-        if (serverName && jellyfinConfig) {
-            serverName.textContent = `Connected as ${jellyfinConfig.username}`;
+        if (serverName && activeServer) {
+            serverName.textContent = `${activeServer.serverName || 'Jellyfin'} • ${activeServer.username}`;
         }
         
         libraries.forEach(lib => {
@@ -412,7 +554,18 @@ async function renderJellyfinLibraries() {
         }
     } catch (error) {
         console.error('Failed to load libraries:', error);
-        grid.innerHTML = '<div class="col-span-full text-center text-red-400 py-8">Failed to load libraries. Please check your connection.</div>';
+        grid.innerHTML = `
+            <div style="text-align: center; padding: 2rem 0;">
+                <div style="color: #f87171; margin-bottom: 0.5rem;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 0.75rem; display: block;"></i>
+                    <p style="font-weight: 500;">Failed to connect to Jellyfin server</p>
+                </div>
+                <p style="color: #9ca3af; font-size: 0.875rem;">The server may be offline or unreachable.</p>
+                <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #9333ea; color: white; border: none; border-radius: 0.5rem; cursor: pointer; transition: background 0.2s;">
+                    Retry
+                </button>
+            </div>
+        `;
     }
 }
 
@@ -963,27 +1116,34 @@ async function playJellyfinItem(item) {
 export function initJellyfin() {
     console.log('[Jellyfin] Initializing...');
     
+    // Load servers from storage
+    jellyfinServers = loadJellyfinServers();
+    console.log('[Jellyfin] Loaded servers:', jellyfinServers);
+    
     const jellyfinBtn = document.getElementById('cs-jellyfin-btn');
+    const jellyfinServerListBackBtn = document.getElementById('cs-jellyfin-server-list-back-btn');
+    const jellyfinAddServerBtn = document.getElementById('cs-jellyfin-add-server-btn');
     const jellyfinBackBtn = document.getElementById('cs-jellyfin-back-btn');
     const jellyfinConnectBtn = document.getElementById('cs-jellyfin-connect-btn');
     const jellyfinDisconnectBtn = document.getElementById('cs-jellyfin-disconnect-btn');
     const jellyfinItemsBackBtn = document.getElementById('cs-jellyfin-items-back-btn');
     const jellyfinSeasonsBackBtn = document.getElementById('cs-jellyfin-seasons-back-btn');
-    const plexBtn = document.getElementById('cs-plex-btn');
     
-    // Check if already authenticated
-    const config = loadJellyfinConfig();
-    if (config) {
-        showJellyfinView('browser');
-        renderJellyfinLibraries();
-        
-        const serverName = document.getElementById('cs-jellyfin-server-name');
-        if (serverName) serverName.textContent = `Connected as ${config.username}`;
-    } else {
-        showJellyfinView('selection');
-    }
+    console.log('[Jellyfin] Button elements:', {
+        jellyfinBtn: !!jellyfinBtn,
+        jellyfinServerListBackBtn: !!jellyfinServerListBackBtn,
+        jellyfinAddServerBtn: !!jellyfinAddServerBtn,
+        jellyfinBackBtn: !!jellyfinBackBtn,
+        jellyfinConnectBtn: !!jellyfinConnectBtn,
+        jellyfinDisconnectBtn: !!jellyfinDisconnectBtn,
+        jellyfinItemsBackBtn: !!jellyfinItemsBackBtn,
+        jellyfinSeasonsBackBtn: !!jellyfinSeasonsBackBtn
+    });
     
-    // Remove old listeners by cloning and replacing (prevents duplicate listeners)
+    // Always show server selection first
+    showJellyfinView('selection');
+    
+    // Remove old listeners by cloning and replacing
     const cloneAndReplace = (element) => {
         if (!element) return null;
         const clone = element.cloneNode(true);
@@ -991,34 +1151,47 @@ export function initJellyfin() {
         return clone;
     };
     
-    // Jellyfin button - show login
+    // Jellyfin button - show server list
     const newJellyfinBtn = cloneAndReplace(jellyfinBtn);
     if (newJellyfinBtn) {
+        console.log('[Jellyfin] Adding click listener to Jellyfin button');
         newJellyfinBtn.addEventListener('click', () => {
             console.log('[Jellyfin] Jellyfin button clicked');
-            showJellyfinView('login');
+            showJellyfinView('serverlist');
         });
+        console.log('[Jellyfin] Click listener added successfully');
+    } else {
+        console.error('[Jellyfin] Failed to clone Jellyfin button');
     }
     
-    // Plex button - coming soon
-    const newPlexBtn = cloneAndReplace(plexBtn);
-    if (newPlexBtn) {
-        newPlexBtn.addEventListener('click', () => {
-            console.log('[Jellyfin] Plex button clicked');
-            showJellyfinNotification('Plex integration coming soon!', 'info');
-        });
-    }
-    
-    // Back to server selection
-    const newJellyfinBackBtn = cloneAndReplace(jellyfinBackBtn);
-    if (newJellyfinBackBtn) {
-        newJellyfinBackBtn.addEventListener('click', () => {
-            console.log('[Jellyfin] Back button clicked');
+    // Server list back button
+    const newJellyfinServerListBackBtn = cloneAndReplace(jellyfinServerListBackBtn);
+    if (newJellyfinServerListBackBtn) {
+        newJellyfinServerListBackBtn.addEventListener('click', () => {
+            console.log('[Jellyfin] Server list back button clicked');
             showJellyfinView('selection');
         });
     }
     
-    // Connect button
+    // Add server button
+    const newJellyfinAddServerBtn = cloneAndReplace(jellyfinAddServerBtn);
+    if (newJellyfinAddServerBtn) {
+        newJellyfinAddServerBtn.addEventListener('click', () => {
+            console.log('[Jellyfin] Add server button clicked');
+            showJellyfinView('login');
+        });
+    }
+    
+    // Login back button
+    const newJellyfinBackBtn = cloneAndReplace(jellyfinBackBtn);
+    if (newJellyfinBackBtn) {
+        newJellyfinBackBtn.addEventListener('click', () => {
+            console.log('[Jellyfin] Login back button clicked');
+            showJellyfinView('serverlist');
+        });
+    }
+    
+    // Connect button - adds new server
     const newJellyfinConnectBtn = cloneAndReplace(jellyfinConnectBtn);
     if (newJellyfinConnectBtn) {
         newJellyfinConnectBtn.addEventListener('click', async () => {
@@ -1035,25 +1208,23 @@ export function initJellyfin() {
             if (!url || !username || !password) {
                 if (errorDiv) {
                     errorDiv.textContent = 'Please fill in all fields';
-                    errorDiv.classList.remove('hidden');
+                    errorDiv.style.display = 'block';
                 }
                 return;
             }
             
-            if (errorDiv) errorDiv.classList.add('hidden');
+            if (errorDiv) errorDiv.style.display = 'none';
             newJellyfinConnectBtn.disabled = true;
-            newJellyfinConnectBtn.innerHTML = '<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>';
+            newJellyfinConnectBtn.innerHTML = '<div style="width: 1.25rem; height: 1.25rem; border: 2px solid white; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>';
             
             try {
                 const config = await jellyfinAuth(url, username, password);
-                saveJellyfinConfig(config);
+                const serverId = addJellyfinServer(config);
+                setActiveServer(serverId);
                 
-                showJellyfinNotification('Connected successfully!', 'success');
+                showJellyfinNotification('Server added successfully!', 'success');
                 showJellyfinView('browser');
                 renderJellyfinLibraries();
-                
-                const serverName = document.getElementById('cs-jellyfin-server-name');
-                if (serverName) serverName.textContent = `Connected as ${config.username}`;
                 
                 // Clear inputs
                 if (urlInput) urlInput.value = '';
@@ -1064,25 +1235,21 @@ export function initJellyfin() {
                 console.error('Connection failed:', error);
                 if (errorDiv) {
                     errorDiv.textContent = 'Connection failed. Please check your credentials.';
-                    errorDiv.classList.remove('hidden');
+                    errorDiv.style.display = 'block';
                 }
             } finally {
                 newJellyfinConnectBtn.disabled = false;
-                newJellyfinConnectBtn.innerHTML = '<span>Connect</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
+                newJellyfinConnectBtn.innerHTML = '<span>Connect</span><i class="fas fa-arrow-right"></i>';
             }
         });
     }
     
-    // Disconnect button
+    // Disconnect button - goes back to server list
     const newJellyfinDisconnectBtn = cloneAndReplace(jellyfinDisconnectBtn);
     if (newJellyfinDisconnectBtn) {
         newJellyfinDisconnectBtn.addEventListener('click', () => {
             console.log('[Jellyfin] Disconnect button clicked');
-            if (confirm('Disconnect from Jellyfin server?')) {
-                clearJellyfinConfig();
-                showJellyfinView('selection');
-                showJellyfinNotification('Disconnected', 'info');
-            }
+            showJellyfinView('serverlist');
         });
     }
     
@@ -1108,7 +1275,7 @@ export function initJellyfin() {
         });
     }
     
-    // Enter key support for login
+    // Enter key support for password field
     const jellyfinPassword = document.getElementById('cs-jellyfin-password');
     if (jellyfinPassword) {
         jellyfinPassword.addEventListener('keypress', (e) => {

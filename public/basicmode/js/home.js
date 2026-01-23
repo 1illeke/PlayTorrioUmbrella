@@ -20,6 +20,7 @@ import { initManga } from './manga.js';
 import { initMediaDownloader } from './mediadownloader.js';
 import { initMusic } from './music.js';
 import { initJellyfin } from './jellyfin.js';
+import { initPlex } from './plex.js';
 import { initDebridUI, initNodeMPVUI, initSponsorUI, loadSponsorVisibility, initTorrentEngineUI } from './debrid.js';
 
 // DOM Elements
@@ -187,8 +188,9 @@ window.showSection = (section) => {
         const customserversSection = document.getElementById('customservers-section');
         if (customserversSection) {
             customserversSection.classList.remove('hidden');
-            // Initialize Jellyfin when section is shown
+            // Initialize Jellyfin and Plex when section is shown
             initJellyfin();
+            initPlex();
         }
         activateNavLink('.nav-link[onclick*="customservers"]');
     }

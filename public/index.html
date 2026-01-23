@@ -46,6 +46,7 @@
     <link rel="stylesheet" href="css/trakt.css">
     <link rel="stylesheet" href="css/notifications.css">
     <link rel="stylesheet" href="css/jellyfin.css">
+    <link rel="stylesheet" href="css/plex.css">
     
     <!-- Google Cast SDK -->
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
@@ -496,15 +497,6 @@
             <i class="fab fa-trakt"></i>
             <span>Trakt</span>
         </div>
-        <a href="casino.html" class="floating-nav-item acebet-nav-item" id="acebet-floating-btn" style="color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); position: relative; padding-right: 28px;">
-            <div class="acebet-nav-particles">
-                <span style="position:absolute;width:3px;height:3px;background:#10b981;border-radius:50%;top:20%;left:10%;animation:acebet-float 2s ease-in-out infinite;"></span>
-                <span style="position:absolute;width:3px;height:3px;background:#10b981;border-radius:50%;top:60%;right:15%;animation:acebet-float 2s ease-in-out infinite 0.5s;"></span>
-            </div>
-            <span style="font-weight:bold;font-size:1.1rem;">♠</span>
-            <span>Ace Bet</span>
-            <button class="acebet-floating-close" onclick="event.preventDefault(); event.stopPropagation(); hideSponsor();" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); width:16px; height:16px;background:#dc3545; border:none; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:10; padding:0; font-size:10px; color:white; line-height:1;">&times;</button>
-        </a>
     </div>
 </div>
 
@@ -551,19 +543,6 @@
             </div>
             
             <div class="nav-section-title">LIBRARY</div>
-            
-            <!-- Ace Bet Sponsor Button -->
-            <div class="nav-item acebet-nav-item" id="acebet-nav-btn" onclick="window.location.href='casino.html';" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.1)); border: 1px solid rgba(16, 185, 129, 0.3); position: relative; overflow: visible; padding-right: 32px;">
-                <div class="acebet-nav-particles">
-                    <span class="acebet-particle-nav"></span>
-                    <span class="acebet-particle-nav"></span>
-                    <span class="acebet-particle-nav"></span>
-                </div>
-                <div style="width: 24px; height: 24px;background: linear-gradient(135deg, #10b981, #059669); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 900; color: white; font-size: 14px;">A</div>
-                <span style="color: #10b981; font-weight: 600;">Ace Bet</span>
-                <span class="nav-badge" style="background: linear-gradient(135deg, #10b981, #059669);">Sponsor</span>
-                <button id="acebet-close-btn" onclick="event.stopPropagation(); hideSponsor();" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); width:18px; height:18px;background:#dc3545; border:none; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:10; padding:0; font-size:10px; color:white; line-height:1;">&times;</button>
-            </div>
             
             <div class="nav-item" data-page="trakt">
                 <i class="fas fa-tv" style="color: #ed1c24;"></i>
@@ -2108,24 +2087,6 @@
 
                     <div class="settings-card">
                         <div class="settings-card-header">
-                            <h3><i class="fas fa-ad" style="color: #10b981;"></i> Sponsor</h3>
-                        </div>
-                        <div class="settings-card-body">
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="showSponsorToggle" checked />
-                                <label for="showSponsorToggle">
-                                    <i class="fas fa-heart" style="margin-right:0.25rem; color:#10b981;"></i>
-                                    <strong>Show Sponsor Button</strong>
-                                </label>
-                            </div>
-                            <div style="margin-top:0.5rem; color:#9ca3af; font-size:0.9rem;">
-                                <i class="fas fa-info-circle"></i> Display the Ace Bet sponsor button in the navigation. Sponsors help keep PlayTorrio free!
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-card">
-                        <div class="settings-card-header">
                             <h3><i class="fas fa-sync-alt"></i> Auto‑Updater</h3>
                         </div>
                         <div class="settings-card-body">
@@ -2622,7 +2583,7 @@
                         </div>
                         <div style="text-align: center;">
                             <h3 style="font-size: 1.375rem; font-weight: 700; color: var(--text-primary); margin: 0 0 0.5rem 0;">Plex</h3>
-                            <p style="font-size: 0.9375rem; color: var(--text-secondary); margin: 0;">Coming Soon</p>
+                            <p style="font-size: 0.9375rem; color: var(--text-secondary); margin: 0;">Connect to your server</p>
                         </div>
                     </div>
                 </button>
@@ -2638,6 +2599,55 @@
                         </div>
                     </div>
                 </button>
+            </div>
+            
+            <!-- Jellyfin Server List -->
+            <div id="cs-jellyfin-server-list" style="display: none; max-width: 800px; margin: 0 auto;">
+                <button id="cs-jellyfin-server-list-back-btn" class="action-btn" style="margin-bottom: 1.5rem; background: var(--surface); border: 1px solid var(--border);">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Back</span>
+                </button>
+                
+                <div class="media-card" style="padding: 2rem; margin-bottom: 2rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin: 0;">Jellyfin Servers</h3>
+                        <button id="cs-jellyfin-add-server-btn" class="action-btn" style="background: linear-gradient(135deg, #a855f7, #9333ea); color: white; font-weight: 600;">
+                            <i class="fas fa-plus"></i>
+                            <span>Add Server</span>
+                        </button>
+                    </div>
+                    <div id="cs-jellyfin-servers-grid" style="display: flex; flex-direction: column; gap: 1rem;">
+                        <!-- Server cards will be inserted here -->
+                    </div>
+                    <div id="cs-jellyfin-no-servers" style="text-align: center; padding: 3rem 1rem; color: var(--text-secondary);">
+                        <i class="fas fa-server" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                        <p style="margin: 0;">No servers connected. Click "Add Server" to get started.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Plex Account View -->
+            <div id="cs-plex-account-view" style="display: none; max-width: 800px; margin: 0 auto;">
+                <button id="cs-plex-account-back-btn" class="action-btn" style="margin-bottom: 1.5rem; background: var(--surface); border: 1px solid var(--border);">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Back</span>
+                </button>
+                
+                <div class="media-card" style="padding: 2rem; margin-bottom: 2rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin: 0;">Plex Account</h3>
+                    </div>
+                    <div id="cs-plex-account-card" style="display: none;">
+                        <!-- Plex account card will be inserted here -->
+                    </div>
+                    <div id="cs-plex-no-account" style="text-align: center; padding: 3rem 1rem;">
+                        <i class="fas fa-user" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; color: #e5a00d;"></i>
+                        <p style="margin: 0 0 1.5rem 0; color: var(--text-secondary);">No Plex account connected.</p>
+                        <button id="cs-plex-connect-account-btn" class="action-btn" style="background: linear-gradient(135deg, #e5a00d, #cc8e0c); color: white; font-weight: 600;">
+                            <span>Connect Plex Account</span>
+                        </button>
+                    </div>
+                </div>
             </div>
             
             <!-- Jellyfin Login -->
@@ -2723,6 +2733,79 @@
                         <input type="text" id="cs-jellyfin-seasons-search" placeholder="Search episodes..." class="form-input" style="width: 100%; max-width: 500px; padding: 0.75rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; color: var(--text-primary);">
                     </div>
                     <div id="cs-jellyfin-seasons-grid" style="display: flex; flex-direction: column; gap: 2rem;"></div>
+                </div>
+            </div>
+            
+            <!-- Plex Login -->
+            <div id="cs-plex-login" style="display: none; max-width: 500px; margin: 0 auto;">
+                <button id="cs-plex-back-btn" class="action-btn" style="margin-bottom: 1.5rem; background: var(--surface); border: 1px solid var(--border);">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Back</span>
+                </button>
+                
+                <div class="media-card" style="padding: 2rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
+                        <div style="width: 56px; height: 56px; border-radius: 50%; background: rgba(229, 160, 13, 0.2); display: flex; align-items: center; justify-content: center; padding: 0.5rem;">
+                            <img src="https://www.plex.tv/wp-content/themes/plex/assets/img/plex-logo.svg" alt="Plex" style="width: 100%; height: 100%; object-fit: contain;">
+                        </div>
+                        <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin: 0;">Connect to Plex</h3>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); margin: 0;">Click the button below to login with your Plex account. This will open Plex in your browser.</p>
+                        
+                        <button id="cs-plex-login-btn" class="action-btn" style="width: 100%; background: linear-gradient(135deg, #e5a00d, #cc8e0c); color: white; font-weight: 600; padding: 1rem; border: none;">
+                            <span>Login with Plex</span>
+                        </button>
+                        
+                        <div id="cs-plex-status" style="display: none; color: #3b82f6; font-size: 0.875rem; text-align: center; padding: 0.75rem; background: rgba(59, 130, 246, 0.1); border-radius: 0.5rem;"></div>
+                        <div id="cs-plex-error" style="display: none; color: #ef4444; font-size: 0.875rem; text-align: center; padding: 0.75rem; background: rgba(239, 68, 68, 0.1); border-radius: 0.5rem;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Plex Browser -->
+            <div id="cs-plex-browser" style="display: none;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem;">
+                    <button id="cs-plex-disconnect-btn" class="action-btn" style="background: var(--surface); border: 1px solid var(--border);">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Disconnect</span>
+                    </button>
+                    <span id="cs-plex-server-name" style="font-size: 0.875rem; color: var(--text-secondary); font-weight: 500;"></span>
+                </div>
+                
+                <!-- Libraries -->
+                <div id="cs-plex-libraries" style="margin-bottom: 3rem;">
+                    <h4 style="font-size: 1.25rem; font-weight: 600; color: var(--text-primary); margin-bottom: 1.5rem;">Libraries</h4>
+                    <div id="cs-plex-libraries-grid" class="movies-grid"></div>
+                </div>
+                
+                <!-- Items Grid -->
+                <div id="cs-plex-items-container" style="display: none;">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                        <button id="cs-plex-items-back-btn" class="action-btn" style="background: var(--surface); border: 1px solid var(--border); padding: 0.5rem 0.75rem;">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <h4 id="cs-plex-items-title" style="font-size: 1.25rem; font-weight: 600; color: var(--text-primary); margin: 0;"></h4>
+                    </div>
+                    <div style="margin-bottom: 1.5rem;">
+                        <input type="text" id="cs-plex-items-search" placeholder="Search in this library..." class="form-input" style="width: 100%; max-width: 500px; padding: 0.75rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; color: var(--text-primary);">
+                    </div>
+                    <div id="cs-plex-items-grid" class="movies-grid"></div>
+                </div>
+                
+                <!-- Seasons/Episodes -->
+                <div id="cs-plex-seasons-container" style="display: none;">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                        <button id="cs-plex-seasons-back-btn" style="background: rgba(31, 41, 55, 0.8); border: 1px solid rgba(55, 65, 81, 0.5); padding: 0.5rem 0.75rem; border-radius: 0.5rem; color: white; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <h4 id="cs-plex-seasons-title" style="font-size: 1.25rem; font-weight: 600; color: var(--text-primary); margin: 0;"></h4>
+                    </div>
+                    <div style="margin-bottom: 1.5rem;">
+                        <input type="text" id="cs-plex-seasons-search" placeholder="Search episodes..." class="form-input" style="width: 100%; max-width: 500px; padding: 0.75rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; color: var(--text-primary);">
+                    </div>
+                    <div id="cs-plex-seasons-grid" style="display: flex; flex-direction: column; gap: 2rem;"></div>
                 </div>
             </div>
         </div>
@@ -4034,6 +4117,7 @@ window.addEventListener('DOMContentLoaded', () => {
 <script src="js/downloader.js?v=2"></script>
 <script src="js/iptv.js?v=2"></script>
 <script type="module" src="js/jellyfin.js?v=2"></script>
+<script type="module" src="js/plex.js?v=2"></script>
 <script src="js/livetv.js?v=2"></script>
 <script src="js/audiobooks.js?v=2"></script>
 <script src="js/books.js?v=2"></script>
@@ -4049,13 +4133,19 @@ window.addEventListener('DOMContentLoaded', () => {
 <script src="js/app.js?v=2"></script>
 
 <script type="module">
-    // Initialize Jellyfin for custom servers page
+    // Initialize Jellyfin and Plex for custom servers page
     import { initJellyfin } from './js/jellyfin.js';
+    import { initPlex } from './js/plex.js';
     
     // Expose globally so app.js can call it
     window.initJellyfinCS = function() {
         console.log('[CustomServers] Initializing Jellyfin...');
         initJellyfin();
+    };
+    
+    window.initPlexCS = function() {
+        console.log('[CustomServers] Initializing Plex...');
+        initPlex();
     };
 </script>
 

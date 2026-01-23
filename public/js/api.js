@@ -202,14 +202,19 @@ const fetchFromTMDB = async (endpoint, params = {}) => {
     return response.json();
 };
 
-export const searchMulti = (query) => 
-    fetchFromTMDB('/search/multi', { query, include_adult: false });
+// Make these functions globally accessible
+window.searchMulti = function(query) {
+    return fetchFromTMDB('/search/multi', { query, include_adult: false });
+};
 
-export const getMovieDetails = (id) =>
-    fetchFromTMDB(`/movie/${id}`, { append_to_response: 'credits' });
+window.getMovieDetails = function(id) {
+    return fetchFromTMDB(`/movie/${id}`, { append_to_response: 'credits' });
+};
 
-export const getTVShowDetails = (id) =>
-    fetchFromTMDB(`/tv/${id}`, { append_to_response: 'credits' });
+window.getTVShowDetails = function(id) {
+    return fetchFromTMDB(`/tv/${id}`, { append_to_response: 'credits' });
+};
 
-export const getExternalIds = (id, type) =>
-    fetchFromTMDB(`/${type}/${id}/external_ids`);
+window.getExternalIds = function(id, type) {
+    return fetchFromTMDB(`/${type}/${id}/external_ids`);
+};

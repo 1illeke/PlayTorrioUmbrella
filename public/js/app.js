@@ -214,7 +214,7 @@ async function handleRouteChange() {
             break;
         case '#/custom-servers':
             showPage('custom-servers-page');
-            // Initialize Jellyfin when page is shown - with delay to ensure DOM is ready
+            // Initialize Jellyfin and Plex when page is shown - with delay to ensure DOM is ready
             console.log('[App] Custom servers page shown, initializing...');
             setTimeout(() => {
                 if (typeof window.initJellyfinCS === 'function') {
@@ -226,6 +226,17 @@ async function handleRouteChange() {
                     }
                 } else {
                     console.error('[App] initJellyfinCS function not found! Window keys:', Object.keys(window).filter(k => k.includes('Jellyfin')));
+                }
+                
+                if (typeof window.initPlexCS === 'function') {
+                    console.log('[App] Calling initPlexCS');
+                    try {
+                        window.initPlexCS();
+                    } catch (e) {
+                        console.error('[App] Error initializing Plex:', e);
+                    }
+                } else {
+                    console.error('[App] initPlexCS function not found! Window keys:', Object.keys(window).filter(k => k.includes('Plex')));
                 }
             }, 100);
             break;

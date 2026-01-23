@@ -2764,6 +2764,88 @@ app.get('/otherbook/', (req, res) => {
 // MOVIEBOX SERVICE removed from this file. The functionality now lives in moviebox.js.
 
 // ============================================================================
+// PLEX PROXY API
+// ============================================================================
+
+// Plex proxy endpoint to avoid CORS issues
+app.all('/api/plex/proxy', async (req, res) => {
+    try {
+        let targetUrl = req.query.url;
+        const authToken = req.query.token;
+        
+        if (!targetUrl) {
+            return res.status(400).json({ error: 'URL parameter is required' });
+        }
+        
+        // Add X-Plex-Token as query parameter if provided
+        if (authToken) {
+            const urlObj = new URL(targetUrl);
+            urlObj.searchParams.set('X-Plex-Token', authToken);
+            targetUrl = urlObj.toString();
+        }
+        
+        // Build headers
+        const headers = {
+            'Accept': 'application/json',
+            'X-Plex-Client-Identifier': req.headers['x-plex-client-identifier'] || 'playtorrio-proxy'
+        };
+        
+        // Forward other relevant headers
+        if (req.headers['x-plex-product']) headers['X-Plex-Product'] = req.headers['x-plex-product'];
+        
+        const https = require('https');
+        const axiosConfig = {
+            method: req.method,
+            url: targetUrl,
+            headers: headers,
+            timeout: 30000,
+            validateStatus: () => true, // Don't throw on any status
+            // Disable SSL verification for Plex servers with self-signed certificates
+            httpsAgent: new https.Agent({
+                rejectUnauthorized: false
+            })
+        };
+        
+        // Forward body for POST/PUT requests
+        if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
+            axiosConfig.data = req.body;
+        }
+        
+        console.log('[Plex Proxy] Request to:', targetUrl.replace(/X-Plex-Token=[^&]+/, 'X-Plex-Token=***'));
+        
+        const response = await axios(axiosConfig);
+        
+        console.log('[Plex Proxy] Response status:', response.status);
+        
+        // Forward response headers
+        Object.keys(response.headers).forEach(key => {
+            if (!['connection', 'transfer-encoding', 'content-encoding'].includes(key.toLowerCase())) {
+                res.setHeader(key, response.headers[key]);
+            }
+        });
+        
+        // Add CORS headers
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', '*');
+        
+        res.status(response.status).send(response.data);
+        
+    } catch (error) {
+        console.error('[Plex Proxy] Error:', error.message);
+        if (error.response) {
+            console.error('[Plex Proxy] Response status:', error.response.status);
+            console.error('[Plex Proxy] Response data:', error.response.data);
+        }
+        res.status(500).json({ 
+            error: 'Proxy request failed', 
+            message: error.message,
+            details: error.response?.data || error.toString()
+        });
+    }
+});
+
+// ============================================================================
 // ROOT ENDPOINT - API INFO
 // ============================================================================
 

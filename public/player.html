@@ -1206,10 +1206,11 @@
             stallCount = 0;
             
             // Try to get duration from video element if we don't have it
-            // For transcoded streams, only accept durations > 60s (not fragments)
+            // Accept any valid duration for transcoded streams
             if (video.duration && isFinite(video.duration) && video.duration > 0) {
                 if (isTranscoding) {
-                    if (video.duration > 60 && (!videoDuration || videoDuration < 60)) {
+                    // Accept any duration that's growing
+                    if (!videoDuration || video.duration > videoDuration) {
                         videoDuration = video.duration;
                         console.log('Player: Got duration from video element:', videoDuration);
                     }
@@ -1240,12 +1241,10 @@
         // Get duration when video metadata loads
         video.ondurationchange = () => {
             if (video.duration && isFinite(video.duration) && video.duration > 0) {
-                // For transcoded streams, ignore very short durations (fragments)
-                // Only update if we don't have a duration yet OR the new one is significantly longer
                 if (isTranscoding) {
-                    // Only accept duration from video element if it's > 60s (not a fragment)
-                    // and we don't already have a better duration from metadata
-                    if (video.duration > 60 && (!videoDuration || videoDuration < 60)) {
+                    // For transcoded streams, accept any duration that's growing
+                    // The transcoder sends chunks, so duration increases over time
+                    if (!videoDuration || video.duration > videoDuration) {
                         videoDuration = video.duration;
                         console.log('Player: Duration updated from video:', videoDuration);
                     }
