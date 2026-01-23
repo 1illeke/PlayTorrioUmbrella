@@ -330,6 +330,9 @@ function setupSidebarNavigation() {
                 case 'iptv':
                     window.location.hash = '#/iptv';
                     break;
+                case 'custom-servers':
+                    window.location.hash = '#/custom-servers';
+                    break;
                 case 'books':
                     window.location.hash = '#/books';
                     break;

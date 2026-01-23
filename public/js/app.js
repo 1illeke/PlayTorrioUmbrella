@@ -212,6 +212,23 @@ async function handleRouteChange() {
         case '#/iptv':
             showPage('iptv-page');
             break;
+        case '#/custom-servers':
+            showPage('custom-servers-page');
+            // Initialize Jellyfin when page is shown - with delay to ensure DOM is ready
+            console.log('[App] Custom servers page shown, initializing...');
+            setTimeout(() => {
+                if (typeof window.initJellyfinCS === 'function') {
+                    console.log('[App] Calling initJellyfinCS');
+                    try {
+                        window.initJellyfinCS();
+                    } catch (e) {
+                        console.error('[App] Error initializing Jellyfin:', e);
+                    }
+                } else {
+                    console.error('[App] initJellyfinCS function not found! Window keys:', Object.keys(window).filter(k => k.includes('Jellyfin')));
+                }
+            }, 100);
+            break;
         case '#/books':
             showPage('books-page');
             if (typeof initializeBooks === 'function') initializeBooks();

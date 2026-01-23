@@ -558,6 +558,58 @@
         const providerUrl = params.get('providerUrl') || '';  // addon base URL
         const quality = params.get('quality') || '1080p';
         
+        // Check for sessionId (used for Jellyfin to avoid URL length limits)
+        const sessionId = params.get('sessionId');
+        let jellyfinSubsParam = params.get('jellyfinSubs');  // Jellyfin built-in subtitles
+        let sessionTmdbId = tmdbId;
+        let sessionImdbId = imdbId;
+        let sessionSeason = season;
+        let sessionEpisode = episode;
+        let sessionType = type;
+        
+        // If sessionId is provided, load data from sessionStorage
+        if (sessionId) {
+            try {
+                const sessionData = sessionStorage.getItem(sessionId);
+                if (sessionData) {
+                    const data = JSON.parse(sessionData);
+                    console.log('[Player] Loaded session data:', data);
+                    
+                    // Use session data for subtitles and metadata
+                    if (data.jellyfinSubs) {
+                        jellyfinSubsParam = JSON.stringify(data.jellyfinSubs);
+                    }
+                    sessionTmdbId = data.tmdbId || tmdbId;
+                    sessionImdbId = data.imdbId || imdbId;
+                    sessionSeason = data.seasonNum || season;
+                    sessionEpisode = data.episodeNum || episode;
+                    sessionType = data.mediaType || type;
+                    
+                    // Clean up session storage
+                    sessionStorage.removeItem(sessionId);
+                }
+            } catch (e) {
+                console.error('[Player] Failed to load session data:', e);
+            }
+        }
+        
+        // Use session values if available
+        const finalTmdbId = sessionTmdbId;
+        const finalImdbId = sessionImdbId;
+        const finalSeason = sessionSeason;
+        const finalEpisode = sessionEpisode;
+        const finalType = sessionType;
+        
+        console.log('[Player] Final values:', {
+            jellyfinSubsParam: jellyfinSubsParam ? 'present' : 'missing',
+            jellyfinSubsLength: jellyfinSubsParam ? JSON.parse(jellyfinSubsParam).length : 0,
+            finalTmdbId,
+            finalImdbId,
+            finalSeason,
+            finalEpisode,
+            finalType
+        });
+        
         // Debug: Log the received URL immediately
         console.log('[Player] Received videoUrl from params:', videoUrl);
         console.log('[Player] Full URL search params:', window.location.search);
@@ -637,11 +689,19 @@
             initPlayer(videoUrl, initialTime);
         }
         
-        if (tmdbId || imdbId) {
-            console.log('[Player] Fetching subtitles for:', { tmdbId, imdbId, season, episode, type });
-            initSubtitles(tmdbId, imdbId, season, episode, type);
+        // Always initialize subtitles if we have jellyfinSubsParam OR tmdbId/imdbId
+        if (jellyfinSubsParam || finalTmdbId || finalImdbId) {
+            console.log('[Player] Initializing subtitles:', { 
+                hasJellyfinSubs: !!jellyfinSubsParam, 
+                tmdbId: finalTmdbId, 
+                imdbId: finalImdbId, 
+                season: finalSeason, 
+                episode: finalEpisode, 
+                type: finalType 
+            });
+            initSubtitles(finalTmdbId, finalImdbId, finalSeason, finalEpisode, finalType);
         } else {
-            console.warn('[Player] No tmdbId or imdbId provided - subtitles will not be fetched');
+            console.warn('[Player] No subtitles available - no jellyfinSubs, tmdbId, or imdbId provided');
         }
         
         // Check if this is a torrent stream (Stremio engine)
@@ -1499,6 +1559,9 @@
                 if (sub.display) {
                     // Wyzie format
                     label = `<img src="${sub.flagUrl || ''}" class="sub-flag" onerror="this.style.display='none'"><span>${sub.display}</span>`;
+                } else if (sub.name && sourceName === 'Built-in') {
+                    // Jellyfin built-in format
+                    label = `<span>${sub.name}</span>`;
                 } else {
                     // Addon format - show language code
                     const langLabel = (sub.lang_code || sub.lang || 'Unknown').toUpperCase();
@@ -1551,6 +1614,22 @@
                 sep.style.letterSpacing = '1px';
                 sep.innerText = name;
                 list.appendChild(sep);
+            }
+
+            // 0. Add Jellyfin built-in subtitles first (if provided)
+            if (jellyfinSubsParam) {
+                try {
+                    const jellyfinSubs = JSON.parse(jellyfinSubsParam);
+                    if (jellyfinSubs && jellyfinSubs.length > 0) {
+                        console.log('[Player] Adding', jellyfinSubs.length, 'Jellyfin built-in subtitles');
+                        addSectionHeader('Built-in Subtitles');
+                        jellyfinSubs.forEach(sub => {
+                            list.appendChild(createSubItem(sub, 'Built-in'));
+                        });
+                    }
+                } catch (e) {
+                    console.error('[Player] Failed to parse Jellyfin subtitles:', e);
+                }
             }
 
             // 1. Fetch Wyzie (requires TMDB ID) - don't block on this

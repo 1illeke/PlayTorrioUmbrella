@@ -187,3 +187,29 @@ window.downloadSubtitle = downloadSubtitle;
 window.deleteSubtitle = deleteSubtitle;
 
 console.log('[API] API functions module loaded');
+
+// ===== EXPORTS FOR JELLYFIN MODULE =====
+// Use the same working API key from config.js
+const TMDB_API_KEY = window.TMDB_API_KEY || 'c3515fdc674ea2bd7b514f4bc3616a4a';
+
+const fetchFromTMDB = async (endpoint, params = {}) => {
+    const url = new URL(`https://api.themoviedb.org/3${endpoint}`);
+    url.searchParams.append('api_key', TMDB_API_KEY);
+    Object.entries(params).forEach(([key, value]) => {
+        url.searchParams.append(key, value);
+    });
+    const response = await fetch(url);
+    return response.json();
+};
+
+export const searchMulti = (query) => 
+    fetchFromTMDB('/search/multi', { query, include_adult: false });
+
+export const getMovieDetails = (id) =>
+    fetchFromTMDB(`/movie/${id}`, { append_to_response: 'credits' });
+
+export const getTVShowDetails = (id) =>
+    fetchFromTMDB(`/tv/${id}`, { append_to_response: 'credits' });
+
+export const getExternalIds = (id, type) =>
+    fetchFromTMDB(`/${type}/${id}/external_ids`);

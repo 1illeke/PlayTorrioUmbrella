@@ -1733,16 +1733,40 @@ function getStartUrl() {
     try {
         const userDataPath = app.getPath('userData');
         const settingsPath = path.join(userDataPath, 'settings.json');
+        
+        // Force everyone to Basic Mode for version 2.6.1 update
+        const FORCE_BASIC_VERSION = '2.6.1';
+        const currentVersion = app.getVersion();
+        
         if (fs.existsSync(settingsPath)) {
             const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-            if (settings.preferredMode === 'advanced') {
-                startUrl = 'http://localhost:6987/index.html';
-            } else {
+            
+            // Check if this is the first launch of 2.6.1 (force reset to basic mode)
+            if (currentVersion === FORCE_BASIC_VERSION && settings.lastVersion !== FORCE_BASIC_VERSION) {
+                console.log('[Settings] Version 2.6.1 detected - switching all users to Basic Mode');
+                settings.preferredMode = 'basic';
+                settings.lastVersion = FORCE_BASIC_VERSION;
+                fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
                 startUrl = 'http://localhost:6987/basicmode/index.html';
+            } else {
+                // Normal behavior - respect user preference
+                if (settings.preferredMode === 'advanced') {
+                    startUrl = 'http://localhost:6987/index.html';
+                } else {
+                    startUrl = 'http://localhost:6987/basicmode/index.html';
+                }
+                // Update lastVersion if needed
+                if (settings.lastVersion !== currentVersion) {
+                    settings.lastVersion = currentVersion;
+                    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+                }
             }
         } else {
             // If settings don't exist, create default with basic mode
-            const defaultSettings = { preferredMode: 'basic' };
+            const defaultSettings = { 
+                preferredMode: 'basic',
+                lastVersion: currentVersion
+            };
             fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
             console.log('[Settings] Created default settings with Basic Mode');
         }

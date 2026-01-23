@@ -302,6 +302,13 @@
                 </svg>
                 <span class="text-sm font-medium">Music</span>
             </a>
+            
+            <a href="#" onclick="showSection('customservers'); return false;" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:text-white hover:bg-white/5 transition-all group">
+                <svg class="w-5 h-5 text-gray-400 group-hover:text-green-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                </svg>
+                <span class="text-sm font-medium">Custom Servers</span>
+            </a>
 
             <div class="my-4 border-t border-white/5"></div>
             <p class="text-gray-500 text-[10px] uppercase tracking-wider font-semibold px-3 mb-2">Quick Actions</p>
@@ -1074,6 +1081,135 @@
         </div>
     </div>
 
+    <!-- Custom Servers Section -->
+    <div id="customservers-section" class="hidden relative z-[70] px-6 min-h-screen pt-32 pointer-events-auto">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-white flex items-center gap-3">
+                <span class="w-1 h-6 bg-gradient-to-b from-green-500 to-blue-500 rounded-full"></span>
+                Custom Servers
+            </h2>
+        </div>
+        
+        <!-- Server Selection -->
+        <div id="server-selection" class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
+            <button id="plex-btn" class="p-6 rounded-xl bg-gradient-to-br from-orange-600/20 to-yellow-600/20 border border-orange-500/30 hover:border-orange-500/50 transition-all group">
+                <div class="flex flex-col items-center gap-3">
+                    <div class="w-16 h-16 rounded-full bg-orange-600/30 flex items-center justify-center group-hover:scale-110 transition-transform p-2">
+                        <img src="https://www.plex.tv/wp-content/themes/plex/assets/img/plex-logo.svg" alt="Plex" class="w-full h-full object-contain" onerror="this.style.display='none'">
+                    </div>
+                    <span class="text-lg font-semibold text-white">Plex</span>
+                    <span class="text-xs text-gray-400">Coming Soon</span>
+                </div>
+            </button>
+            
+            <button id="jellyfin-btn" class="p-6 rounded-xl bg-gradient-to-br from-purple-600/20 to-blue-600/20 border border-purple-500/30 hover:border-purple-500/50 transition-all group">
+                <div class="flex flex-col items-center gap-3">
+                    <div class="w-16 h-16 rounded-full bg-purple-600/30 flex items-center justify-center group-hover:scale-110 transition-transform p-2">
+                        <img src="https://jellyfin.org/images/logo.svg" alt="Jellyfin" class="w-full h-full object-contain" onerror="this.style.display='none'">
+                    </div>
+                    <span class="text-lg font-semibold text-white">Jellyfin</span>
+                    <span class="text-xs text-gray-400">Connect to your server</span>
+                </div>
+            </button>
+        </div>
+        
+        <!-- Jellyfin Login -->
+        <div id="jellyfin-login" class="hidden max-w-md mx-auto">
+            <button id="jellyfin-back-btn" class="mb-4 text-gray-400 hover:text-white transition-colors flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+                Back
+            </button>
+            
+            <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="w-12 h-12 rounded-full bg-purple-600/30 flex items-center justify-center p-2">
+                        <img src="https://jellyfin.org/images/logo.svg" alt="Jellyfin" class="w-full h-full object-contain" onerror="this.style.display='none'">
+                    </div>
+                    <h3 class="text-xl font-bold text-white">Connect to Jellyfin</h3>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Server URL</label>
+                        <input type="text" id="jellyfin-url" placeholder="https://jellyfin.example.com" class="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-purple-500 transition-colors">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Username</label>
+                        <input type="text" id="jellyfin-username" placeholder="Enter username" class="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-purple-500 transition-colors">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Password</label>
+                        <input type="password" id="jellyfin-password" placeholder="Enter password" class="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-purple-500 transition-colors">
+                    </div>
+                    
+                    <button id="jellyfin-connect-btn" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <span>Connect</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                        </svg>
+                    </button>
+                    
+                    <div id="jellyfin-error" class="hidden text-red-400 text-sm text-center"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Jellyfin Browser -->
+        <div id="jellyfin-browser" class="hidden">
+            <div class="flex items-center justify-between mb-4">
+                <button id="jellyfin-disconnect-btn" class="text-gray-400 hover:text-white transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                    Disconnect
+                </button>
+                <span id="jellyfin-server-name" class="text-sm text-gray-400"></span>
+            </div>
+            
+            <!-- Libraries -->
+            <div id="jellyfin-libraries" class="mb-6">
+                <h4 class="text-lg font-semibold text-white mb-3">Libraries</h4>
+                <div id="jellyfin-libraries-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"></div>
+            </div>
+            
+            <!-- Items Grid -->
+            <div id="jellyfin-items-container" class="hidden">
+                <div class="flex items-center gap-3 mb-4">
+                    <button id="jellyfin-items-back-btn" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+                    <h4 id="jellyfin-items-title" class="text-lg font-semibold text-white"></h4>
+                </div>
+                <div class="mb-4">
+                    <input type="text" id="jellyfin-items-search" placeholder="Search in this library..." class="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors">
+                </div>
+                <div id="jellyfin-items-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"></div>
+            </div>
+            
+            <!-- Seasons/Episodes -->
+            <div id="jellyfin-seasons-container" class="hidden">
+                <div class="flex items-center gap-3 mb-4">
+                    <button id="jellyfin-seasons-back-btn" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+                    <h4 id="jellyfin-seasons-title" class="text-lg font-semibold text-white"></h4>
+                </div>
+                <div class="mb-4">
+                    <input type="text" id="jellyfin-seasons-search" placeholder="Search episodes..." class="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors">
+                </div>
+                <div id="jellyfin-seasons-grid" class="space-y-6"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Media Downloader Details Modal -->
     <div id="mdl-details-modal" class="fixed inset-0 z-[400] flex items-center justify-center bg-black/80 backdrop-blur-sm hidden p-4">
         <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
@@ -1571,6 +1707,125 @@
             </div>
         </div>
     </div>
+
+    <!-- Embedded Player Overlay (iframe) -->
+    <div id="player-overlay" class="fixed inset-0 z-[10000] bg-black hidden" style="pointer-events: none;">
+        <iframe id="player-iframe" class="w-full h-full border-0" allowfullscreen style="pointer-events: auto;" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation"></iframe>
+    </div>
+
+    <script>
+        // Player overlay management
+        window.playerOverlay = {
+            overlay: null,
+            iframe: null,
+            currentStreamHash: null,
+            isAltEngine: false,
+            isClosing: false,
+            
+            init() {
+                this.overlay = document.getElementById('player-overlay');
+                this.iframe = document.getElementById('player-iframe');
+                
+                if (!this.overlay || !this.iframe) {
+                    console.error('[PlayerOverlay] Elements not found');
+                    return;
+                }
+                
+                // Listen for close messages from iframe
+                window.addEventListener('message', (event) => {
+                    if (event.data?.type === 'player-close') {
+                        console.log('[PlayerOverlay] Received close message from iframe');
+                        this.close();
+                    } else if (event.data?.type === 'player-cleanup') {
+                        console.log('[PlayerOverlay] Received cleanup message');
+                    }
+                });
+                
+                // Handle iframe errors
+                if (this.iframe) {
+                    this.iframe.addEventListener('error', () => {
+                        console.error('[PlayerOverlay] Iframe load error');
+                        this.close();
+                    });
+                }
+            },
+            
+            open(playerUrl, streamHash = null, isAltEngine = false) {
+                this.currentStreamHash = streamHash;
+                this.isAltEngine = isAltEngine;
+                
+                console.log('[PlayerOverlay] Opening player:', playerUrl);
+                console.log('[PlayerOverlay] Stream hash:', streamHash);
+                
+                // Clear any previous content
+                if (this.iframe) {
+                    this.iframe.src = '';
+                }
+                
+                // Show overlay
+                if (this.overlay) {
+                    this.overlay.classList.remove('hidden');
+                    this.overlay.style.pointerEvents = 'auto';
+                }
+                
+                // Load player
+                if (this.iframe) {
+                    this.iframe.src = playerUrl;
+                }
+            },
+            
+            close() {
+                if (!this.overlay || this.isClosing) {
+                    console.log('[PlayerOverlay] Already closing or no overlay');
+                    return;
+                }
+                
+                this.isClosing = true;
+                console.log('[PlayerOverlay] Closing player...');
+                console.log('[PlayerOverlay] Current stream hash:', this.currentStreamHash);
+                
+                // Cleanup stream if we have a hash (local torrent stream)
+                if (this.currentStreamHash) {
+                    const endpoint = this.isAltEngine ? '/api/alt-stop-stream' : '/api/stop-stream';
+                    const url = `http://localhost:6987${endpoint}?hash=${this.currentStreamHash}`;
+                    console.log('[PlayerOverlay] Stopping stream at:', url);
+                    
+                    fetch(url)
+                        .then(res => {
+                            console.log('[PlayerOverlay] Stream stop response:', res.status);
+                            return res.text();
+                        })
+                        .then(text => console.log('[PlayerOverlay] Stream stopped:', text))
+                        .catch(e => console.warn('[PlayerOverlay] Stream stop error:', e));
+                    
+                    this.currentStreamHash = null;
+                }
+                
+                // Hide overlay
+                if (this.overlay) {
+                    this.overlay.classList.add('hidden');
+                    this.overlay.style.pointerEvents = 'none';
+                }
+                
+                // Clear iframe
+                if (this.iframe) {
+                    this.iframe.src = '';
+                }
+                
+                setTimeout(() => {
+                    this.isClosing = false;
+                    console.log('[PlayerOverlay] Player fully closed and cleaned up');
+                }, 150);
+            }
+        };
+        
+        // Initialize on DOM ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => window.playerOverlay.init());
+        } else {
+            window.playerOverlay.init();
+        }
+    </script>
 
     <script type="module" src="js/home.js"></script>
     <script src="js/epubReader.js"></script>
