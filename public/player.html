@@ -1196,7 +1196,6 @@
         };
         
         video.onplaying = () => { 
-            isSeeking = false;
             document.getElementById('loading-spinner').style.display = 'none';
             
             // Clear stall timer and reset stall count
@@ -1367,11 +1366,7 @@
             }
         }
 
-        let isSeeking = false;
-
         video.ontimeupdate = () => {
-            if (isSeeking) return;
-
             const currentDuration = (isTranscoding && videoDuration > 0) ? videoDuration : video.duration;
             const currentTime = getCurrentRealTime();
             
@@ -1425,14 +1420,6 @@
             if (isFinite(currentDuration) && currentDuration > 0) {
                 const newTime = pos * currentDuration;
                 console.log(`[Seek] Seeking to ${newTime.toFixed(1)}s`);
-                
-                // OPTIMISTIC UPDATE: Move UI immediately
-                isSeeking = true;
-                const pct = (newTime / currentDuration) * 100;
-                progressBar.style.width = `${pct}%`;
-                timeDisplay.textContent = `${formatTime(newTime)} / ${formatTime(currentDuration)}`;
-                lastAbsoluteTime = newTime; // Ensure resume happens from here if something fails
-
                 if (isTranscoding) {
                     console.log(`[Seek] Using transcoder seek`);
                     loadSmartStream(videoUrl, newTime);
