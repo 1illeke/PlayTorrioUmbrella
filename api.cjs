@@ -6020,12 +6020,15 @@ const formatDuration = (ms) => {
 
 /**
  * Call Deezer API (no auth required)
+ * Uses Cloudflare Worker proxy for worldwide access
  * @param {string} url
  * @returns {Promise<any>}
  */
 async function callDeezerApi(url) {
   try {
-    const response = await axios.get(url, { timeout: 10000 });
+    // Use Cloudflare Worker proxy to bypass geo-restrictions
+    const proxyUrl = `https://deezer-proxy.aymanisthedude1.workers.dev/?url=${encodeURIComponent(url)}`;
+    const response = await axios.get(proxyUrl, { timeout: 10000 });
     return response.data;
   } catch (err) {
     const message = (err && err.response && err.response.statusText) || err.message || 'Unknown Deezer error';

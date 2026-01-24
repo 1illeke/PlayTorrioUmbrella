@@ -324,7 +324,7 @@ Found a bug? Have a feature request?
 - [WebTorrent](https://webtorrent.io/) - Browser torrent client
 - [MPV](https://mpv.io/) - Media player
 - [VLC](https://www.videolan.org/) - Alternative media player
-- [FFmpeg](https://ffmpeg.org/) - Transcoding engine
+- [Jellyfin FFmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) - High-performance transcoding engine with hardware acceleration
 - All open-source libraries that make this possible
 
 ## 📊 Tech Stack
