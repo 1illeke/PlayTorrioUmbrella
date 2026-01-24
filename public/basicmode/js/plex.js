@@ -124,42 +124,66 @@ async function getPlexServers(authToken) {
         const servers = await response.json();
         const plexServers = servers.filter(s => s.provides === 'server');
         
-        // For each server, find the best connection
-        plexServers.forEach(server => {
+        // Check connections for each server in parallel
+        await Promise.all(plexServers.map(async (server) => {
             if (server.connections && server.connections.length > 0) {
-                // Filter out relay connections first, then sort by local preference
-                const nonRelayConnections = server.connections.filter(c => !c.relay);
-                const connectionsToUse = nonRelayConnections.length > 0 ? nonRelayConnections : server.connections;
-                
-                // Sort: prefer local, but if local doesn't work, use remote
-                const sortedConnections = connectionsToUse.sort((a, b) => {
+                // Sort connections: Local > Remote > Relay
+                // This prioritizes direct local connections, then direct remote, then relay
+                const sortedConnections = server.connections.sort((a, b) => {
                     // Prefer non-relay over relay
-                    if (a.relay && !b.relay) return 1;
-                    if (!a.relay && b.relay) return -1;
+                    if (a.relay !== b.relay) return a.relay ? 1 : -1;
                     
                     // Prefer local over remote
-                    if (a.local && !b.local) return -1;
-                    if (!a.local && b.local) return 1;
+                    if (a.local !== b.local) return a.local ? -1 : 1;
                     
                     return 0;
                 });
                 
-                // Use remote connection if available (more reliable than local for some setups)
-                const remoteConnection = sortedConnections.find(c => !c.local && !c.relay);
-                server.bestConnection = remoteConnection || sortedConnections[0];
+                console.log(`[Plex] Checking connections for ${server.name}...`);
+                let activeConnection = null;
                 
-                console.log('[Plex] Server:', server.name);
-                console.log('[Plex] Available connections:', server.connections.map(c => ({
-                    uri: c.uri,
-                    local: c.local,
-                    relay: c.relay,
-                    protocol: c.protocol
-                })));
-                console.log('[Plex] Selected connection:', server.bestConnection.uri, 
-                    'Local:', server.bestConnection.local, 
-                    'Relay:', server.bestConnection.relay);
+                // Try each connection to find the first reachable one
+                for (const connection of sortedConnections) {
+                    try {
+                        console.log(`[Plex] Testing: ${connection.uri} (Local: ${connection.local}, Relay: ${connection.relay})`);
+                        
+                        // Test endpoint via proxy to check reachability
+                        // We use /identity endpoint which is lightweight
+                        const testUrl = `${connection.uri}/identity`;
+                        const proxyUrl = `/api/plex/proxy?url=${encodeURIComponent(testUrl)}&token=${encodeURIComponent(server.accessToken)}`;
+                        
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+                        
+                        const res = await fetch(proxyUrl, {
+                            signal: controller.signal,
+                            headers: { 'X-Plex-Client-Identifier': PLEX_CLIENT_ID }
+                        });
+                        
+                        clearTimeout(timeoutId);
+                        
+                        if (res.ok) {
+                            console.log(`[Plex] Connection confirmed: ${connection.uri}`);
+                            activeConnection = connection;
+                            break; // Stop at first working connection
+                        }
+                    } catch (e) {
+                        console.warn(`[Plex] Connection failed: ${connection.uri}`);
+                    }
+                }
+                
+                // Fallback to first sorted connection if verification fails (unlikely to work, but better than nothing)
+                server.bestConnection = activeConnection || sortedConnections[0];
+                
+                if (server.bestConnection) {
+                     console.log('[Plex] Selected connection:', server.bestConnection.uri, 
+                        'Local:', server.bestConnection.local, 
+                        'Relay:', server.bestConnection.relay);
+                } else {
+                    console.warn('[Plex] No valid connections found for', server.name);
+                }
             }
-        });
+        }));
         
         return plexServers;
     } catch (error) {

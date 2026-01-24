@@ -678,8 +678,8 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                         '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                         
                         // ============ SPEED OPTIMIZATIONS ============
-                        '-analyzeduration', '5000000',   // 5M microseconds (5s) - much faster
-                        '-probesize', '5000000',         // 5MB - enough for headers
+                        '-analyzeduration', '10000000',   // 10M microseconds (10s) - increased for reliability
+                        '-probesize', '10000000',         // 10MB - increased for reliability
                         '-fflags', '+fastseek+nobuffer', // Fast seeking, no buffering
                         '-flags', 'low_delay',           // Low delay mode
                         
@@ -747,8 +747,13 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                                 }
                             }
                             
+                            // Robust duration detection
+                            let duration = parseFloat(data.format?.duration);
+                            if (!duration || isNaN(duration)) duration = parseFloat(videoStream?.duration);
+                            if ((!duration || isNaN(duration)) && audioStreams.length > 0) duration = parseFloat(audioStreams[0]?.duration);
+
                             const meta = {
-                                duration: parseFloat(data.format?.duration) || 0,
+                                duration: duration || 0,
                                 videoCodec: videoCodec,
                                 width: videoStream?.width || 0,
                                 height: videoStream?.height || 0,
