@@ -338,6 +338,14 @@ export async function handleTranscodeStream(req, res) {
   }
 
   const needsTranscode = metadata ? checkNeedsTranscode(metadata) : true;
+  
+  // CRITICAL OPTIMIZATION: If quality is 'native' and no transcoding needed, bypass FFmpeg entirely!
+  // This is how Stremio achieves low CPU - it just proxies the raw stream
+  if (quality === 'native' && !needsTranscode && startTime === 0) {
+    console.log(`[Jellyfin-Transcoder] DIRECT STREAM (no FFmpeg) - zero CPU usage!`);
+    return handleDirectStream(req, res, streamUrl, streamKey);
+  }
+  
   const encoder = detectedEncoder || { name: 'libx264', type: 'CPU', hwaccel: 'auto' };
   const actualEncoder = encoder;
   
@@ -377,6 +385,11 @@ function startLiveTranscode(req, res, streamUrl, startTime, metadata, needsTrans
     quality: quality,
   });
 
+  // Print the full command for debugging
+  console.log('========================================');
+  console.log('[FFMPEG COMMAND]' + FFMPEG + ' ' + args.join(' '));
+  console.log('========================================');
+
   const ffmpeg = spawn(FFMPEG, args, { stdio: ['ignore', 'pipe', 'pipe'] });
   let hasOutput = false;
   let errorOutput = '';
@@ -399,7 +412,7 @@ function startLiveTranscode(req, res, streamUrl, startTime, metadata, needsTrans
     const msg = data.toString();
     errorOutput += msg;
     if (msg.includes('Error') || msg.includes('Invalid') || msg.includes('not implemented')) {
-      console.error('[Jellyfin-Transcoder]', msg.trim().substring(0, 150));
+      console.error('[FFMPEG STDERR]', msg.trim().substring(0, 150));
     }
   });
 
@@ -458,6 +471,7 @@ function buildFFmpegArgs(inputUrl, startTime, needsTranscode, metadata, options 
   const targetUrl = inputUrl.replace('localhost', '127.0.0.1');
   const encoder = options.encoder || detectedEncoder?.name || 'libx264';
   const hwaccel = options.hwaccel || detectedEncoder?.hwaccel || 'auto';
+  const quality = options.quality || 'mid';
   
   const args = [
     '-hide_banner',
@@ -467,8 +481,13 @@ function buildFFmpegArgs(inputUrl, startTime, needsTranscode, metadata, options 
     '-analyzeduration', '10M',
   ];
 
-  // NO hardware decoding - causes issues with filters
-  // Let the encoder handle everything for maximum reliability
+  // CRITICAL FIX: Enable hardware DECODING for NVENC
+  // But DON'T use cuda output format - that causes the filter error
+  // Let FFmpeg handle the format conversion internally
+  if (encoder === 'h264_nvenc' && !options.forceSoftware) {
+    args.push('-hwaccel', 'cuda');
+    // NO -hwaccel_output_format - let FFmpeg handle it
+  }
 
   // Seek BEFORE input (fast seek)
   if (startTime > 0) {
@@ -492,32 +511,31 @@ function buildFFmpegArgs(inputUrl, startTime, needsTranscode, metadata, options 
 
   if (needsTranscode) {
     const useEncoder = options.forceSoftware ? 'libx264' : encoder;
-    const quality = options.quality || 'mid';
-    
-    // For NVENC, force pixel format conversion BEFORE encoding to avoid filter errors
-    if (useEncoder === 'h264_nvenc') {
-      args.push('-vf', 'format=yuv420p,hwupload_cuda');
-    }
     
     args.push('-c:v', useEncoder);
     
     if (useEncoder === 'h264_nvenc') {
-      // NVENC - MAXIMUM SPEED with quality scaling
+      // NVENC - Optimized for low CPU usage with hardware decode
       const qpValues = {
-        'native': '18',  // Best quality
-        'high': '20',    // High quality
-        'mid': '23',     // Balanced
-        'low': '28'      // Fast/small
+        'native': '18',
+        'high': '20',
+        'mid': '23',
+        'low': '28'
       };
       
       args.push(
         '-preset', 'p1',             // FASTEST preset
         '-tune', 'ull',              // Ultra low latency
-        '-rc', 'constqp',            // Constant QP for speed
-        '-qp', qpValues[quality] || '23',
-        '-g', '60',                  // GOP size
-        '-bf', '0',                  // No B-frames for speed
-        '-2pass', '0',               // Single pass for speed
+        '-rc', 'vbr',                // VBR is faster than constqp
+        '-cq', qpValues[quality] || '23',
+        '-b:v', '0',                 // No bitrate limit
+        '-g', '250',                 // Large GOP = less CPU work
+        '-bf', '0',                  // No B-frames
+        '-spatial_aq', '0',          // Disable for speed
+        '-temporal_aq', '0',         // Disable for speed
+        '-refs', '1',                // Min references for speed
+        '-rc-lookahead', '0',        // Disable lookahead
+        '-pix_fmt', 'yuv420p',       // Set directly on encoder
       );
     } else if (useEncoder === 'h264_qsv') {
       const qsvQuality = {
@@ -530,8 +548,9 @@ function buildFFmpegArgs(inputUrl, startTime, needsTranscode, metadata, options 
       args.push(
         '-preset', 'veryfast',
         '-global_quality', qsvQuality[quality] || '23',
-        '-g', '60',
+        '-g', '250',                 // Large GOP
         '-bf', '0',
+        '-pix_fmt', 'nv12',
       );
     } else if (useEncoder === 'h264_amf') {
       const amfQP = {
@@ -546,8 +565,9 @@ function buildFFmpegArgs(inputUrl, startTime, needsTranscode, metadata, options 
         '-rc', 'cqp',
         '-qp_i', amfQP[quality] || '23',
         '-qp_p', amfQP[quality] || '23',
-        '-g', '60',
+        '-g', '250',                 // Large GOP
         '-bf', '0',
+        '-pix_fmt', 'nv12',
       );
     } else if (useEncoder === 'h264_videotoolbox') {
       const vtBitrate = {
@@ -562,7 +582,7 @@ function buildFFmpegArgs(inputUrl, startTime, needsTranscode, metadata, options 
         '-maxrate', '10M',
         '-bufsize', '20M',
         '-profile:v', 'high',
-        '-g', '60',
+        '-g', '250',                 // Large GOP
       );
     } else if (useEncoder === 'h264_vaapi') {
       const vaapiQP = {
@@ -574,11 +594,12 @@ function buildFFmpegArgs(inputUrl, startTime, needsTranscode, metadata, options 
       
       args.push(
         '-qp', vaapiQP[quality] || '23',
-        '-g', '60',
+        '-g', '250',                 // Large GOP
         '-bf', '0',
+        '-pix_fmt', 'nv12',
       );
     } else {
-      // libx264 - FAST and RELIABLE with quality scaling
+      // libx264 - FAST with limited threads
       const crfValues = {
         'native': '18',
         'high': '20',
@@ -586,30 +607,35 @@ function buildFFmpegArgs(inputUrl, startTime, needsTranscode, metadata, options 
         'low': '28'
       };
       
+      // Limit threads to prevent 100% CPU
+      const cpuCount = os.cpus().length;
+      const maxThreads = Math.max(2, Math.min(4, Math.floor(cpuCount / 2)));
+      
       args.push(
         '-preset', 'ultrafast',
         '-tune', 'zerolatency',
         '-crf', crfValues[quality] || '23',
-        '-profile:v', 'high',
-        '-level', '4.1',
-        '-g', '60',
+        '-profile:v', 'baseline',    // Baseline is faster
+        '-level', '3.1',
+        '-g', '250',                 // Large GOP
         '-bf', '0',
-        '-threads', '0',
+        '-threads', maxThreads.toString(),
+        '-pix_fmt', 'yuv420p',
       );
     }
 
-    // Only set pix_fmt for non-NVENC (NVENC uses filter)
-    if (useEncoder !== 'h264_nvenc') {
-      args.push('-pix_fmt', 'yuv420p');
+    // Audio - copy if possible
+    const audioOk = ['aac', 'mp3', 'opus'].includes(metadata?.audioCodec?.toLowerCase());
+    if (audioOk) {
+      args.push('-c:a', 'copy');
+    } else {
+      args.push(
+        '-c:a', 'aac',
+        '-b:a', '128k',              // Lower bitrate = less CPU
+        '-ac', '2',
+        '-ar', '48000',
+      );
     }
-
-    // Audio - simple and fast
-    args.push(
-      '-c:a', 'aac',
-      '-b:a', '192k',
-      '-ac', '2',
-      '-ar', '48000',
-    );
   } else {
     args.push('-c:v', 'copy');
     const audioOk = ['aac', 'mp3', 'opus'].includes(metadata?.audioCodec?.toLowerCase());
@@ -639,9 +665,59 @@ function getStreamKey(url) {
 
 function checkNeedsTranscode(metadata) {
   const videoOk = ['h264'].includes(metadata.videoCodec?.toLowerCase());
-  const audioOk = ['aac', 'mp3', 'opus', 'flac'].includes(metadata.audioCodec?.toLowerCase());
+  const audioOk = ['aac', 'mp3', 'opus'].includes(metadata.audioCodec?.toLowerCase());
   const containerOk = ['mp4', 'mov'].some(c => metadata.container?.toLowerCase().includes(c));
   return !(videoOk && audioOk && containerOk);
+}
+
+/**
+ * DIRECT STREAM - Zero CPU usage like Stremio
+ * Just proxy the raw video stream without any processing
+ */
+async function handleDirectStream(req, res, streamUrl, streamKey) {
+  const targetUrl = streamUrl.replace('localhost', '127.0.0.1');
+  
+  try {
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch(targetUrl, {
+      headers: {
+        'Range': req.headers.range || 'bytes=0-',
+        'User-Agent': 'Mozilla/5.0'
+      }
+    });
+    
+    if (!response.ok) {
+      return res.status(response.status).send('Stream error');
+    }
+    
+    // Forward headers
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'video/mp4');
+    if (response.headers.get('content-length')) {
+      res.setHeader('Content-Length', response.headers.get('content-length'));
+    }
+    if (response.headers.get('content-range')) {
+      res.setHeader('Content-Range', response.headers.get('content-range'));
+      res.status(206);
+    }
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('X-Transcoder', 'Direct-Stream');
+    
+    // Pipe the stream directly - zero CPU overhead!
+    response.body.pipe(res);
+    
+    response.body.on('error', (err) => {
+      console.error('[Direct-Stream] Error:', err.message);
+      if (!res.headersSent) res.status(500).end();
+    });
+    
+    req.on('close', () => {
+      response.body.destroy();
+    });
+    
+  } catch (error) {
+    console.error('[Direct-Stream] Failed:', error.message);
+    res.status(500).send('Direct stream failed');
+  }
 }
 
 // Cleanup on exit
