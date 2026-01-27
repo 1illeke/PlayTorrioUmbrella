@@ -1,0 +1,54 @@
+/* Umbrella Settings page */
+.umbrella-settings-page {
+  padding: var(--umbrella-space-xl);
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.umbrella-settings-title {
+  margin: 0 0 var(--umbrella-space-lg);
+  font-size: 1.5rem;
+  font-weight: var(--umbrella-font-display);
+  color: var(--umbrella-text);
+}
+
+.umbrella-settings-section {
+  margin-bottom: var(--umbrella-space-xl);
+  padding-bottom: var(--umbrella-space-lg);
+  border-bottom: 1px solid var(--umbrella-glass-border);
+}
+
+.umbrella-settings-section:last-child {
+  border-bottom: none;
+}
+
+.umbrella-settings-section-title {
+  margin: 0 0 var(--umbrella-space-sm);
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.umbrella-settings-btn {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
+  font-weight: var(--umbrella-font-label);
+  color: #fff;
+  background: var(--umbrella-accent);
+  border: none;
+  border-radius: var(--umbrella-radius-md);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.umbrella-settings-btn:hover {
+  background: var(--umbrella-accent-hover);
+}
+
+.umbrella-settings-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--umbrella-text-muted);
+}

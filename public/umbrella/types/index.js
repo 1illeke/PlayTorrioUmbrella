@@ -1,0 +1,1 @@
+// Umbrella types – placeholder

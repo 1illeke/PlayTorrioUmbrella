@@ -1,0 +1,89 @@
+/* Umbrella Hamburger – expandable transparent panel */
+.umbrella-hamburger-overlay {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  z-index: 1100;
+  display: flex;
+  justify-content: flex-end;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+  pointer-events: none;
+}
+
+.umbrella-hamburger-overlay.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.umbrella-hamburger-panel {
+  width: 280px;
+  max-width: 85vw;
+  height: 100%;
+  background: var(--umbrella-liquid-glass-bg);
+  backdrop-filter: var(--umbrella-liquid-glass-blur);
+  -webkit-backdrop-filter: var(--umbrella-liquid-glass-blur);
+  border: var(--umbrella-liquid-glass-border);
+  border-right: none;
+  border-radius: var(--umbrella-liquid-glass-radius) 0 0 var(--umbrella-liquid-glass-radius);
+  box-shadow: var(--umbrella-liquid-glass-shadow);
+  padding: 1.5rem 0.75rem;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.25s ease, var(--umbrella-liquid-glass-transition);
+}
+
+.umbrella-hamburger-overlay.open .umbrella-hamburger-panel {
+  transform: translateX(0);
+}
+
+.umbrella-hamburger-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 1rem 0.5rem 0.5rem;
+  padding: 0;
+}
+
+.umbrella-hamburger-section-title:first-child {
+  margin-top: 0;
+}
+
+.umbrella-hamburger-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  margin: 0.125rem 0;
+  background: none;
+  border: none;
+  border-radius: var(--umbrella-radius-md);
+  color: var(--umbrella-text-secondary);
+  font-size: 0.95rem;
+  font-weight: var(--umbrella-font-label);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.umbrella-hamburger-item i {
+  width: 1.25rem;
+  opacity: 0.85;
+}
+
+.umbrella-hamburger-item:hover,
+.umbrella-hamburger-item:focus {
+  background: var(--umbrella-surface-hover);
+  color: var(--umbrella-text);
+  outline: none;
+}
+
+.umbrella-hamburger-item:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}

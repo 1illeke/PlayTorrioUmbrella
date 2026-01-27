@@ -1,0 +1,93 @@
+/* Umbrella Hero – viewport-sized, image top-to-bottom, centered. Snap: fully in or fully out. */
+.umbrella-hero-container {
+  position: relative;
+  overflow: hidden;
+  height: 100vh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.umbrella-hero {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.umbrella-hero-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.umbrella-hero-backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.umbrella-hero-gradient {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 70%;
+  z-index: 1;
+  background: linear-gradient(to top, var(--umbrella-bg-solid) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.umbrella-hero-content {
+  position: relative;
+  z-index: 2;
+  padding: var(--umbrella-space-xl) var(--umbrella-space-lg);
+  max-width: 640px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.umbrella-hero-title {
+  margin: 0 0 var(--umbrella-space-sm);
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: var(--umbrella-font-display);
+  line-height: 1.15;
+  color: var(--umbrella-text);
+}
+
+.umbrella-hero-meta {
+  margin: 0 0 var(--umbrella-space-md);
+  font-size: 0.95rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text-secondary);
+}
+
+.umbrella-hero-overview {
+  margin: 0 0 var(--umbrella-space-lg);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--umbrella-text-secondary);
+}
+
+.umbrella-hero-watch {
+  padding: 0.65rem 1.5rem;
+  font-size: 1rem;
+  font-weight: var(--umbrella-font-label);
+  color: #fff;
+  background: var(--umbrella-accent);
+  border: none;
+  border-radius: var(--umbrella-radius-md);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.umbrella-hero-watch:hover {
+  background: var(--umbrella-accent-hover);
+}
+
+.umbrella-hero-watch:focus-visible {
+  outline: 2px solid var(--umbrella-accent);
+  outline-offset: 2px;
+}

@@ -1,0 +1,588 @@
+/* Books Reader Styles */
+.books-reader-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+}
+
+.books-reader-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 2rem;
+    background: var(--primary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.books-reader-back-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.books-reader-back-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translateX(-2px);
+}
+
+.books-reader-title {
+    color: #fff;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.books-reader-frame-container {
+    flex: 1;
+    width: 100%;
+    height: calc(100vh - 70px);
+    position: relative;
+    background: #fff;
+    overflow: hidden;
+}
+
+.books-reader-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #fff;
+    display: block;
+}
+
+body.books-reader-open {
+    overflow: hidden;
+}
+
+/* EPUB Reader Styles */
+#epubReaderOverlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    --bar-bg: #202225;
+    --bar-border: rgba(255,255,255,0.1);
+    --bar-btn-bg: #2b2b2b;
+    --bar-btn-border: #3a3a3a;
+    --bar-input-bg: #1f1f1f;
+    --bar-input-border: #3a3a3a;
+}
+
+#epubReaderOverlay.theme-light {
+    --bar-bg: #ffffff;
+    --bar-border: rgba(0,0,0,0.08);
+    --bar-btn-bg: #f3f4f6;
+    --bar-btn-border: #e5e7eb;
+    --bar-input-bg: #ffffff;
+    --bar-input-border: #e5e7eb;
+}
+
+#epubReaderOverlay.theme-night {
+    --bar-bg: #000000;
+    --bar-border: rgba(255,255,255,0.12);
+    --bar-btn-bg: #111111;
+    --bar-btn-border: #262626;
+    --bar-input-bg: #0b0b0b;
+    --bar-input-border: #262626;
+}
+
+.reader-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background-color: var(--bar-bg) !important;
+    backdrop-filter: none;
+    border-bottom: 1px solid var(--bar-border);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.22);
+    position: sticky;
+    top: 0;
+    z-index: 2100;
+}
+
+.reader-esc-hint {
+    color: var(--text);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    background: var(--bar-btn-bg);
+    border: 1px solid var(--bar-btn-border);
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+}
+
+.reader-title { 
+    text-align: center; 
+    color: var(--text); 
+    font-weight: 600; 
+    flex: 1;
+}
+
+#readerContainer { 
+    flex: 1; 
+    overflow-y: auto; 
+    overflow-x: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.reader-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background-color: var(--bar-bg) !important;
+    backdrop-filter: none;
+    border-top: 1px solid var(--bar-border);
+    box-shadow: 0 -2px 6px rgba(0,0,0,0.22);
+    position: sticky;
+    bottom: 0;
+    z-index: 2100;
+}
+
+.reader-nav-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+    justify-content: center;
+}
+
+.reader-chapter-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text);
+}
+
+.reader-chapter-controls .chapter-count-label {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    white-space: nowrap;
+}
+
+.reader-chapter-controls input[type="number"] {
+    width: 84px;
+    height: 36px;
+    padding: 0 0.5rem;
+    border-radius: 6px;
+    border: 1px solid var(--bar-input-border);
+    background: var(--bar-input-bg);
+    color: var(--text);
+    outline: none;
+}
+
+.reader-chapter-controls input[type="number"]::placeholder {
+    color: rgba(255,255,255,0.55);
+}
+
+.reader-nav-btn, .reader-gear, .reader-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px; 
+    height: 44px;
+    padding: 0 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--bar-btn-border);
+    background: var(--bar-btn-bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.reader-nav-btn {
+    min-width: 44px;
+    padding: 0;
+}
+
+.reader-nav-btn:hover:not(:disabled), .reader-gear:hover, .reader-back-btn:hover {
+    background: #6d28d9;
+    border-color: #7c3aed;
+    color: #fff;
+    transform: translateY(-4px) scale(1.02);
+}
+
+.reader-back-btn:hover {
+    background: #dc2626;
+    border-color: #ef4444;
+    color: #fff;
+}
+
+.reader-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.reader-settings {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 340px;
+    max-height: 80vh;
+    background: var(--bar-bg);
+    color: var(--text);
+    border: 1px solid var(--bar-border);
+    border-radius: 12px;
+    transform: translateY(0);
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    padding: 1.5rem;
+    z-index: 2200;
+    box-shadow: 0 5px 25px rgba(0,0,0,0.5);
+    opacity: 1;
+    pointer-events: auto;
+    overflow-y: auto;
+}
+
+.reader-settings.hidden { 
+    transform: translateY(20px); 
+    opacity: 0; 
+    pointer-events: none; 
+}
+
+.settings-row.justify { 
+    justify-content: space-between; 
+}
+
+.align-btn { 
+    flex: 1; 
+    padding: 0.5rem; 
+    border: 1px solid var(--bar-btn-border); 
+    background: var(--bar-btn-bg); 
+    color: var(--text); 
+    cursor: pointer; 
+    border-radius: 6px; 
+    display: flex; 
+    justify-content: center; 
+    align-items: center;
+}
+
+.align-btn.active { 
+    background: var(--vlc-orange); 
+    color: #fff; 
+    border-color: var(--vlc-orange); 
+}
+
+.align-btn:not(:last-child) { 
+    margin-right: 0.5rem; 
+}
+
+.reader-settings-section { 
+    margin-bottom: 1rem; 
+}
+
+.settings-row { 
+    display: flex; 
+    gap: 0.5rem; 
+}
+
+.theme-btn { 
+    padding: 0.5rem 0.75rem; 
+    border-radius: 6px; 
+    border: 1px solid rgba(255,255,255,0.15); 
+    background: rgba(255,255,255,0.06); 
+    color: #eee; 
+    cursor: pointer; 
+}
+
+#focusRuler {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 60px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.85);
+    z-index: 50;
+    pointer-events: none;
+    display: none;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.theme-light { 
+    --bg: #ffffff; 
+    --text: #111111; 
+}
+
+.theme-dark  { 
+    --bg: #202225; 
+    --text: #f2f2f2; 
+}
+
+.theme-night { 
+    --bg: #000000; 
+    --text: #e5e7eb; 
+}
+
+/* IPTV Source Selector */
+.iptv-source-selector {
+    background: #1a0f2e;
+    padding: 15px 20px;
+    border-bottom: 1px solid #2d1b4e;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.iptv-source-label {
+    color: #a78bfa;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 80px;
+}
+
+.iptv-source-dropdown {
+    background: #2d1b4e;
+    border: 1px solid #4c1d95;
+    border-radius: 8px;
+    color: #e5e7eb;
+    padding: 8px 12px;
+    font-size: 14px;
+    min-width: 300px;
+    cursor: pointer;
+    transition: all 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.iptv-source-dropdown:hover {
+    border-color: #7c3aed;
+    background: #362159;
+}
+
+.iptv-source-dropdown:focus {
+    outline: none;
+    border-color: #a78bfa;
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+}
+
+.iptv-source-dropdown option {
+    background: #2d1b4e;
+    color: #e5e7eb;
+    padding: 8px 12px;
+    border: none;
+}
+
+.iptv-source-dropdown option:hover {
+    background: #4c1d95;
+}
+
+.iptv-source-dropdown option:selected {
+    background: #7c3aed;
+    color: #ffffff;
+}
+
+
+/* ===== IPTV Custom Login Cards ===== */
+#xtream-grid .music-card {
+    background: linear-gradient(145deg, rgba(26, 26, 46, 0.9), rgba(22, 33, 62, 0.9));
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+#xtream-grid .music-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.2);
+}
+
+#xtream-grid .music-cover {
+    width: 100%;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    overflow: hidden;
+}
+
+#xtream-grid .music-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 0.5rem;
+}
+
+#xtream-grid .music-info {
+    padding: 1rem;
+}
+
+#xtream-grid .music-title {
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.3;
+}
+
+#xtream-grid .music-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* IPTV Play Button */
+.xtream-play-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 100%;
+}
+
+.xtream-play-btn:hover {
+    background: linear-gradient(135deg, #60a5fa, #3b82f6);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.xtream-play-btn i {
+    font-size: 0.8rem;
+}
+
+/* Xtream Player Modal */
+#xtream-player-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.95);
+    display: none;
+    flex-direction: column;
+}
+
+#xtream-player-modal .player-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background: rgba(0, 0, 0, 0.8);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#xtream-player-title {
+    color: #fff;
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+#xtream-player-close {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 8px !important;
+    padding: 0.5rem 0.75rem !important;
+    color: #fff !important;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#xtream-player-close:hover {
+    background: rgba(239, 68, 68, 0.8) !important;
+    border-color: #ef4444 !important;
+}
+
+/* Xtream Grid Layout */
+#xtream-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1rem;
+    padding: 1rem 0;
+}
+
+/* Xtream Empty State */
+#xtream-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 3rem;
+    color: #9ca3af;
+}
+
+/* Xtream Browser Container */
+#xtream-inline {
+    padding: 1rem;
+}
+
+/* Xtream Tab Buttons */
+.xtream-tab-btn {
+    padding: 0.75rem 1.5rem;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    color: #9ca3af;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.xtream-tab-btn:hover {
+    background: rgba(59, 130, 246, 0.2);
+    color: #fff;
+}
+
+.xtream-tab-btn.active {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-color: #3b82f6;
+    color: #fff;
+}
+
+/* Xtream Search and Category */
+#xtream-search {
+    padding: 0.75rem 1rem;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.95rem;
+    width: 100%;
+    max-width: 300px;
+}
+
+#xtream-search:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+#xtream-category-select {
+    padding: 0.75rem 1rem;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+#xtream-category-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+}

@@ -1,0 +1,58 @@
+/**
+ * Umbrella design tokens
+ * Glass, accent, Montserrat, spacing. 90% neutral, 10% accent.
+ */
+:root {
+  /* Base – dark translucent, slightly blue */
+  --umbrella-bg: rgba(8, 10, 18, 0.92);
+  --umbrella-bg-solid: #080a12;
+  --umbrella-surface: rgba(18, 22, 32, 0.75);
+  --umbrella-surface-hover: rgba(28, 34, 48, 0.85);
+
+  /* Glass */
+  --umbrella-glass: rgba(255, 255, 255, 0.06);
+  --umbrella-glass-border: rgba(255, 255, 255, 0.08);
+  --umbrella-blur: 12px;
+
+  /* Liquid glass – blur(20px) saturate(180%), shared across header/hamburger/modal */
+  --umbrella-liquid-glass-bg: rgba(255, 255, 255, 0.05);
+  --umbrella-liquid-glass-bg-header: rgba(0, 0, 0, 0.35);
+  --umbrella-liquid-glass-blur: blur(20px) saturate(180%);
+  --umbrella-liquid-glass-border: 1px solid rgba(255, 255, 255, 0.1);
+  --umbrella-liquid-glass-radius: 12px;
+  --umbrella-liquid-glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  --umbrella-liquid-glass-transition: all 0.3s ease;
+
+  /* Primary accent – iOS-style cool blue */
+  --umbrella-accent: #0a84ff;
+  --umbrella-accent-hover: #409cff;
+  --umbrella-accent-muted: rgba(10, 132, 255, 0.25);
+
+  /* Neutral */
+  --umbrella-text: rgba(255, 255, 255, 0.95);
+  --umbrella-text-secondary: rgba(255, 255, 255, 0.7);
+  --umbrella-text-muted: rgba(255, 255, 255, 0.5);
+
+  /* Typography – Montserrat */
+  --umbrella-font: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+  --umbrella-font-display: 700;   /* Bold */
+  --umbrella-font-body: 400;     /* Regular */
+  --umbrella-font-label: 500;    /* Medium */
+
+  /* Spacing */
+  --umbrella-space-xs: 0.25rem;
+  --umbrella-space-sm: 0.5rem;
+  --umbrella-space-md: 1rem;
+  --umbrella-space-lg: 1.5rem;
+  --umbrella-space-xl: 2rem;
+
+  /* Radius – soft, no hard borders */
+  --umbrella-radius-sm: 6px;
+  --umbrella-radius-md: 10px;
+  --umbrella-radius-lg: 14px;
+
+  /* Layout – fixed header, title bar, watch modal hero */
+  --umbrella-header-height: 56px;
+  --umbrella-title-bar-height: 32px;
+  --umbrella-watch-hero-height: 440px;
+}

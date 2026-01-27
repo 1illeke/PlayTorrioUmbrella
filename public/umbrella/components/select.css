@@ -1,0 +1,148 @@
+/* Umbrella Select – custom dropdown, fully redesigned (no native <select>).
+ * Liquid-glass trigger + dropdown panel. Reusable across Umbrella UI.
+ * Blur matches header; stronger value so dropdown reads same as header.
+ */
+
+.umbrella-select-root {
+  position: relative;
+  display: inline-block;
+  font-family: var(--umbrella-font);
+}
+
+/* Trigger button – header liquid-glass */
+.umbrella-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--umbrella-space-sm);
+  min-width: 120px;
+  padding: var(--umbrella-space-sm) var(--umbrella-space-md);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text);
+  text-align: left;
+  background: var(--umbrella-liquid-glass-bg-header);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: var(--umbrella-liquid-glass-border);
+  border-radius: var(--umbrella-liquid-glass-radius);
+  box-shadow: var(--umbrella-liquid-glass-shadow);
+  cursor: pointer;
+  transition: var(--umbrella-liquid-glass-transition);
+}
+
+.umbrella-select-trigger:hover {
+  background-color: rgba(0, 0, 0, 0.45);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.umbrella-select-trigger:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 0 2px var(--umbrella-accent-muted);
+}
+
+.umbrella-select-trigger-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.umbrella-select-trigger-chevron {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  opacity: 0.8;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='rgba(255,255,255,0.9)' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M2 4 L6 8 L10 4'/%3E%3C/svg%3E") no-repeat center;
+  transition: transform 0.2s ease;
+}
+
+.umbrella-select-root[aria-expanded='true'] .umbrella-select-trigger-chevron {
+  transform: rotate(180deg);
+}
+
+/* Dropdown panel – header liquid-glass, same blur as header */
+.umbrella-select-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  min-width: 100%;
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: var(--umbrella-space-xs);
+  padding: var(--umbrella-space-xs);
+  background: var(--umbrella-liquid-glass-bg-header);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: var(--umbrella-liquid-glass-border);
+  border-radius: var(--umbrella-liquid-glass-radius);
+  box-shadow: var(--umbrella-liquid-glass-shadow);
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+  z-index: 100;
+}
+
+.umbrella-select-dropdown.is-open {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Portaled dropdown: fixed, outside overflow – ensures backdrop-filter blurs modal */
+.umbrella-select-dropdown--fixed {
+  position: fixed;
+  right: auto;
+  margin-top: 0;
+  min-width: 120px;
+  z-index: 1300;
+  transform: translateZ(0) translateY(-4px);
+  -webkit-transform: translateZ(0) translateY(-4px);
+}
+
+.umbrella-select-dropdown--fixed.is-open {
+  transform: translateZ(0) translateY(0);
+  -webkit-transform: translateZ(0) translateY(0);
+}
+
+/* Options */
+.umbrella-select-option {
+  padding: var(--umbrella-space-sm) var(--umbrella-space-md);
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text);
+  background: transparent;
+  border: none;
+  border-radius: var(--umbrella-radius-sm);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.15s, color 0.15s;
+}
+
+.umbrella-select-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--umbrella-text);
+}
+
+.umbrella-select-option:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Optional: label + select group */
+.umbrella-select-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--umbrella-space-sm);
+}
+
+.umbrella-select-group-label {
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text-secondary);
+}

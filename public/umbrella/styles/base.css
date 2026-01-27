@@ -1,0 +1,49 @@
+/**
+ * Umbrella base styles – body, typography (Montserrat), glass-friendly resets
+ */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap');
+
+body.umbrella-root,
+#umbrella-root {
+  margin: 0;
+  padding: 0;
+  font-family: var(--umbrella-font);
+  font-weight: var(--umbrella-font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--umbrella-text);
+  background: var(--umbrella-bg-solid);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#umbrella-root {
+  min-height: 100vh;
+}
+
+.umbrella-app-shell {
+  background: var(--umbrella-bg-solid);
+}
+
+/* Typography – Montserrat only */
+.umbrella-app-shell,
+.umbrella-header,
+.umbrella-hero,
+.umbrella-grid-wrap,
+.umbrella-watch-modal,
+.umbrella-settings-page,
+.umbrella-hamburger-panel {
+  font-family: var(--umbrella-font);
+}
+
+.umbrella-display {
+  font-weight: var(--umbrella-font-display);
+}
+
+.umbrella-label {
+  font-weight: var(--umbrella-font-label);
+}
+
+button, select, input {
+  font-family: inherit;
+}
