@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <base href="/umbrella/"/>
+    <title>PlayTorrio – Umbrella</title>
+    <link rel="stylesheet" href="themes/tokens.css"/>
+    <link rel="stylesheet" href="styles/base.css"/>
+    <link rel="stylesheet" href="layouts/app-shell.css"/>
+    <link rel="stylesheet" href="components/header.css"/>
+    <link rel="stylesheet" href="components/search-bar.css"/>
+    <link rel="stylesheet" href="components/hero.css"/>
+    <link rel="stylesheet" href="components/grid.css"/>
+    <link rel="stylesheet" href="components/select.css"/>
+    <link rel="stylesheet" href="modals/watch-modal.css"/>
+    <link rel="stylesheet" href="pages/settings.css"/>
+    <link rel="stylesheet" href="../css/downloader.css"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+</head>
+<body class="umbrella-root">
+    <script>
+      (function() {
+        try {
+          if (typeof window.electronAPI !== 'undefined' && window.electronAPI.platform === 'darwin') {
+            document.body.classList.add('platform-darwin');
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <div id="umbrella-root"></div>
+    <script src="../js/config.js"></script>
+    <script>window.showNotification = window.showNotification || function(){};</script>
+    <script src="../js/servers.js"></script>
+    <script src="../js/downloader.js"></script>
+    <script src="services/api-adapter.js"></script>
+    <script src="layouts/app-shell.js"></script>
+    <script src="components/header.js"></script>
+    <script src="components/search-bar.js"></script>
+    <script src="navigation/hamburger.js"></script>
+    <script src="components/hero.js"></script>
+    <script src="components/select.js"></script>
+    <script src="components/grid.js"></script>
+    <script src="modals/watch-modal.js"></script>
+    <script src="pages/settings.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

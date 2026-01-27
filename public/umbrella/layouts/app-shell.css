@@ -1,0 +1,227 @@
+/* Umbrella AppShell – title bar + fixed header, main scrolls below */
+.umbrella-app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* Unified liquid-glass backdrop for title bar + header (Windows/Linux) */
+body:not(.platform-darwin) .umbrella-app-shell::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--umbrella-title-bar-height) + var(--umbrella-header-height));
+  background: var(--umbrella-liquid-glass-bg-header);
+  backdrop-filter: var(--umbrella-liquid-glass-blur);
+  -webkit-backdrop-filter: var(--umbrella-liquid-glass-blur);
+  border: var(--umbrella-liquid-glass-border);
+  border-radius: 0 0 var(--umbrella-liquid-glass-radius) var(--umbrella-liquid-glass-radius);
+  box-shadow: var(--umbrella-liquid-glass-shadow);
+  pointer-events: none;
+  z-index: 99;
+}
+
+.umbrella-title-bar {
+  flex-shrink: 0;
+  height: var(--umbrella-title-bar-height);
+  min-height: var(--umbrella-title-bar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: var(--umbrella-liquid-glass-bg-header);
+  backdrop-filter: var(--umbrella-liquid-glass-blur);
+  -webkit-backdrop-filter: var(--umbrella-liquid-glass-blur);
+  border-bottom: var(--umbrella-liquid-glass-border);
+  box-shadow: var(--umbrella-liquid-glass-shadow);
+  -webkit-app-region: drag;
+  user-select: none;
+  z-index: 101;
+}
+
+body.platform-darwin .umbrella-title-bar {
+  display: none;
+}
+
+body:not(.platform-darwin) .umbrella-title-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 102;
+  /* Let the shared app-shell backdrop handle glass; avoid any extra tint/line */
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.umbrella-title-bar-drag {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+}
+
+.umbrella-title-bar-title {
+  font-size: 0.85rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text-secondary);
+}
+
+.umbrella-title-bar-controls {
+  display: flex;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.umbrella-title-bar-btn {
+  width: 46px;
+  height: var(--umbrella-title-bar-height);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--umbrella-text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.umbrella-title-bar-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--umbrella-text);
+}
+
+.umbrella-title-bar-btn.umbrella-title-bar-close:hover {
+  background: rgba(220, 53, 69, 0.8);
+  color: #fff;
+}
+
+/* Header is fixed; slot only holds the header DOM, takes no layout space */
+.umbrella-header-slot {
+  flex-shrink: 0;
+  height: 0;
+  min-height: 0;
+  overflow: visible;
+}
+
+.umbrella-main-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 0;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.umbrella-global-modals {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.umbrella-global-modals > * {
+  pointer-events: auto;
+}
+
+/* Hamburger menu – from navigation/hamburger.css (inlined to avoid 404 on separate request) */
+.umbrella-hamburger-overlay {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  z-index: 1100;
+  display: flex;
+  justify-content: flex-end;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+  pointer-events: none;
+}
+
+.umbrella-hamburger-overlay.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.umbrella-hamburger-panel {
+  width: 280px;
+  max-width: 85vw;
+  height: 100%;
+  background: var(--umbrella-liquid-glass-bg);
+  backdrop-filter: var(--umbrella-liquid-glass-blur);
+  -webkit-backdrop-filter: var(--umbrella-liquid-glass-blur);
+  border: var(--umbrella-liquid-glass-border);
+  border-right: none;
+  border-radius: var(--umbrella-liquid-glass-radius) 0 0 var(--umbrella-liquid-glass-radius);
+  box-shadow: var(--umbrella-liquid-glass-shadow);
+  padding: 1.5rem 0.75rem;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.25s ease, var(--umbrella-liquid-glass-transition);
+}
+
+body:not(.platform-darwin) .umbrella-hamburger-panel {
+  margin-top: var(--umbrella-title-bar-height);
+  height: calc(100% - var(--umbrella-title-bar-height));
+}
+
+.umbrella-hamburger-overlay.open .umbrella-hamburger-panel {
+  transform: translateX(0);
+}
+
+.umbrella-hamburger-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 1rem 0.5rem 0.5rem;
+  padding: 0;
+}
+
+.umbrella-hamburger-section-title:first-child {
+  margin-top: 0;
+}
+
+.umbrella-hamburger-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  margin: 0.125rem 0;
+  background: none;
+  border: none;
+  border-radius: var(--umbrella-radius-md);
+  color: var(--umbrella-text-secondary);
+  font-size: 0.95rem;
+  font-weight: var(--umbrella-font-label);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.umbrella-hamburger-item i {
+  width: 1.25rem;
+  opacity: 0.85;
+}
+
+.umbrella-hamburger-item:hover,
+.umbrella-hamburger-item:focus {
+  background: var(--umbrella-surface-hover);
+  color: var(--umbrella-text);
+  outline: none;
+}
+
+.umbrella-hamburger-item:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}

@@ -1,0 +1,279 @@
+{
+  "name": "playtorrio",
+  "version": "2.6.9",
+  "description": "Ayman's PlayTorrio an all in one media center",
+  "author": {
+    "name": "Ayman",
+    "email": "aymanisthedude1@gmail.com"
+  },
+  "type": "module",
+  "main": "main.js",
+  "homepage": "./",
+  "scripts": {
+    "start": "electron .",
+    "serve": "node server.mjs",
+    "build": "electron-builder --publish always",
+    "postinstall": "electron-builder install-app-deps",
+    "setup-player": "node setup-playtorrioplayer.js"
+  },
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ghostery/adblocker-electron": "^2.3.0",
+    "axios": "^1.7.4",
+    "castv2-client": "^1.2.0",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
+    "discord-rpc": "^4.0.1",
+    "electron-updater": "^6.6.2",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.1",
+    "fluent-ffmpeg": "^2.1.3",
+    "got": "^14.4.7",
+    "got-scraping": "^4.1.2",
+    "mdns-js": "^1.0.3",
+    "mime-types": "^2.1.35",
+    "multer": "^2.0.1",
+    "node-cache": "^5.1.2",
+    "node-fetch": "^3.3.2",
+    "parse-torrent": "^9.0.3",
+    "qs": "^6.14.0",
+    "torrent-stream": "^1.2.1",
+    "webtorrent": "^2.8.5",
+    "xml2js": "^0.6.2",
+    "youtube-music-api": "^1.0.6"
+  },
+  "devDependencies": {
+    "electron": "^38.2.2",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.ayman.PlayTorrio",
+    "productName": "PlayTorrio",
+    "artifactName": "${productName}-Setup.${ext}",
+    "publish": {
+      "provider": "github",
+      "owner": "ayman708-UX",
+      "repo": "PlayTorrio",
+      "releaseType": "draft"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "server.mjs",
+      "api.cjs",
+      "chromecast.mjs",
+      "transcoder.js",
+      "torrent_filter.mjs",
+      "stremio_engine.mjs",
+      "stremio_routes.mjs",
+      "webtorrent_engine.mjs",
+      "torrentstream_engine.mjs",
+      "hybrid_engine.mjs",
+      "torrent_engine_manager.mjs",
+      "torrent_engine_routes.mjs",
+      "torrserver.mjs",
+      "torrserver_routes.mjs",
+      "jackett_api_key.json",
+      "engine/**/*",
+      "src/**/*",
+      "public/**/*",
+      "node_modules/**/*"
+    ],
+    "asarUnpack": [
+      "engine/**/*"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "artifactName": "PlayTorrio-installer.${ext}",
+      "target": [
+        "nsis"
+      ],
+      "files": [
+        "yt/**"
+      ],
+      "asarUnpack": [
+        "yt/**"
+      ],
+      "extraResources": [
+        {
+          "from": "ffmpeg/ffmpegwin",
+          "to": "ffmpeg/ffmpegwin",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "yt",
+          "to": "yt",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "PlayTorrioPlayer",
+          "to": "PlayTorrioPlayer",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "shortcutName": "PlayTorrio",
+      "runAfterFinish": true
+    },
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.entertainment",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "files": [
+        "macyt/**"
+      ],
+      "asarUnpack": [
+        "macyt/**",
+        "node_modules/webtorrent/**",
+        "node_modules/torrent-stream/**",
+        "node_modules/utp-native/**",
+        "node_modules/sodium-native/**",
+        "node_modules/fd-slicer/**",
+        "node_modules/node-gyp-build/**"
+      ],
+      "artifactName": "${productName}-mac-${arch}.${ext}",
+      "hardenedRuntime": false,
+      "identity": null,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "PlayTorrio does not require microphone access.",
+        "NSCameraUsageDescription": "PlayTorrio does not require camera access.",
+        "NSAppleEventsUsageDescription": "PlayTorrio needs to control external media players."
+      },
+      "extraResources": [
+        {
+          "from": "ffmpeg/ffmpegmac",
+          "to": "ffmpeg/ffmpegmac",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "macyt",
+          "to": "macyt",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "PlayTorrioPlayer",
+          "to": "PlayTorrioPlayer",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "${productName}",
+      "icon": "build/icon.icns",
+      "background": null,
+      "backgroundColor": "#ffffff",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 400
+      }
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "files": [
+        "linyt/**"
+      ],
+      "asarUnpack": [
+        "linyt/**"
+      ],
+      "category": "AudioVideo",
+      "executableName": "playtorrio",
+      "desktop": {
+        "Name": "PlayTorrio",
+        "Comment": "Stream Movies, TV Shows, Anime, Books, Music & Games",
+        "Categories": "AudioVideo;Video;Player;",
+        "StartupWMClass": "PlayTorrio",
+        "Terminal": false
+      },
+      "synopsis": "Stream Movies, TV Shows, Anime, Books, Music & Games",
+      "description": "All-in-one media center for streaming entertainment",
+      "extraResources": [
+        {
+          "from": "ffmpeg/ffmpeglinux",
+          "to": "ffmpeg/ffmpeglinux",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "linyt",
+          "to": "linyt",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "PlayTorrioPlayer",
+          "to": "PlayTorrioPlayer",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
+    },
+    "afterPack": "build/afterPack.cjs",
+    "afterAllArtifactBuild": "build/afterAllArtifactBuild.cjs",
+    "appImage": {
+      "artifactName": "${productName}.${ext}",
+      "license": null,
+      "synopsis": "Stream Movies, TV Shows, Anime, Books, Music & Games",
+      "description": "All-in-one media center for streaming entertainment",
+      "category": "AudioVideo"
+    }
+  }
+}

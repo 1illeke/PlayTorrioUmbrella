@@ -1,0 +1,53 @@
+/* Umbrella SearchBar */
+.umbrella-search-bar {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.umbrella-search-input {
+  width: 100%;
+  padding: 0.5rem 2rem 0.5rem 1rem;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  outline: none;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.umbrella-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.umbrella-search-input:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.umbrella-search-input:focus {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.umbrella-search-clear {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0.25rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.umbrella-search-clear:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}

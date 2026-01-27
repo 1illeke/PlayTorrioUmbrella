@@ -1,0 +1,94 @@
+/* Umbrella Header – liquid glass, fixed on viewport (below title bar when present) */
+.umbrella-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: var(--umbrella-header-height);
+  min-height: var(--umbrella-header-height);
+  box-sizing: border-box;
+  background: var(--umbrella-liquid-glass-bg-header);
+  backdrop-filter: var(--umbrella-liquid-glass-blur);
+  -webkit-backdrop-filter: var(--umbrella-liquid-glass-blur);
+  border: var(--umbrella-liquid-glass-border);
+  border-radius: 0 0 var(--umbrella-liquid-glass-radius) var(--umbrella-liquid-glass-radius);
+  box-shadow: var(--umbrella-liquid-glass-shadow);
+  transition: var(--umbrella-liquid-glass-transition);
+}
+
+body:not(.platform-darwin) .umbrella-header {
+  top: var(--umbrella-title-bar-height);
+  /* On Windows/Linux the shared app-shell backdrop provides the glass;
+     keep the header chrome visually merged into that background. */
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.umbrella-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  max-width: 100%;
+}
+
+.umbrella-header-nav {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.umbrella-header-tab {
+  background: none;
+  border: none;
+  color: var(--umbrella-text-secondary);
+  font-size: 0.95rem;
+  font-weight: var(--umbrella-font-label);
+  padding: 0.5rem 1rem;
+  border-radius: var(--umbrella-radius-md);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.umbrella-header-tab:hover {
+  background: var(--umbrella-surface-hover);
+  color: var(--umbrella-text);
+}
+
+.umbrella-header-tab.active {
+  background: var(--umbrella-liquid-glass-bg);
+  backdrop-filter: var(--umbrella-liquid-glass-blur);
+  -webkit-backdrop-filter: var(--umbrella-liquid-glass-blur);
+  border: var(--umbrella-liquid-glass-border);
+  border-radius: var(--umbrella-liquid-glass-radius);
+  box-shadow: var(--umbrella-liquid-glass-shadow);
+  transition: var(--umbrella-liquid-glass-transition);
+  color: var(--umbrella-text);
+}
+
+.umbrella-header-search-slot {
+  flex: 1;
+  min-width: 0;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.umbrella-header-hamburger {
+  background: none;
+  border: none;
+  color: var(--umbrella-text);
+  font-size: 1.5rem;
+  padding: 0.5rem;
+  cursor: pointer;
+  border-radius: var(--umbrella-radius-md);
+  line-height: 1;
+  transition: background 0.2s;
+}
+
+.umbrella-header-hamburger:hover {
+  background: var(--umbrella-surface-hover);
+}

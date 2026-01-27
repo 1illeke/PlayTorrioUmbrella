@@ -1,0 +1,30 @@
+---
+description: Global guardrails for PlayTorrio changes
+alwaysApply: true
+---
+
+# PlayTorrio Global Guardrails
+
+## Global rules
+- Never refactor backend business logic unless explicitly instructed.
+- Never modify the existing Basic UI unless explicitly instructed.
+- Treat Umbrella UI as a new, isolated UI layer.
+- Prefer adapters and wrappers over rewriting existing code.
+- Touch as few files as possible per task.
+- If more than 5 files would be modified, stop and propose a smaller plan.
+
+## Change policy
+- Always generate a TODO list before writing code.
+- Each TODO must be atomic and solvable in isolation.
+- Each TODO should touch at most 1–3 files.
+- Do not bundle multiple features into one task.
+
+## Safety rules
+- Do not delete existing code unless explicitly approved.
+- Do not remove features from Basic UI.
+- Do not rename shared services without approval.
+
+## Output rules
+- Prefer short diffs over large rewrites.
+- Always explain what files will be changed before changing them.
+- Stop and ask if any architectural assumption is unclear.

@@ -1,0 +1,452 @@
+/* Umbrella Watch modal */
+.umbrella-watch-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--umbrella-space-lg);
+  box-sizing: border-box;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+  pointer-events: none;
+}
+
+.umbrella-watch-modal.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.umbrella-watch-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+
+.umbrella-watch-panel {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--umbrella-liquid-glass-bg);
+  backdrop-filter: var(--umbrella-liquid-glass-blur);
+  -webkit-backdrop-filter: var(--umbrella-liquid-glass-blur);
+  border: var(--umbrella-liquid-glass-border);
+  border-radius: var(--umbrella-liquid-glass-radius);
+  box-shadow: var(--umbrella-liquid-glass-shadow);
+  transition: var(--umbrella-liquid-glass-transition);
+}
+
+.umbrella-watch-close {
+  position: absolute;
+  top: var(--umbrella-space-md);
+  right: var(--umbrella-space-md);
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  color: var(--umbrella-text);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.2s;
+}
+
+.umbrella-watch-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Scroll container */
+.umbrella-watch-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Poster / Hero layer */
+.umbrella-watch-hero {
+  flex-shrink: 0;
+  height: var(--umbrella-watch-hero-height);
+  position: relative;
+  overflow: hidden;
+}
+
+.umbrella-watch-hero-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--umbrella-glass);
+}
+
+.umbrella-watch-hero-backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.umbrella-watch-hero-gradient {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 60%;
+  z-index: 1;
+  background: linear-gradient(to top, var(--umbrella-bg-solid) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Info layer */
+.umbrella-watch-info-layer {
+  flex: 1;
+  min-height: 0;
+  padding: var(--umbrella-space-xl);
+}
+
+.umbrella-watch-meta-block {
+  margin-bottom: var(--umbrella-space-md);
+}
+
+.umbrella-watch-title {
+  margin: 0 0 var(--umbrella-space-xs);
+  font-size: 1.75rem;
+  font-weight: var(--umbrella-font-display);
+  color: var(--umbrella-text);
+}
+
+.umbrella-watch-meta-line,
+.umbrella-watch-meta-line-secondary {
+  margin: 0 0 var(--umbrella-space-xs);
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text-secondary);
+}
+
+.umbrella-watch-overview {
+  margin: 0 0 var(--umbrella-space-lg);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--umbrella-text-secondary);
+}
+
+.umbrella-watch-overview-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.umbrella-watch-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: var(--umbrella-space-sm);
+}
+
+.umbrella-watch-stream-fallback {
+  font-size: 0.9rem;
+  color: var(--umbrella-text-muted);
+}
+
+.umbrella-watch-stream-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: var(--umbrella-space-lg);
+}
+
+.umbrella-watch-stream-label {
+  font-size: 0.9rem;
+  color: var(--umbrella-text-secondary);
+}
+
+.umbrella-watch-streaming-select {
+  min-width: 140px;
+}
+
+.umbrella-watch-streaming-play {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  color: #fff;
+  background: var(--umbrella-accent);
+  border: none;
+  border-radius: var(--umbrella-radius-sm);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.umbrella-watch-streaming-play:hover {
+  background: var(--umbrella-accent-hover);
+}
+
+/* Movie */
+.umbrella-watch-modal--movie .umbrella-watch-streaming-play {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text);
+  background: var(--umbrella-liquid-glass-bg);
+  backdrop-filter: var(--umbrella-liquid-glass-blur);
+  -webkit-backdrop-filter: var(--umbrella-liquid-glass-blur);
+  border: var(--umbrella-liquid-glass-border);
+  border-radius: var(--umbrella-liquid-glass-radius);
+  box-shadow: var(--umbrella-liquid-glass-shadow);
+  transition: var(--umbrella-liquid-glass-transition);
+}
+
+.umbrella-watch-modal--movie .umbrella-watch-streaming-play:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.umbrella-watch-add-to-list {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.umbrella-watch-add-to-list:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.umbrella-watch-open-in-player {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--umbrella-radius-sm);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.umbrella-watch-open-in-player:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.umbrella-watch-streaming-area {
+  margin-bottom: var(--umbrella-space-lg);
+}
+
+.umbrella-watch-streaming-iframe {
+  display: block;
+  width: 100%;
+  height: 320px;
+  margin-top: var(--umbrella-space-md);
+  border: none;
+  border-radius: var(--umbrella-radius-sm);
+  background: #000;
+}
+
+/* Episodes */
+.umbrella-watch-episodes {
+  margin-top: var(--umbrella-space-md);
+  padding-top: var(--umbrella-space-md);
+  border-top: 1px solid var(--umbrella-glass-border);
+}
+
+/* Episodes header: flex row, center-aligned, space-between, section spacing. */
+.umbrella-watch-episodes-header {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--umbrella-space-md);
+  margin-bottom: var(--umbrella-space-md);
+}
+
+.umbrella-watch-episodes-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text);
+}
+
+/* Season selector: label + select, small gap; label uses secondary color. */
+.umbrella-watch-episodes-season {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--umbrella-space-sm);
+}
+
+.umbrella-watch-episodes-season-label {
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text-secondary);
+}
+
+/* Liquid-glass select (base from components/select.css); modal-specific min-width. */
+.umbrella-watch-season-select {
+  min-width: 120px;
+}
+
+.umbrella-watch-episodes-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--umbrella-space-md);
+}
+
+.umbrella-watch-episode-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--umbrella-space-md);
+  padding: var(--umbrella-space-sm) 0;
+  border-bottom: 1px solid var(--umbrella-glass-border);
+}
+
+.umbrella-watch-episode-row:last-child {
+  border-bottom: none;
+}
+
+.umbrella-watch-episode-thumb {
+  flex-shrink: 0;
+  width: 160px;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--umbrella-radius-sm);
+  overflow: hidden;
+  background: var(--umbrella-glass);
+}
+
+.umbrella-watch-episode-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.umbrella-watch-episode-thumb-placeholder {
+  min-height: 90px;
+}
+
+.umbrella-watch-episode-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.umbrella-watch-episode-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: var(--umbrella-space-xs);
+}
+
+.umbrella-watch-episode-num {
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text-muted);
+}
+
+.umbrella-watch-episode-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text);
+}
+
+.umbrella-watch-episode-duration {
+  font-size: 0.85rem;
+  color: var(--umbrella-text-muted);
+}
+
+.umbrella-watch-episode-date {
+  margin: 0 0 var(--umbrella-space-xs);
+  font-size: 0.85rem;
+  color: var(--umbrella-text-secondary);
+}
+
+.umbrella-watch-episode-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--umbrella-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.umbrella-watch-episode-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--umbrella-space-md);
+}
+
+.umbrella-watch-episode-play {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text);
+  background: var(--umbrella-liquid-glass-bg);
+  backdrop-filter: var(--umbrella-liquid-glass-blur);
+  -webkit-backdrop-filter: var(--umbrella-liquid-glass-blur);
+  border: var(--umbrella-liquid-glass-border);
+  border-radius: var(--umbrella-liquid-glass-radius);
+  box-shadow: var(--umbrella-liquid-glass-shadow);
+  cursor: pointer;
+  transition: var(--umbrella-liquid-glass-transition);
+}
+
+.umbrella-watch-episode-play:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.umbrella-watch-episode-download {
+  font-size: 0.85rem;
+  color: var(--umbrella-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.umbrella-watch-episode-download-icon {
+  opacity: 0.8;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.umbrella-watch-download {
+  margin-top: var(--umbrella-space-md);
+  padding-top: var(--umbrella-space-md);
+  border-top: 1px solid var(--umbrella-glass-border);
+}
+
+[data-slot="download"]:empty::before {
+  content: attr(data-slot);
+  font-size: 0.85rem;
+  text-transform: capitalize;
+  color: var(--umbrella-text-muted);
+}

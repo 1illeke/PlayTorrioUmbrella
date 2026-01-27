@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse - PlayTorrio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'primary-purple': '#7c3aed',
+              'primary-blue': '#3b82f6',
+              'bg-dark': '#0a0a0f',
+              'bg-card': '#14141f',
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body class="bg-bg-dark text-white edge-glow min-h-screen pt-12">
+    <!-- Custom Title Bar -->
+    <div class="custom-title-bar fixed top-0 left-0 right-0 h-8 flex items-center justify-between px-3 z-[999999] select-none bg-[#0a0a0f] border-b border-white/5" style="-webkit-app-region: drag;">
+        <div class="flex items-center gap-2 text-xs font-semibold text-gray-300">
+            <svg class="w-4 h-4 text-primary-purple opacity-90" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+            </svg>
+            <span class="opacity-90">PlayTorrio <span class="text-xs text-gray-500 font-normal ml-1">Basic Mode</span></span>
+        </div>
+        <div class="flex items-center gap-1" style="-webkit-app-region: no-drag;">
+            <button id="min-btn" class="w-10 h-8 flex items-center justify-center text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+            </button>
+            <button id="max-btn" class="w-10 h-8 flex items-center justify-center text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h18v18H3z"/></svg>
+            </button>
+            <button id="close-btn" class="w-10 h-8 flex items-center justify-center text-gray-400 hover:bg-red-500 hover:text-white transition-colors">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        if (window.electronAPI) {
+            document.getElementById('min-btn').addEventListener('click', () => window.electronAPI.minimizeWindow());
+            document.getElementById('max-btn').addEventListener('click', () => window.electronAPI.maximizeWindow());
+            document.getElementById('close-btn').addEventListener('click', () => window.electronAPI.closeWindow());
+        }
+    </script>
+
+    <!-- Back Button -->
+    <a href="#" onclick="history.back()" class="fixed top-12 left-6 z-50 w-12 h-12 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-purple-600 transition-colors group">
+         <svg class="w-6 h-6 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+    </a>
+
+    <!-- Header Section -->
+    <div id="page-header" class="relative pt-24 pb-8 px-6 md:px-12 flex flex-col md:flex-row items-end gap-8 bg-gradient-to-b from-black/50 to-bg-dark">
+        <!-- Person Profile Image (Hidden for genres) -->
+        <div id="profile-image-container" class="hidden flex-shrink-0 w-32 h-32 md:w-48 md:h-48 rounded-full overflow-hidden border-4 border-purple-500/30 shadow-2xl relative z-10 bg-gray-800">
+            <img id="profile-image" class="w-full h-full object-cover" src="" alt="">
+        </div>
+        
+        <div class="flex-1 relative z-10">
+            <h1 id="page-title" class="text-3xl md:text-5xl font-bold text-white mb-2"></h1>
+            <p id="page-description" class="text-gray-400 max-w-2xl text-sm md:text-base hidden"></p>
+            
+            <!-- Filters -->
+            <div class="flex items-center gap-2 mt-6">
+                <button data-filter="all" class="filter-btn active px-4 py-1.5 rounded-full text-sm font-medium bg-primary-purple text-white shadow-lg shadow-purple-500/25 transition-all">
+                    All
+                </button>
+                <button data-filter="movie" class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 transition-all">
+                    Movies
+                </button>
+                <button data-filter="tv" class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 transition-all">
+                    TV Shows
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grid Content -->
+    <div class="px-6 md:px-12 pb-12">
+        <div id="content-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+            <!-- Items injected here -->
+        </div>
+        
+        <!-- Loading Spinner -->
+        <div id="loading-spinner" class="py-12 flex justify-center w-full">
+            <div class="w-10 h-10 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
+        </div>
+    </div>
+
+    <template id="poster-card-template">
+        <a href="#" class="poster-link block group relative">
+            <div class="aspect-[2/3] rounded-xl overflow-hidden mb-2 relative poster-shadow transition-all duration-300 group-hover:shadow-purple-500/40 group-hover:shadow-2xl border border-transparent group-hover:border-purple-500/30 bg-gray-800">
+                <img src="" alt="" loading="lazy" class="poster-img w-full h-full object-cover transition-opacity duration-300 opacity-0">
+                <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center p-4 text-center">
+                    <span class="text-white font-bold mb-2 poster-rating flex items-center gap-1">
+                         <svg class="w-4 h-4 text-yellow-400 fill-current" viewBox="0 0 20 20">
+                            <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                         </svg>
+                         <span class="rating-value"></span>
+                    </span>
+                </div>
+            </div>
+            <h3 class="poster-title text-white font-medium truncate group-hover:text-primary-purple transition-colors text-sm"></h3>
+            <p class="poster-date text-gray-500 text-xs"></p>
+        </a>
+    </template>
+
+    <script type="module" src="js/grid.js"></script>
+</body>
+</html>
