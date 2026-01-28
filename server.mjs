@@ -6882,6 +6882,7 @@ for (let i = 0; i < 10; i++) {
             
             let messageId = 0;
             const pendingCommands = new Map();
+            let subtitlesFetched = false;  // Track if we've already fetched subtitles
             
             // Helper to send IPC commands
             const sendCommand = (type, data = {}) => {
@@ -6927,22 +6928,31 @@ for (let i = 0; i < 10; i++) {
                                     pending.resolve(message.data);
                                 }
                             } else if (message.type === 'event') {
-                                console.log(`[PlayTorrioPlayer] Event: ${message.event}`, message.data || '');
+                                console.log(`[PlayTorrioPlayer] Event: ${message.event}`, JSON.stringify(message.data || {}));
+                                
                                 if (message.event === 'ready') {
-                                    console.log('[PlayTorrioPlayer] Player ready');
+                                    console.log('[PlayTorrioPlayer] Player ready, loading video...');
                                     console.log('[PlayTorrioPlayer] Sending load_video command with URL:', playerUrl);
-                                    // Ensure video is loaded (in case --url didn't work)
+                                    
+                                    // Load the video
                                     sendCommand('load_video', { url: playerUrl, startTime: 0 })
                                         .then((result) => {
-                                            console.log('[PlayTorrioPlayer] Video loaded successfully:', result);
-                                            // Now fetch and add subtitles
-                                            fetchAndAddSubtitles();
+                                            console.log('[PlayTorrioPlayer] load_video command sent successfully:', result);
+                                            // Don't fetch subtitles yet - wait for video to actually load
+                                            // We'll do it when we get state_changed event with hasVideo: true
                                         })
                                         .catch(err => {
-                                            console.error('[PlayTorrioPlayer] Failed to load video:', err.message);
-                                            // Still try to fetch subtitles in case video loaded via --url
-                                            fetchAndAddSubtitles();
+                                            console.error('[PlayTorrioPlayer] Failed to send load_video command:', err.message);
                                         });
+                                        
+                                } else if (message.event === 'state_changed') {
+                                    // Check if video has loaded
+                                    if (message.data && message.data.hasVideo && !subtitlesFetched) {
+                                        console.log('[PlayTorrioPlayer] Video loaded! Now fetching subtitles...');
+                                        subtitlesFetched = true;
+                                        fetchAndAddSubtitles();
+                                    }
+                                    
                                 } else if (message.event === 'error' || message.event === 'playback_error') {
                                     console.error(`[PlayTorrioPlayer] Playback error:`, message.data);
                                 }

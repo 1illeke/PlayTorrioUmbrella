@@ -254,45 +254,31 @@ jobs:
           echo ""
           
           # Check for AppImage in root or nested folder, or binary in bundle folder
-          APPIMAGE_ROOT=$(find PlayTorrioPlayer -maxdepth 1 -name "*.AppImage" | head -1)
+          APPIMAGE_ROOT=$(find PlayTorrioPlayer -maxdepth 1 -name "*.AppImage" 2>/dev/null | head -1)
           APPIMAGE_NESTED=$(find PlayTorrioPlayer/PlayTorrio-Linux-x64 -maxdepth 1 -name "*.AppImage" 2>/dev/null | head -1)
-          BUNDLE_BIN=$(find PlayTorrioPlayer -path "*/bundle/*" -type f \( -name "playtorrio" -o -name "PlayTorrio" -o -name "NipaPlay" \) | head -1)
+          BUNDLE_BIN=$(find PlayTorrioPlayer -path "*/bundle/*" -type f \( -name "playtorrio" -o -name "PlayTorrio" -o -name "NipaPlay" \) 2>/dev/null | head -1)
           
           PLAYER=""
-          if [ -n "$APPIMAGE_ROOT" ]; then
+          if [ -n "$APPIMAGE_ROOT" ] && [ -f "$APPIMAGE_ROOT" ]; then
             PLAYER="$APPIMAGE_ROOT"
-          elif [ -n "$APPIMAGE_NESTED" ]; then
+          elif [ -n "$APPIMAGE_NESTED" ] && [ -f "$APPIMAGE_NESTED" ]; then
             PLAYER="$APPIMAGE_NESTED"
-          elif [ -n "$BUNDLE_BIN" ]; then
+          elif [ -n "$BUNDLE_BIN" ] && [ -f "$BUNDLE_BIN" ]; then
             PLAYER="$BUNDLE_BIN"
           fi
           
-          if [ -n "$PLAYER" ] && [ -f "$PLAYER" ]; then
+          if [ -n "$PLAYER" ]; then
             echo "✓ FOUND: $PLAYER"
             echo "  Size: $(du -h "$PLAYER" | cut -f1)"
             echo "  Executable: $(test -x "$PLAYER" && echo 'Yes' || echo 'No')"
             echo ""
             echo "✓ App will successfully find and launch PlayTorrioPlayer"
+            exit 0
           else
             echo "❌ NO player found!"
             echo ""
             echo "Contents of PlayTorrioPlayer folder:"
-            ls -la PlayTorrioPlayer/
-            echo ""
-            echo "❌ BUILD WILL FAIL - App cannot find player executable!"
-            exit 1
-          fi
-          if [ -n "$APPIMAGE" ] && [ -f "$APPIMAGE" ]; then
-            echo "✓ FOUND: $APPIMAGE"
-            echo "  Size: $(du -h "$APPIMAGE" | cut -f1)"
-            echo "  Executable: $(test -x "$APPIMAGE" && echo 'Yes' || echo 'No')"
-            echo ""
-            echo "✓ App will successfully find and launch PlayTorrioPlayer"
-          else
-            echo "❌ NO AppImage found!"
-            echo ""
-            echo "Contents of PlayTorrioPlayer folder:"
-            ls -la PlayTorrioPlayer/
+            ls -laR PlayTorrioPlayer/
             echo ""
             echo "❌ BUILD WILL FAIL - App cannot find player executable!"
             exit 1
