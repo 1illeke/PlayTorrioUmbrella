@@ -1054,6 +1054,16 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
     function readSettings() {
         try {
             const s = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'));
+            
+            // Migration: Auto-switch to PlayTorrioPlayer for existing users (one-time)
+            // If playerType is not set and useNodeMPV is false (or not set), migrate to playtorrio
+            if (!s.playerType && !s.useNodeMPV && !s._migratedToPlayTorrio) {
+                console.log('[Settings] Migrating existing user to PlayTorrioPlayer as default');
+                s.playerType = 'playtorrio';
+                s._migratedToPlayTorrio = true;
+                writeSettings(s);
+            }
+            
             return {
                 autoUpdate: true,
                 useTorrentless: false,
@@ -1070,10 +1080,28 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                 pmApiKey: null,
                 useNodeMPV: false, // Windows only - use MPV player instead of HTML5
                 mpvPath: null, // Custom path to mpv.exe
+                playerType: 'playtorrio', // Default player: 'builtin', 'playtorrio', 'nodempv'
                 ...s,
             };
         } catch {
-            return { autoUpdate: true, useTorrentless: false, torrentSource: 'torrentio', useDebrid: false, debridProvider: 'realdebrid', rdToken: null, rdRefresh: null, rdClientId: null, rdCredId: null, rdCredSecret: null, adApiKey: null, tbApiKey: null, pmApiKey: null, useNodeMPV: false, mpvPath: null };
+            return { 
+                autoUpdate: true, 
+                useTorrentless: false, 
+                torrentSource: 'torrentio', 
+                useDebrid: false, 
+                debridProvider: 'realdebrid', 
+                rdToken: null, 
+                rdRefresh: null, 
+                rdClientId: null, 
+                rdCredId: null, 
+                rdCredSecret: null, 
+                adApiKey: null, 
+                tbApiKey: null, 
+                pmApiKey: null, 
+                useNodeMPV: false, 
+                mpvPath: null,
+                playerType: 'playtorrio' // Default for new users
+            };
         }
     }
     function writeSettings(obj) {
@@ -1152,7 +1180,7 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
             jackettUrl: userSettings.jackettUrl || JACKETT_URL,
             prowlarrUrl: userSettings.prowlarrUrl || PROWLARR_URL,
             cacheLocation: userSettings.cacheLocation || CACHE_LOCATION,
-            playerType: s.playerType || 'builtin',
+            playerType: s.playerType || 'playtorrio',
             useNodeMPV: !!s.useNodeMPV,
             mpvPath: s.mpvPath || null,
             discordActivity: s.discordActivity !== false,
