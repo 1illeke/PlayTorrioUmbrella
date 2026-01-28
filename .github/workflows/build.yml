@@ -55,39 +55,64 @@ jobs:
           }
           New-Item -ItemType Directory -Path PlayTorrioPlayer -Force
           
-          # Download Windows version
-          $url = "https://github.com/ayman708-UX/PlayTorrioPlayer/releases/download/continuous/PlayTorrioPlayer-win64-portable-continuous-7-g2a16754.zip"
+          # Download Windows version from V2
+          $url = "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.18/PlayTorrio-Windows-x64.zip"
           $zipPath = "PlayTorrioPlayer\player.zip"
           Invoke-WebRequest -Uri $url -OutFile $zipPath
           
-          # Extract
+          # Extract directly to PlayTorrioPlayer folder
           Expand-Archive -Path $zipPath -DestinationPath PlayTorrioPlayer -Force
           Remove-Item $zipPath -Force
           
-          # Flatten if nested
-          $nested = Get-ChildItem -Path PlayTorrioPlayer -Directory | Select-Object -First 1
-          if ($nested -and (Test-Path "$($nested.FullName)\PlayTorrioPlayer.exe")) {
-            Get-ChildItem -Path $nested.FullName | Move-Item -Destination PlayTorrioPlayer -Force
-            Remove-Item $nested.FullName -Recurse -Force
-          }
+          # Check if exe is in root or nested folder (check both PlayTorrio.exe and PlayTorrioPlayer.exe)
+          $exeInRoot = (Test-Path "PlayTorrioPlayer\PlayTorrio.exe") -or (Test-Path "PlayTorrioPlayer\PlayTorrioPlayer.exe")
+          $nestedFolder = Get-ChildItem -Path PlayTorrioPlayer -Directory | Where-Object { 
+            (Test-Path "$($_.FullName)\PlayTorrio.exe") -or (Test-Path "$($_.FullName)\PlayTorrioPlayer.exe")
+          } | Select-Object -First 1
           
-          # Verify - MUST find PlayTorrioPlayer.exe
-          if (Test-Path "PlayTorrioPlayer\PlayTorrioPlayer.exe") {
-            Write-Host "✓ PlayTorrioPlayer.exe found - App will be able to launch it"
+          if ($exeInRoot) {
+            Write-Host "✓ Player exe found in root"
+          } elseif ($nestedFolder) {
+            Write-Host "Found nested folder: $($nestedFolder.Name)"
+            Write-Host "Flattening structure..."
+            Get-ChildItem -Path $nestedFolder.FullName | Move-Item -Destination PlayTorrioPlayer -Force
+            Remove-Item $nestedFolder.FullName -Recurse -Force
+            Write-Host "✓ Structure flattened"
           } else {
-            Write-Host "❌ PlayTorrioPlayer.exe NOT FOUND - App will NOT be able to use external player!"
+            Write-Host "❌ Player exe NOT FOUND!"
             Write-Host "Directory contents:"
             Get-ChildItem PlayTorrioPlayer -Recurse | Select-Object FullName
+            exit 1
+          }
+          
+          # Final verification (check both names)
+          if ((Test-Path "PlayTorrioPlayer\PlayTorrio.exe") -or (Test-Path "PlayTorrioPlayer\PlayTorrioPlayer.exe")) {
+            Write-Host "✓ Player exe ready - App will be able to launch it"
+            if (Test-Path "PlayTorrioPlayer\PlayTorrio.exe") {
+              Write-Host "  Found: PlayTorrio.exe"
+            }
+            if (Test-Path "PlayTorrioPlayer\PlayTorrioPlayer.exe") {
+              Write-Host "  Found: PlayTorrioPlayer.exe"
+            }
+          } else {
+            Write-Host "❌ Final check failed!"
             exit 1
           }
 
       - name: Verify PlayTorrioPlayer can be found by app (Windows)
         run: |
           Write-Host "=== PlayTorrioPlayer Verification ==="
-          Write-Host "Expected path: PlayTorrioPlayer\PlayTorrioPlayer.exe"
+          Write-Host "Checking for player executable..."
+          Write-Host ""
           
-          $exePath = "PlayTorrioPlayer\PlayTorrioPlayer.exe"
-          if (Test-Path $exePath) {
+          $exePath = ""
+          if (Test-Path "PlayTorrioPlayer\PlayTorrio.exe") {
+            $exePath = "PlayTorrioPlayer\PlayTorrio.exe"
+          } elseif (Test-Path "PlayTorrioPlayer\PlayTorrioPlayer.exe") {
+            $exePath = "PlayTorrioPlayer\PlayTorrioPlayer.exe"
+          }
+          
+          if ($exePath) {
             $fileInfo = Get-Item $exePath
             Write-Host "✓ FOUND: $exePath"
             Write-Host "  Size: $($fileInfo.Length / 1MB) MB"
@@ -95,7 +120,7 @@ jobs:
             Write-Host ""
             Write-Host "✓ App will successfully find and launch PlayTorrioPlayer"
           } else {
-            Write-Host "❌ NOT FOUND: $exePath"
+            Write-Host "❌ NOT FOUND: No player executable found"
             Write-Host ""
             Write-Host "Contents of PlayTorrioPlayer folder:"
             Get-ChildItem PlayTorrioPlayer -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
@@ -156,30 +181,107 @@ jobs:
           rm -rf PlayTorrioPlayer
           mkdir -p PlayTorrioPlayer
           
-          # Download Linux AppImage
-          curl -L -o PlayTorrioPlayer/PlayTorrioPlayer.AppImage \
-            "https://github.com/ayman708-UX/PlayTorrioPlayer/releases/download/continuous/PlayTorrioPlayer-linux-portable-continuous-7-g2a16754.AppImage"
+          # Download Linux tar.gz from V2
+          curl -L -o PlayTorrioPlayer/player.tar.gz \
+            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.18/PlayTorrio-Linux-x64.tar.gz"
           
-          chmod +x PlayTorrioPlayer/PlayTorrioPlayer.AppImage
+          # Extract
+          cd PlayTorrioPlayer
+          tar -xzf player.tar.gz
+          rm -f player.tar.gz
           
-          # Verify - MUST find AppImage
-          if [ -f PlayTorrioPlayer/PlayTorrioPlayer.AppImage ]; then
-            echo "✓ PlayTorrioPlayer.AppImage found - App will be able to launch it"
+          # Check for AppImage in root or nested folder, or binary in bundle folder
+          APPIMAGE_ROOT=$(find . -maxdepth 1 -name "*.AppImage" | head -1)
+          NESTED_FOLDER=$(find . -maxdepth 1 -type d ! -name "." | head -1)
+          BUNDLE_BINARY=""
+          
+          # Check for bundle folder binary
+          if [ -d "bundle" ]; then
+            BUNDLE_BINARY=$(find bundle -maxdepth 1 -type f \( -name "playtorrio" -o -name "PlayTorrio" -o -name "NipaPlay" \) | head -1)
+          elif [ -n "$NESTED_FOLDER" ] && [ -d "$NESTED_FOLDER/bundle" ]; then
+            BUNDLE_BINARY=$(find "$NESTED_FOLDER/bundle" -maxdepth 1 -type f \( -name "playtorrio" -o -name "PlayTorrio" -o -name "NipaPlay" \) | head -1)
+          fi
+          
+          if [ -n "$APPIMAGE_ROOT" ]; then
+            echo "✓ AppImage found in root: $APPIMAGE_ROOT"
+            chmod +x "$APPIMAGE_ROOT"
+          elif [ -n "$BUNDLE_BINARY" ]; then
+            echo "✓ Bundle binary found: $BUNDLE_BINARY"
+            chmod +x "$BUNDLE_BINARY"
+            # Don't flatten if bundle structure exists
+          elif [ -n "$NESTED_FOLDER" ]; then
+            echo "Found nested folder: $NESTED_FOLDER"
+            APPIMAGE_NESTED=$(find "$NESTED_FOLDER" -maxdepth 1 -name "*.AppImage" | head -1)
+            if [ -n "$APPIMAGE_NESTED" ]; then
+              echo "Flattening structure..."
+              mv "$NESTED_FOLDER"/* . 2>/dev/null || true
+              rm -rf "$NESTED_FOLDER"
+              echo "✓ Structure flattened"
+            fi
+          fi
+          
+          # Set executable permissions for all AppImages and bundle binaries
+          find . -maxdepth 2 -name "*.AppImage" -exec chmod +x {} \;
+          find . -path "*/bundle/*" -type f \( -name "playtorrio" -o -name "PlayTorrio" -o -name "NipaPlay" \) -exec chmod +x {} \;
+          cd ..
+          
+          # Final verification
+          FOUND=false
+          APPIMAGE=$(find PlayTorrioPlayer -maxdepth 1 -name "*.AppImage" | head -1)
+          BUNDLE_BIN=$(find PlayTorrioPlayer -path "*/bundle/*" -type f \( -name "playtorrio" -o -name "PlayTorrio" -o -name "NipaPlay" \) | head -1)
+          
+          if [ -n "$APPIMAGE" ] && [ -f "$APPIMAGE" ]; then
+            echo "✓ PlayTorrioPlayer AppImage ready - App will be able to launch it"
+            FOUND=true
+          elif [ -n "$BUNDLE_BIN" ] && [ -f "$BUNDLE_BIN" ]; then
+            echo "✓ PlayTorrioPlayer bundle binary ready - App will be able to launch it"
+            FOUND=true
+          fi
+          
+          if [ "$FOUND" = true ]; then
             ls -la PlayTorrioPlayer/
           else
-            echo "❌ PlayTorrioPlayer.AppImage NOT FOUND!"
+            echo "❌ PlayTorrioPlayer NOT FOUND!"
+            echo "Directory contents:"
+            find PlayTorrioPlayer -type f
             exit 1
           fi
 
       - name: Verify PlayTorrioPlayer can be found by app (Linux)
         run: |
           echo "=== PlayTorrioPlayer Verification ==="
-          echo "Expected: Any .AppImage file containing 'PlayTorrioPlayer' in PlayTorrioPlayer/"
+          echo "Checking multiple possible locations..."
           echo ""
           
-          # Check for AppImage (same logic as server.mjs)
-          APPIMAGE=$(find PlayTorrioPlayer -maxdepth 1 -name "*.AppImage" -name "*PlayTorrioPlayer*" | head -1)
+          # Check for AppImage in root or nested folder, or binary in bundle folder
+          APPIMAGE_ROOT=$(find PlayTorrioPlayer -maxdepth 1 -name "*.AppImage" | head -1)
+          APPIMAGE_NESTED=$(find PlayTorrioPlayer/PlayTorrio-Linux-x64 -maxdepth 1 -name "*.AppImage" 2>/dev/null | head -1)
+          BUNDLE_BIN=$(find PlayTorrioPlayer -path "*/bundle/*" -type f \( -name "playtorrio" -o -name "PlayTorrio" -o -name "NipaPlay" \) | head -1)
           
+          PLAYER=""
+          if [ -n "$APPIMAGE_ROOT" ]; then
+            PLAYER="$APPIMAGE_ROOT"
+          elif [ -n "$APPIMAGE_NESTED" ]; then
+            PLAYER="$APPIMAGE_NESTED"
+          elif [ -n "$BUNDLE_BIN" ]; then
+            PLAYER="$BUNDLE_BIN"
+          fi
+          
+          if [ -n "$PLAYER" ] && [ -f "$PLAYER" ]; then
+            echo "✓ FOUND: $PLAYER"
+            echo "  Size: $(du -h "$PLAYER" | cut -f1)"
+            echo "  Executable: $(test -x "$PLAYER" && echo 'Yes' || echo 'No')"
+            echo ""
+            echo "✓ App will successfully find and launch PlayTorrioPlayer"
+          else
+            echo "❌ NO player found!"
+            echo ""
+            echo "Contents of PlayTorrioPlayer folder:"
+            ls -la PlayTorrioPlayer/
+            echo ""
+            echo "❌ BUILD WILL FAIL - App cannot find player executable!"
+            exit 1
+          fi
           if [ -n "$APPIMAGE" ] && [ -f "$APPIMAGE" ]; then
             echo "✓ FOUND: $APPIMAGE"
             echo "  Size: $(du -h "$APPIMAGE" | cut -f1)"
@@ -246,27 +348,41 @@ jobs:
           rm -rf PlayTorrioPlayer
           mkdir -p PlayTorrioPlayer
           
-          # Download macOS version
+          # Download macOS Universal version from V2
           curl -L -o PlayTorrioPlayer/player.zip \
-            "https://github.com/ayman708-UX/PlayTorrioPlayer/releases/download/continuous/PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754.zip"
+            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.18/PlayTorrio-macOS-Universal.zip"
           
           # Extract
           cd PlayTorrioPlayer
           unzip -q player.zip
           rm -f player.zip
           
-          # Flatten if nested (but keep .app structure)
-          if [ -d "PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754" ]; then
-            mv PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754/* . 2>/dev/null || true
-            rm -rf PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754
+          # Check if .app is in root or nested folder
+          APP_IN_ROOT=$(find . -maxdepth 1 -name "*.app" -type d | head -1)
+          NESTED_FOLDER=$(find . -maxdepth 1 -type d ! -name "." ! -name "*.app" | head -1)
+          
+          if [ -n "$APP_IN_ROOT" ]; then
+            echo "✓ .app found in root: $APP_IN_ROOT"
+          elif [ -n "$NESTED_FOLDER" ]; then
+            echo "Found nested folder: $NESTED_FOLDER"
+            APP_NESTED=$(find "$NESTED_FOLDER" -maxdepth 1 -name "*.app" -type d | head -1)
+            if [ -n "$APP_NESTED" ]; then
+              echo "Flattening structure..."
+              mv "$NESTED_FOLDER"/* . 2>/dev/null || true
+              rm -rf "$NESTED_FOLDER"
+              echo "✓ Structure flattened"
+            fi
           fi
           
-          # Set executable permissions
-          if [ -f "PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer" ]; then
+          # Set executable permissions for the app binary
+          if [ -f "NipaPlay.app/Contents/MacOS/NipaPlay" ]; then
+            chmod +x "NipaPlay.app/Contents/MacOS/NipaPlay"
+            echo "✓ NipaPlay.app ready (V2)"
+          elif [ -f "PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer" ]; then
             chmod +x "PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
-            echo "✓ PlayTorrioPlayer.app found"
+            echo "✓ PlayTorrioPlayer.app ready (V1)"
           else
-            echo "⚠ PlayTorrioPlayer.app not found, listing contents:"
+            echo "⚠ Player app not found, listing contents:"
             find . -type f | head -20
           fi
           cd ..
@@ -274,19 +390,24 @@ jobs:
       - name: Verify PlayTorrioPlayer can be found by app (macOS x64)
         run: |
           echo "=== PlayTorrioPlayer Verification ==="
-          echo "Expected: PlayTorrioPlayer/PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
+          echo "Checking for player app..."
           echo ""
           
-          PLAYER_PATH="PlayTorrioPlayer/PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
+          PLAYER_PATH=""
+          if [ -f "PlayTorrioPlayer/NipaPlay.app/Contents/MacOS/NipaPlay" ]; then
+            PLAYER_PATH="PlayTorrioPlayer/NipaPlay.app/Contents/MacOS/NipaPlay"
+          elif [ -f "PlayTorrioPlayer/PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer" ]; then
+            PLAYER_PATH="PlayTorrioPlayer/PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
+          fi
           
-          if [ -f "$PLAYER_PATH" ]; then
+          if [ -n "$PLAYER_PATH" ]; then
             echo "✓ FOUND: $PLAYER_PATH"
             echo "  Size: $(du -h "$PLAYER_PATH" | cut -f1)"
             echo "  Executable: $(test -x "$PLAYER_PATH" && echo 'Yes' || echo 'No')"
             echo ""
             echo "✓ App will successfully find and launch PlayTorrioPlayer"
           else
-            echo "❌ NOT FOUND: $PLAYER_PATH"
+            echo "❌ NOT FOUND: No player app found"
             echo ""
             echo "Contents of PlayTorrioPlayer folder:"
             find PlayTorrioPlayer -type f | head -20
@@ -345,27 +466,41 @@ jobs:
           rm -rf PlayTorrioPlayer
           mkdir -p PlayTorrioPlayer
           
-          # Download macOS version
+          # Download macOS Universal version from V2
           curl -L -o PlayTorrioPlayer/player.zip \
-            "https://github.com/ayman708-UX/PlayTorrioPlayer/releases/download/continuous/PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754.zip"
+            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.18/PlayTorrio-macOS-Universal.zip"
           
           # Extract
           cd PlayTorrioPlayer
           unzip -q player.zip
           rm -f player.zip
           
-          # Flatten if nested (but keep .app structure)
-          if [ -d "PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754" ]; then
-            mv PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754/* . 2>/dev/null || true
-            rm -rf PlayTorrioPlayer-macOS-portable-continuous-7-g2a16754
+          # Check if .app is in root or nested folder
+          APP_IN_ROOT=$(find . -maxdepth 1 -name "*.app" -type d | head -1)
+          NESTED_FOLDER=$(find . -maxdepth 1 -type d ! -name "." ! -name "*.app" | head -1)
+          
+          if [ -n "$APP_IN_ROOT" ]; then
+            echo "✓ .app found in root: $APP_IN_ROOT"
+          elif [ -n "$NESTED_FOLDER" ]; then
+            echo "Found nested folder: $NESTED_FOLDER"
+            APP_NESTED=$(find "$NESTED_FOLDER" -maxdepth 1 -name "*.app" -type d | head -1)
+            if [ -n "$APP_NESTED" ]; then
+              echo "Flattening structure..."
+              mv "$NESTED_FOLDER"/* . 2>/dev/null || true
+              rm -rf "$NESTED_FOLDER"
+              echo "✓ Structure flattened"
+            fi
           fi
           
-          # Set executable permissions
-          if [ -f "PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer" ]; then
+          # Set executable permissions for the app binary
+          if [ -f "NipaPlay.app/Contents/MacOS/NipaPlay" ]; then
+            chmod +x "NipaPlay.app/Contents/MacOS/NipaPlay"
+            echo "✓ NipaPlay.app ready (V2)"
+          elif [ -f "PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer" ]; then
             chmod +x "PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
-            echo "✓ PlayTorrioPlayer.app found"
+            echo "✓ PlayTorrioPlayer.app ready (V1)"
           else
-            echo "⚠ PlayTorrioPlayer.app not found, listing contents:"
+            echo "⚠ Player app not found, listing contents:"
             find . -type f | head -20
           fi
           cd ..
@@ -373,19 +508,24 @@ jobs:
       - name: Verify PlayTorrioPlayer can be found by app (macOS arm64)
         run: |
           echo "=== PlayTorrioPlayer Verification ==="
-          echo "Expected: PlayTorrioPlayer/PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
+          echo "Checking for player app..."
           echo ""
           
-          PLAYER_PATH="PlayTorrioPlayer/PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
+          PLAYER_PATH=""
+          if [ -f "PlayTorrioPlayer/NipaPlay.app/Contents/MacOS/NipaPlay" ]; then
+            PLAYER_PATH="PlayTorrioPlayer/NipaPlay.app/Contents/MacOS/NipaPlay"
+          elif [ -f "PlayTorrioPlayer/PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer" ]; then
+            PLAYER_PATH="PlayTorrioPlayer/PlayTorrioPlayer.app/Contents/MacOS/PlayTorrioPlayer"
+          fi
           
-          if [ -f "$PLAYER_PATH" ]; then
+          if [ -n "$PLAYER_PATH" ]; then
             echo "✓ FOUND: $PLAYER_PATH"
             echo "  Size: $(du -h "$PLAYER_PATH" | cut -f1)"
             echo "  Executable: $(test -x "$PLAYER_PATH" && echo 'Yes' || echo 'No')"
             echo ""
             echo "✓ App will successfully find and launch PlayTorrioPlayer"
           else
-            echo "❌ NOT FOUND: $PLAYER_PATH"
+            echo "❌ NOT FOUND: No player app found"
             echo ""
             echo "Contents of PlayTorrioPlayer folder:"
             find PlayTorrioPlayer -type f | head -20

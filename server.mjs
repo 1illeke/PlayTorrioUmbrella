@@ -6710,11 +6710,11 @@ for (let i = 0; i < 10; i++) {
     }, 2000);
 
     // ============================================================================
-    // PLAYTORRIOPLAYER - Launch external player (All platforms)
+    // PLAYTORRIOPLAYER - Launch external player with IPC bridge (All platforms)
     // ============================================================================
     app.post('/api/playtorrioplayer', async (req, res) => {
         try {
-            const { url, subtitles = [], stopOnClose = true } = req.body;
+            const { url, tmdbId, imdbId, seasonNum, episodeNum, mediaType = 'movie', stopOnClose = true } = req.body;
             if (!url) {
                 return res.status(400).json({ error: 'Missing url parameter' });
             }
@@ -6755,43 +6755,89 @@ for (let i = 0; i < 10; i++) {
             
             // Find the player executable based on platform
             if (process.platform === 'win32') {
-                // Windows: PlayTorrioPlayer.exe
-                const winExe = path.join(playerDir, 'PlayTorrioPlayer.exe');
-                if (fs.existsSync(winExe)) {
-                    playerExe = winExe;
+                // Windows: Check for both PlayTorrio.exe and PlayTorrioPlayer.exe
+                // Check multiple possible locations
+                const possiblePaths = [
+                    path.join(playerDir, 'PlayTorrio.exe'),  // V2 name
+                    path.join(playerDir, 'PlayTorrioPlayer.exe'),  // V1 name
+                    path.join(playerDir, 'PlayTorrio-Windows-x64', 'PlayTorrio.exe'),  // Nested V2
+                    path.join(playerDir, 'PlayTorrio-Windows-x64', 'PlayTorrioPlayer.exe'),  // Nested V1
+                ];
+                
+                for (const p of possiblePaths) {
+                    if (fs.existsSync(p)) {
+                        playerExe = p;
+                        console.log(`[PlayTorrioPlayer] Found Windows exe at: ${p}`);
+                        break;
+                    }
                 }
             } else if (process.platform === 'darwin') {
                 // macOS: Check multiple possible locations
                 const possiblePaths = [
-                    path.join(playerDir, 'PlayTorrioPlayer.app', 'Contents', 'MacOS', 'PlayTorrioPlayer'),
-                    path.join(playerDir, 'PlayTorrioPlayer'),
-                    path.join(playerDir, 'bin', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'NipaPlay.app', 'Contents', 'MacOS', 'NipaPlay'),  // V2 name
+                    path.join(playerDir, 'PlayTorrioPlayer.app', 'Contents', 'MacOS', 'PlayTorrioPlayer'),  // V1 name (root)
+                    path.join(playerDir, 'PlayTorrio-macOS-Universal', 'NipaPlay.app', 'Contents', 'MacOS', 'NipaPlay'),  // V2 nested
+                    path.join(playerDir, 'PlayTorrio-macOS-Universal', 'PlayTorrioPlayer.app', 'Contents', 'MacOS', 'PlayTorrioPlayer'),  // V1 nested
+                    path.join(playerDir, 'PlayTorrioPlayer'),  // Direct binary
+                    path.join(playerDir, 'NipaPlay'),  // Direct binary V2
+                    path.join(playerDir, 'bin', 'PlayTorrioPlayer'),  // bin folder
+                    path.join(playerDir, 'bin', 'NipaPlay'),  // bin folder V2
                 ];
+                
                 for (const p of possiblePaths) {
                     if (fs.existsSync(p)) {
                         playerExe = p;
+                        console.log(`[PlayTorrioPlayer] Found macOS binary at: ${p}`);
                         break;
                     }
                 }
             } else {
-                // Linux: Check for AppImage or extracted binary
+                // Linux: Check for AppImage or extracted binary in bundle folder
                 const possiblePaths = [
-                    // AppImage (glob pattern - find any AppImage)
+                    // AppImage in root (glob pattern - find any AppImage)
                     ...(() => {
                         try {
                             const files = fs.readdirSync(playerDir);
                             return files
-                                .filter(f => f.endsWith('.AppImage') && f.includes('PlayTorrioPlayer'))
+                                .filter(f => f.endsWith('.AppImage'))
                                 .map(f => path.join(playerDir, f));
                         } catch { return []; }
                     })(),
-                    // Extracted tar.gz structure
+                    // AppImage in nested folder
+                    ...(() => {
+                        try {
+                            const nestedDir = path.join(playerDir, 'PlayTorrio-Linux-x64');
+                            if (fs.existsSync(nestedDir)) {
+                                const files = fs.readdirSync(nestedDir);
+                                return files
+                                    .filter(f => f.endsWith('.AppImage'))
+                                    .map(f => path.join(nestedDir, f));
+                            }
+                        } catch { return []; }
+                        return [];
+                    })(),
+                    // Extracted binary in bundle folder (V2)
+                    path.join(playerDir, 'bundle', 'playtorrio'),
+                    path.join(playerDir, 'bundle', 'PlayTorrio'),
+                    path.join(playerDir, 'bundle', 'NipaPlay'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'bundle', 'playtorrio'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'bundle', 'PlayTorrio'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'bundle', 'NipaPlay'),
+                    // Other possible locations
                     path.join(playerDir, 'bin', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'bin', 'playtorrio'),
                     path.join(playerDir, 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'playtorrio'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'bin', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'bin', 'playtorrio'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'playtorrio'),
                 ];
+                
                 for (const p of possiblePaths) {
                     if (fs.existsSync(p)) {
                         playerExe = p;
+                        console.log(`[PlayTorrioPlayer] Found Linux binary at: ${p}`);
                         // Make sure it's executable on Linux
                         try {
                             fs.chmodSync(p, 0o755);
@@ -6814,51 +6860,282 @@ for (let i = 0; i < 10; i++) {
                 });
             }
             
-            console.log(`[PlayTorrioPlayer] Launching with URL: ${url}`);
+            console.log(`[PlayTorrioPlayer] Launching with IPC bridge`);
             console.log(`[PlayTorrioPlayer] Player exe: ${playerExe}`);
-            console.log(`[PlayTorrioPlayer] Subtitles: ${subtitles.length} tracks`);
+            console.log(`[PlayTorrioPlayer] Original URL: ${url}`);
             
-            // Build arguments: url [ProviderName "SubName1" "SubURL1" "SubName2" "SubURL2" ...]
-            const args = [url];
-            
-            // Group subtitles by provider
-            const subsByProvider = {};
-            subtitles.forEach(sub => {
-                const provider = sub.provider || 'Subtitles';
-                if (!subsByProvider[provider]) {
-                    subsByProvider[provider] = [];
-                }
-                subsByProvider[provider].push(sub);
-            });
-            
-            // Add subtitles to args: ProviderName "Name1" "URL1" "Name2" "URL2" ...
-            for (const [provider, subs] of Object.entries(subsByProvider)) {
-                args.push(provider);
-                subs.forEach(sub => {
-                    args.push(sub.name || 'Unknown');
-                    args.push(sub.url);
-                });
+            // Convert localhost to 127.0.0.1 for external player compatibility
+            // External processes may not resolve localhost properly
+            let playerUrl = url;
+            if (url.includes('localhost')) {
+                playerUrl = url.replace(/localhost/g, '127.0.0.1');
+                console.log(`[PlayTorrioPlayer] Converted URL: ${playerUrl}`);
             }
             
-            console.log(`[PlayTorrioPlayer] Args: ${args.length} items`);
+            // Launch player with IPC mode (without --url, we'll load via IPC command)
+            const args = ['--ipc'];
+            
+            const playerProcess = spawn(playerExe, args, {
+                stdio: ['pipe', 'pipe', 'pipe'],
+                cwd: path.dirname(playerExe)
+            });
+            
+            let messageId = 0;
+            const pendingCommands = new Map();
+            
+            // Helper to send IPC commands
+            const sendCommand = (type, data = {}) => {
+                return new Promise((resolve, reject) => {
+                    const id = `cmd_${messageId++}`;
+                    const command = { type, id, data };
+                    
+                    console.log(`[PlayTorrioPlayer] Sending command: ${type}`, data);
+                    
+                    pendingCommands.set(id, { resolve, reject });
+                    
+                    const timeout = setTimeout(() => {
+                        pendingCommands.delete(id);
+                        reject(new Error(`Command timeout: ${type}`));
+                    }, 10000);
+                    
+                    pendingCommands.get(id).timeout = timeout;
+                    
+                    try {
+                        playerProcess.stdin.write(JSON.stringify(command) + '\n');
+                        console.log(`[PlayTorrioPlayer] Command sent to stdin: ${type}`);
+                    } catch (e) {
+                        clearTimeout(timeout);
+                        pendingCommands.delete(id);
+                        reject(e);
+                    }
+                });
+            };
+            
+            // Handle stdout (responses and events from player)
+            playerProcess.stdout.on('data', (data) => {
+                const lines = data.toString().split('\n');
+                for (const line of lines) {
+                    if (line.trim()) {
+                        try {
+                            const message = JSON.parse(line);
+                            
+                            if (message.type === 'response' && message.id) {
+                                const pending = pendingCommands.get(message.id);
+                                if (pending) {
+                                    clearTimeout(pending.timeout);
+                                    pendingCommands.delete(message.id);
+                                    pending.resolve(message.data);
+                                }
+                            } else if (message.type === 'event') {
+                                console.log(`[PlayTorrioPlayer] Event: ${message.event}`, message.data || '');
+                                if (message.event === 'ready') {
+                                    console.log('[PlayTorrioPlayer] Player ready');
+                                    console.log('[PlayTorrioPlayer] Sending load_video command with URL:', playerUrl);
+                                    // Ensure video is loaded (in case --url didn't work)
+                                    sendCommand('load_video', { url: playerUrl, startTime: 0 })
+                                        .then((result) => {
+                                            console.log('[PlayTorrioPlayer] Video loaded successfully:', result);
+                                            // Now fetch and add subtitles
+                                            fetchAndAddSubtitles();
+                                        })
+                                        .catch(err => {
+                                            console.error('[PlayTorrioPlayer] Failed to load video:', err.message);
+                                            // Still try to fetch subtitles in case video loaded via --url
+                                            fetchAndAddSubtitles();
+                                        });
+                                } else if (message.event === 'error' || message.event === 'playback_error') {
+                                    console.error(`[PlayTorrioPlayer] Playback error:`, message.data);
+                                }
+                            } else if (message.type === 'error') {
+                                console.error(`[PlayTorrioPlayer] Error: ${message.code} - ${message.message}`);
+                                if (message.id) {
+                                    const pending = pendingCommands.get(message.id);
+                                    if (pending) {
+                                        clearTimeout(pending.timeout);
+                                        pendingCommands.delete(message.id);
+                                        pending.reject(new Error(`${message.code}: ${message.message}`));
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            // Non-JSON output - log it for debugging
+                            console.log('[PlayTorrioPlayer] stdout:', line);
+                        }
+                    }
+                }
+            });
+            
+            // Handle stderr
+            playerProcess.stderr.on('data', (data) => {
+                console.error('[PlayTorrioPlayer] stderr:', data.toString());
+            });
             
             // Extract hash from torrent stream URLs for cleanup when player closes
             let streamHash = null;
             let isAltEngine = false;
-            if (url.includes('/api/stream-file') || url.includes('/api/alt-stream-file')) {
+            if (playerUrl.includes('/api/stream-file') || playerUrl.includes('/api/alt-stream-file')) {
                 try {
-                    const urlObj = new URL(url);
+                    const urlObj = new URL(playerUrl);
                     streamHash = urlObj.searchParams.get('hash');
-                    isAltEngine = url.includes('/api/alt-stream-file');
+                    isAltEngine = playerUrl.includes('/api/alt-stream-file');
                     console.log(`[PlayTorrioPlayer] Torrent stream detected - hash: ${streamHash}, altEngine: ${isAltEngine}`);
                 } catch (e) {}
             }
             
-            // Spawn the player directly
-            const playerProcess = spawn(playerExe, args, {
-                stdio: 'ignore',
-                cwd: path.dirname(playerExe)
-            });
+            console.log(`[PlayTorrioPlayer] TMDB: ${tmdbId}, IMDB: ${imdbId}, S${seasonNum}E${episodeNum}`);
+            
+            // Fetch and add subtitles from Wyzie and Stremio addons
+            const fetchAndAddSubtitles = async () => {
+                try {
+                    const subtitles = [];
+                    const TIMEOUT = 5000;
+                    
+                    console.log(`[PlayTorrioPlayer] Fetching subtitles for TMDB:${tmdbId}, IMDB:${imdbId}, S${seasonNum}E${episodeNum}`);
+                    
+                    const fetchPromises = [];
+                    
+                    // 1. Fetch from Wyzie
+                    if (tmdbId) {
+                        fetchPromises.push((async () => {
+                            try {
+                                let wyzieUrl = `https://sub.wyzie.ru/search?id=${tmdbId}`;
+                                if (seasonNum && episodeNum) {
+                                    wyzieUrl += `&season=${seasonNum}&episode=${episodeNum}`;
+                                }
+                                
+                                console.log(`[PlayTorrioPlayer] Fetching from Wyzie: ${wyzieUrl}`);
+                                const res = await fetch(wyzieUrl, { timeout: 3000 });
+                                if (!res.ok) {
+                                    console.warn(`[PlayTorrioPlayer] Wyzie returned status: ${res.status}`);
+                                    return;
+                                }
+                                const wyzieData = await res.json();
+                                
+                                if (wyzieData && Array.isArray(wyzieData) && wyzieData.length > 0) {
+                                    wyzieData.forEach(sub => {
+                                        if (sub.url) {
+                                            // Convert localhost to 127.0.0.1 in subtitle URLs too
+                                            let subUrl = sub.url;
+                                            if (subUrl.includes('localhost')) {
+                                                subUrl = subUrl.replace(/localhost/g, '127.0.0.1');
+                                            }
+                                            subtitles.push({
+                                                name: sub.display || sub.languageName || 'Unknown',
+                                                url: subUrl,
+                                                comment: 'Wyzie'
+                                            });
+                                        }
+                                    });
+                                    console.log(`[PlayTorrioPlayer] Got ${wyzieData.length} subtitles from Wyzie`);
+                                }
+                            } catch (e) {
+                                console.warn('[PlayTorrioPlayer] Wyzie fetch error:', e.message);
+                            }
+                        })());
+                    }
+                    
+                    // 2. Fetch from installed Stremio addons
+                    fetchPromises.push((async () => {
+                        try {
+                            const addonsPath = path.join(userDataPath, 'addons.json');
+                            if (!fs.existsSync(addonsPath)) return;
+                            
+                            const addonsData = fs.readFileSync(addonsPath, 'utf8');
+                            const addons = JSON.parse(addonsData);
+                            
+                            const addonPromises = addons.map(async (addon) => {
+                                const resources = addon.manifest?.resources || [];
+                                const hasSubtitles = resources.some(r => 
+                                    (typeof r === 'string' && r === 'subtitles') ||
+                                    (typeof r === 'object' && r?.name === 'subtitles')
+                                );
+                                
+                                if (!hasSubtitles) return;
+                                
+                                try {
+                                    let baseUrl = addon.url.replace('/manifest.json', '');
+                                    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+                                    
+                                    // Need IMDB ID for Stremio addons
+                                    let useImdbId = imdbId;
+                                    if (!useImdbId && tmdbId) {
+                                        try {
+                                            const imdbRes = await fetch(`http://localhost:6987/api/tmdb-to-imdb?tmdbId=${tmdbId}&type=${mediaType}`);
+                                            if (imdbRes.ok) {
+                                                const imdbData = await imdbRes.json();
+                                                useImdbId = imdbData.imdbId;
+                                            }
+                                        } catch (e) {}
+                                    }
+                                    
+                                    if (!useImdbId) return;
+                                    
+                                    const resourceId = mediaType === 'tv' && seasonNum && episodeNum
+                                        ? `${useImdbId}:${seasonNum}:${episodeNum}`
+                                        : useImdbId;
+                                    
+                                    const endpoint = `${baseUrl}/subtitles/${mediaType}/${encodeURIComponent(resourceId)}.json`;
+                                    const res = await fetch(endpoint);
+                                    
+                                    if (res.ok) {
+                                        const data = await res.json();
+                                        const addonSubs = data.subtitles || [];
+                                        const addonName = addon.manifest?.name || 'Stremio Addon';
+                                        
+                                        addonSubs.forEach(sub => {
+                                            if (sub.url) {
+                                                // Convert localhost to 127.0.0.1 in subtitle URLs
+                                                let subUrl = sub.url;
+                                                if (subUrl.includes('localhost')) {
+                                                    subUrl = subUrl.replace(/localhost/g, '127.0.0.1');
+                                                }
+                                                subtitles.push({
+                                                    name: sub.lang || sub.language || 'Unknown',
+                                                    url: subUrl,
+                                                    comment: addonName
+                                                });
+                                            }
+                                        });
+                                        console.log(`[PlayTorrioPlayer] Got ${addonSubs.length} subtitles from ${addonName}`);
+                                    }
+                                } catch (e) {
+                                    // Addon doesn't support subtitles for this content
+                                }
+                            });
+                            
+                            await Promise.allSettled(addonPromises);
+                        } catch (e) {
+                            console.warn('[PlayTorrioPlayer] Stremio addon fetch error:', e);
+                        }
+                    })());
+                    
+                    // Wait for all subtitle fetches with timeout
+                    await Promise.race([
+                        Promise.allSettled(fetchPromises),
+                        new Promise(resolve => setTimeout(resolve, TIMEOUT))
+                    ]);
+                    
+                    console.log(`[PlayTorrioPlayer] Total subtitles fetched: ${subtitles.length}`);
+                    
+                    // Add all subtitles to player using IPC
+                    for (const sub of subtitles) {
+                        try {
+                            const result = await sendCommand('add_external_subtitle', {
+                                name: sub.name,
+                                url: sub.url,
+                                comment: sub.comment
+                            });
+                            console.log(`[PlayTorrioPlayer] Added subtitle: ${sub.name} (${sub.comment}) at index ${result.index}`);
+                        } catch (e) {
+                            console.error(`[PlayTorrioPlayer] Failed to add subtitle ${sub.name}:`, e);
+                        }
+                    }
+                    
+                    console.log('[PlayTorrioPlayer] All subtitles added successfully');
+                } catch (e) {
+                    console.error('[PlayTorrioPlayer] Error fetching/adding subtitles:', e);
+                }
+            };
             
             // When player closes, stop the torrent stream only if stopOnClose is true
             playerProcess.on('close', (code) => {
@@ -6879,7 +7156,7 @@ for (let i = 0; i < 10; i++) {
                 console.error(`[PlayTorrioPlayer] Process error:`, err.message);
             });
             
-            res.json({ success: true, message: 'PlayTorrioPlayer launched' });
+            res.json({ success: true, message: 'PlayTorrioPlayer launched with IPC bridge' });
         } catch (e) {
             console.error('[PlayTorrioPlayer] Error:', e);
             res.status(500).json({ error: e.message });
@@ -6901,33 +7178,73 @@ for (let i = 0; i < 10; i++) {
             let searchedPaths = [];
             
             if (process.platform === 'win32') {
-                const winExe = path.join(playerDir, 'PlayTorrioPlayer.exe');
-                searchedPaths.push(winExe);
-                if (fs.existsSync(winExe)) playerExe = winExe;
-            } else if (process.platform === 'darwin') {
-                const possiblePaths = [
-                    path.join(playerDir, 'PlayTorrioPlayer.app', 'Contents', 'MacOS', 'PlayTorrioPlayer'),
-                    path.join(playerDir, 'PlayTorrioPlayer'),
-                    path.join(playerDir, 'bin', 'PlayTorrioPlayer'),
+                // Windows: Check for both PlayTorrio.exe and PlayTorrioPlayer.exe
+                searchedPaths = [
+                    path.join(playerDir, 'PlayTorrio.exe'),
+                    path.join(playerDir, 'PlayTorrioPlayer.exe'),
+                    path.join(playerDir, 'PlayTorrio-Windows-x64', 'PlayTorrio.exe'),
+                    path.join(playerDir, 'PlayTorrio-Windows-x64', 'PlayTorrioPlayer.exe'),
                 ];
-                searchedPaths = possiblePaths;
-                for (const p of possiblePaths) {
+                for (const p of searchedPaths) {
+                    if (fs.existsSync(p)) {
+                        playerExe = p;
+                        break;
+                    }
+                }
+            } else if (process.platform === 'darwin') {
+                // macOS: Check multiple possible locations
+                searchedPaths = [
+                    path.join(playerDir, 'NipaPlay.app', 'Contents', 'MacOS', 'NipaPlay'),
+                    path.join(playerDir, 'PlayTorrioPlayer.app', 'Contents', 'MacOS', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'PlayTorrio-macOS-Universal', 'NipaPlay.app', 'Contents', 'MacOS', 'NipaPlay'),
+                    path.join(playerDir, 'PlayTorrio-macOS-Universal', 'PlayTorrioPlayer.app', 'Contents', 'MacOS', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'NipaPlay'),
+                    path.join(playerDir, 'bin', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'bin', 'NipaPlay'),
+                ];
+                for (const p of searchedPaths) {
                     if (fs.existsSync(p)) {
                         playerExe = p;
                         break;
                     }
                 }
             } else {
-                // Linux
+                // Linux: Check for AppImage or extracted binary in bundle folder
                 try {
+                    // Check root directory
                     const files = fs.readdirSync(playerDir);
-                    const appImages = files.filter(f => f.endsWith('.AppImage') && f.includes('PlayTorrioPlayer'));
+                    const appImages = files.filter(f => f.endsWith('.AppImage'));
                     searchedPaths = appImages.map(f => path.join(playerDir, f));
+                    
+                    // Check nested directory
+                    const nestedDir = path.join(playerDir, 'PlayTorrio-Linux-x64');
+                    if (fs.existsSync(nestedDir)) {
+                        const nestedFiles = fs.readdirSync(nestedDir);
+                        const nestedAppImages = nestedFiles.filter(f => f.endsWith('.AppImage'));
+                        searchedPaths.push(...nestedAppImages.map(f => path.join(nestedDir, f)));
+                    }
                 } catch {}
+                
                 searchedPaths.push(
+                    // Bundle folder locations (V2)
+                    path.join(playerDir, 'bundle', 'playtorrio'),
+                    path.join(playerDir, 'bundle', 'PlayTorrio'),
+                    path.join(playerDir, 'bundle', 'NipaPlay'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'bundle', 'playtorrio'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'bundle', 'PlayTorrio'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'bundle', 'NipaPlay'),
+                    // Other locations
                     path.join(playerDir, 'bin', 'PlayTorrioPlayer'),
-                    path.join(playerDir, 'PlayTorrioPlayer')
+                    path.join(playerDir, 'bin', 'playtorrio'),
+                    path.join(playerDir, 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'playtorrio'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'bin', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'bin', 'playtorrio'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'PlayTorrioPlayer'),
+                    path.join(playerDir, 'PlayTorrio-Linux-x64', 'playtorrio')
                 );
+                
                 for (const p of searchedPaths) {
                     if (fs.existsSync(p)) {
                         playerExe = p;

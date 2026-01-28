@@ -300,26 +300,26 @@ async function openPlayerInIframe(options) {
             }
             // Fall through to HTML5 if electron API not available
         } else if (playerType === 'playtorrio') {
-            // Use PlayTorrioPlayer (external player with subtitle support)
-            console.log('[Player] Using PlayTorrioPlayer');
+            // Use PlayTorrioPlayer (external player with IPC bridge and subtitle support)
+            console.log('[Player] Using PlayTorrioPlayer with IPC bridge');
             try {
-                // Fetch subtitles for the player
                 const mediaType = type || (isTV ? 'tv' : 'movie');
-                const subtitles = await fetchSubtitlesForPlayer(
-                    tmdbId || currentTmdbId || id,
-                    imdbId || currentImdbId,
-                    seasonNum,
-                    episodeNum,
-                    mediaType
-                );
                 
-                console.log(`[Player] Found ${subtitles.length} subtitles`);
+                console.log(`[Player] Launching with TMDB:${tmdbId}, IMDB:${imdbId}, S${seasonNum}E${episodeNum}`);
                 
                 // BasicMode: stop torrent when player closes
                 const response = await fetch('/api/playtorrioplayer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, subtitles, stopOnClose: true })
+                    body: JSON.stringify({ 
+                        url, 
+                        tmdbId: tmdbId || currentTmdbId || id,
+                        imdbId: imdbId || currentImdbId,
+                        seasonNum,
+                        episodeNum,
+                        mediaType,
+                        stopOnClose: true 
+                    })
                 });
                 const result = await response.json();
                 if (result.success) {

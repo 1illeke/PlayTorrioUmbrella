@@ -3126,18 +3126,26 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
                 console.log('[Main] Using NodeMPV player');
                 return openInNodeMPVPlayer(mainWindow, url, null, metadata);
             } else if (playerType === 'playtorrio') {
-                console.log('[Main] Using PlayTorrioPlayer');
+                console.log('[Main] Using PlayTorrioPlayer with IPC bridge');
                 try {
                     // Only stop torrent on close for basicmode, keep alive for normal mode
                     const stopOnClose = metadata.isBasicMode === true;
                     const response = await fetch('http://localhost:6987/api/playtorrioplayer', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url, stopOnClose })
+                        body: JSON.stringify({ 
+                            url, 
+                            tmdbId: metadata.tmdbId,
+                            imdbId: metadata.imdbId,
+                            seasonNum: metadata.seasonNum,
+                            episodeNum: metadata.episodeNum,
+                            mediaType: metadata.type || 'movie',
+                            stopOnClose 
+                        })
                     });
                     const result = await response.json();
                     if (result.success) {
-                        return { success: true, message: 'PlayTorrioPlayer launched' };
+                        return { success: true, message: 'PlayTorrioPlayer launched with IPC bridge' };
                     } else {
                         console.warn('[Main] PlayTorrioPlayer failed:', result.error);
                         // Fall through to HTML5 player as fallback

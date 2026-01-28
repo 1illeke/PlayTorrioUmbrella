@@ -827,22 +827,8 @@ async function playJellyfinItem(item) {
         // Use PlayTorrio player with subtitles
         console.log('[Jellyfin] Using PlayTorrio player');
         
-        // Fetch subtitles from both Jellyfin and TMDB
-        let subtitles = [];
-        
-        // Get Jellyfin built-in subtitles first
-        console.log('[Jellyfin] Fetching built-in subtitles...');
-        const jellyfinSubs = await getJellyfinSubtitles(item.Id);
-        subtitles.push(...jellyfinSubs);
-        
-        // Then fetch from TMDB if we have IDs
-        if (tmdbId || imdbId) {
-            console.log('[Jellyfin] Fetching TMDB subtitles...');
-            const tmdbSubs = await fetchSubtitlesForPlayer(tmdbId, imdbId, seasonNum, episodeNum, mediaType);
-            subtitles.push(...tmdbSubs);
-        }
-        
-        console.log('[Jellyfin] Total subtitles found:', subtitles.length, '(Jellyfin:', jellyfinSubs.length, ', TMDB:', subtitles.length - jellyfinSubs.length, ')');
+        // Use PlayTorrio player with IPC bridge
+        console.log('[Jellyfin] Using PlayTorrio player with IPC bridge');
         
         try {
             const response = await fetch('/api/playtorrioplayer', {
@@ -850,14 +836,18 @@ async function playJellyfinItem(item) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     url: streamUrl, 
-                    subtitles: subtitles,
+                    tmdbId: tmdbId,
+                    imdbId: imdbId,
+                    seasonNum: seasonNum,
+                    episodeNum: episodeNum,
+                    mediaType: mediaType,
                     stopOnClose: false 
                 })
             });
             const result = await response.json();
             
             if (result.success) {
-                console.log('[Jellyfin] PlayTorrio player opened successfully');
+                console.log('[Jellyfin] PlayTorrio player opened successfully with IPC bridge');
                 return; // Exit after opening PlayTorrio
             } else {
                 console.error('[Jellyfin] PlayTorrio player failed:', result.error);

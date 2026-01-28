@@ -938,21 +938,7 @@ async function playPlexItem(item) {
     }
     
     if (playerPreference === 'playtorrio') {
-        console.log('[Plex] Using PlayTorrio player');
-        
-        let subtitles = [];
-        
-        console.log('[Plex] Fetching built-in subtitles...');
-        const plexSubs = await getPlexSubtitles(item.key);
-        subtitles.push(...plexSubs);
-        
-        if (tmdbId || imdbId) {
-            console.log('[Plex] Fetching TMDB subtitles...');
-            const tmdbSubs = await fetchSubtitlesForPlayer(tmdbId, imdbId, seasonNum, episodeNum, mediaType);
-            subtitles.push(...tmdbSubs);
-        }
-        
-        console.log('[Plex] Total subtitles found:', subtitles.length);
+        console.log('[Plex] Using PlayTorrio player with IPC bridge');
         
         try {
             const response = await fetch('/api/playtorrioplayer', {
@@ -960,14 +946,18 @@ async function playPlexItem(item) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     url: streamUrl, 
-                    subtitles: subtitles,
+                    tmdbId: tmdbId,
+                    imdbId: imdbId,
+                    seasonNum: seasonNum,
+                    episodeNum: episodeNum,
+                    mediaType: mediaType,
                     stopOnClose: false 
                 })
             });
             const result = await response.json();
             
             if (result.success) {
-                console.log('[Plex] PlayTorrio player opened successfully');
+                console.log('[Plex] PlayTorrio player opened successfully with IPC bridge');
                 return;
             } else {
                 console.error('[Plex] PlayTorrio player failed:', result.error);
