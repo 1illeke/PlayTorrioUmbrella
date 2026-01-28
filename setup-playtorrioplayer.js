@@ -15,9 +15,9 @@ const { execSync } = require('child_process');
 const PLAYER_DIR = path.join(__dirname, 'PlayTorrioPlayer');
 
 const DOWNLOAD_URLS = {
-    win32: 'https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.27/PlayTorrio-Windows-x64.zip',
-    darwin: 'https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.27/PlayTorrio-macOS-Universal.zip',
-    linux: 'https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.27/PlayTorrio-Linux-x64.AppImage'
+    win32: 'https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.28/PlayTorrio-Windows-x64.zip',
+    darwin: 'https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.28/PlayTorrio-macOS-Universal.zip',
+    linux: 'https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.28/PlayTorrio-Linux-x64.AppImage'
 };
 
 function downloadFile(url, destPath) {
@@ -177,7 +177,7 @@ function verifyInstallation() {
         }
     } else {
         // Linux - check for AppImage first
-        // Check for specific AppImage name from v1.8.27 release
+        // Check for specific AppImage name from v1.8.28 release
         const specificAppImage = path.join(PLAYER_DIR, 'PlayTorrio-Linux-x64.AppImage');
         if (fs.existsSync(specificAppImage)) {
             playerExe = specificAppImage;

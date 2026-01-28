@@ -56,7 +56,7 @@ jobs:
           New-Item -ItemType Directory -Path PlayTorrioPlayer -Force
           
           # Download Windows version from V2
-          $url = "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.27/PlayTorrio-Windows-x64.zip"
+          $url = "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.28/PlayTorrio-Windows-x64.zip"
           $zipPath = "PlayTorrioPlayer\player.zip"
           Invoke-WebRequest -Uri $url -OutFile $zipPath
           
@@ -183,7 +183,7 @@ jobs:
           
           # Download Linux AppImage from V2
           curl -L -o PlayTorrioPlayer/PlayTorrio-Linux-x64.AppImage \
-            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.27/PlayTorrio-Linux-x64.AppImage"
+            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.28/PlayTorrio-Linux-x64.AppImage"
           
           # Make AppImage executable
           chmod +x PlayTorrioPlayer/PlayTorrio-Linux-x64.AppImage
@@ -276,7 +276,7 @@ jobs:
           
           # Download macOS Universal version from V2
           curl -L -o PlayTorrioPlayer/player.zip \
-            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.27/PlayTorrio-macOS-Universal.zip"
+            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.28/PlayTorrio-macOS-Universal.zip"
           
           # Extract
           cd PlayTorrioPlayer
@@ -394,7 +394,7 @@ jobs:
           
           # Download macOS Universal version from V2
           curl -L -o PlayTorrioPlayer/player.zip \
-            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.27/PlayTorrio-macOS-Universal.zip"
+            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.28/PlayTorrio-macOS-Universal.zip"
           
           # Extract
           cd PlayTorrioPlayer
