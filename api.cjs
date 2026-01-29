@@ -4071,40 +4071,36 @@ function fetchFromRealmProvider(provider, anilistId, episodeNumber) {
 }
 
 // ============================================================================
-// AUDIOBOOKS API (zaudiobooks.com scraper)
+// AUDIOBOOKS API (naudios.com)
 // ============================================================================
 
+const NAUDIOS_API_KEY = 'NAUDIOS_KEY_2024';
+const NAUDIOS_BASE_URL = 'https://naudios.com';
+const NAUDIOS_IMG_BASE = 'https://naudios.com/img/thumb';
+
+// Helper to add full poster URLs to audiobook data
+function addAudiobookPosters(data) {
+    if (data && data.data && Array.isArray(data.data)) {
+        data.data = data.data.map(book => ({
+            ...book,
+            image: book.thumb ? `${NAUDIOS_IMG_BASE}/${book.thumb}` : null,
+            post_name: book.id // Use id as post_name for compatibility
+        }));
+    }
+    return data;
+}
+
+// Get audiobooks with pagination (infinite scroll)
 app.get('/api/audiobooks/all', async (req, res) => {
     try {
-        const response = await axios.get('https://zaudiobooks.com/');
-        const html = response.data;
-        const $ = cheerio.load(html);
+        const page = parseInt(req.query.page) || 0;
+        const apiUrl = `${NAUDIOS_BASE_URL}/API/see_more.php?key=${NAUDIOS_API_KEY}&page=${page}`;
         
-        const audiobooks = [];
+        console.log(`[AUDIOBOOKS] Fetching page ${page} from: ${apiUrl}`);
+        const response = await axios.get(apiUrl);
         
-        $('#more_content_books .post').each((index, element) => {
-            const $element = $(element);
-            const $summary = $element.find('.summary');
-            
-            const link = $summary.find('a').first().attr('href');
-            const image = $summary.find('img').attr('src');
-            const title = $summary.find('.news-title a').text().trim();
-            
-            if (title && link) {
-                audiobooks.push({
-                    title: title,
-                    link: link,
-                    image: image || '',
-                    post_name: link.split('/').filter(Boolean).pop()
-                });
-            }
-        });
-        
-        res.json({
-            success: true,
-            count: audiobooks.length,
-            data: audiobooks
-        });
+        const result = addAudiobookPosters(response.data);
+        res.json(result);
     } catch (error) {
         console.error('[AUDIOBOOKS] Error fetching:', error.message);
         res.status(500).json({
@@ -4114,6 +4110,7 @@ app.get('/api/audiobooks/all', async (req, res) => {
     }
 });
 
+// Search audiobooks
 app.get('/api/audiobooks/search', async (req, res) => {
     try {
         const query = req.query.q;
@@ -4121,59 +4118,12 @@ app.get('/api/audiobooks/search', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Query parameter required' });
         }
         
-        const searchUrl = `https://zaudiobooks.com/?s=${encodeURIComponent(query)}`;
+        const searchUrl = `${NAUDIOS_BASE_URL}/API/search.php?key=${NAUDIOS_API_KEY}&query=${encodeURIComponent(query)}`;
+        console.log(`[AUDIOBOOKS] Searching for: ${query}`);
+        
         const response = await axios.get(searchUrl);
-        const html = response.data;
-        const $ = cheerio.load(html);
-        
-        const audiobooks = [];
-        
-        // Parse search results from article.post elements
-        const articles = $('article.post');
-        
-        // Fetch images for each book by visiting their individual pages
-        const bookPromises = [];
-        
-        articles.each((index, element) => {
-            const $article = $(element);
-            const title = $article.find('.entry-title a').text().trim();
-            const link = $article.find('.entry-title a').attr('href');
-            
-            if (title && link) {
-                bookPromises.push(
-                    axios.get(link)
-                        .then(pageResponse => {
-                            const page$ = cheerio.load(pageResponse.data);
-                            const image = page$('meta[property="og:image:secure_url"]').attr('content') || '';
-                            
-                            return {
-                                title: title,
-                                link: link,
-                                image: image,
-                                post_name: link.split('/').filter(Boolean).pop()
-                            };
-                        })
-                        .catch(error => {
-                            console.error(`[AUDIOBOOKS] Error fetching image for ${link}:`, error.message);
-                            return {
-                                title: title,
-                                link: link,
-                                image: '',
-                                post_name: link.split('/').filter(Boolean).pop()
-                            };
-                        })
-                );
-            }
-        });
-        
-        const results = await Promise.all(bookPromises);
-        
-        res.json({
-            success: true,
-            query: query,
-            count: results.length,
-            data: results
-        });
+        const result = addAudiobookPosters(response.data);
+        res.json(result);
     } catch (error) {
         console.error('[AUDIOBOOKS] Search error:', error.message);
         res.status(500).json({
@@ -4183,39 +4133,17 @@ app.get('/api/audiobooks/search', async (req, res) => {
     }
 });
 
-// AudioBooks load more endpoint
+// Load more audiobooks (pagination endpoint)
 app.get('/api/audiobooks/more/:page', async (req, res) => {
     try {
-        const page = parseInt(req.params.page) || 2;
+        const page = parseInt(req.params.page) || 1;
+        const apiUrl = `${NAUDIOS_BASE_URL}/API/see_more.php?key=${NAUDIOS_API_KEY}&page=${page}`;
         
-        const response = await axios.post(
-            'https://zaudiobooks.com/api/top_view_more_public.php',
-            { page: page },
-            {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
+        console.log(`[AUDIOBOOKS] Loading page ${page}`);
+        const response = await axios.get(apiUrl);
         
-        const books = response.data;
-        
-        // Transform the data to a consistent format
-        const audiobooks = books.map(book => ({
-            post_id: book.post_id,
-            title: book.post_title,
-            post_name: book.post_name,
-            image: book.image ? `https://zaudiobooks.com/wp-content/uploads/post_images/${book.image}` : '',
-            link: `https://zaudiobooks.com/${book.post_name}`,
-            score: book.score
-        }));
-        
-        res.json({
-            success: true,
-            page: page,
-            count: audiobooks.length,
-            data: audiobooks
-        });
+        const result = addAudiobookPosters(response.data);
+        res.json(result);
     } catch (error) {
         console.error('[AUDIOBOOKS] Load more error:', error.message);
         res.status(500).json({
@@ -4225,42 +4153,37 @@ app.get('/api/audiobooks/more/:page', async (req, res) => {
     }
 });
 
+// Get audiobook details and chapters by ID (using post_name which is actually the id)
 app.get('/api/audiobooks/details/:post_name', async (req, res) => {
     try {
-        const postName = req.params.post_name;
-        const url = `https://zaudiobooks.com/${postName}/`;
+        const id = req.params.post_name;
+        const bookUrl = `${NAUDIOS_BASE_URL}/watch/${id}`;
         
-        const response = await axios.get(url);
+        console.log(`[AUDIOBOOKS] Fetching details for ID: ${id}`);
+        const response = await axios.get(bookUrl, {
+            headers: {
+                'User-Agent': getRandomUserAgent(),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5'
+            }
+        });
+        
         const html = response.data;
         const $ = cheerio.load(html);
         
-        const title = $('.entry-title').text().trim();
-        const image = $('.entry-content img').first().attr('src');
-        const description = $('.entry-content p').first().text().trim();
-        
-        const downloadLinks = [];
-        $('.entry-content a').each((index, element) => {
-            const $link = $(element);
-            const href = $link.attr('href');
-            const text = $link.text().trim();
-            
-            if (href && (href.includes('mega.nz') || href.includes('drive.google') || 
-                         href.includes('mediafire') || href.includes('dropbox') ||
-                         text.toLowerCase().includes('download'))) {
-                downloadLinks.push({
-                    text: text,
-                    url: href
-                });
-            }
-        });
+        // Extract basic info
+        const title = $('h1, .title, .book-title').first().text().trim();
+        const image = $('img.book-cover, .thumbnail img, img[src*="thumb"]').first().attr('src');
+        const description = $('.description, .book-description, p').first().text().trim();
         
         res.json({
             success: true,
             data: {
+                id,
                 title,
-                image,
+                image: image ? (image.startsWith('http') ? image : `${NAUDIOS_BASE_URL}${image}`) : '',
                 description,
-                downloadLinks
+                url: bookUrl
             }
         });
     } catch (error) {
@@ -4272,71 +4195,48 @@ app.get('/api/audiobooks/details/:post_name', async (req, res) => {
     }
 });
 
-// AudioBooks chapters endpoint
+// Get audiobook chapters by ID (using post_name which is actually the id)
 app.get('/api/audiobooks/chapters/:post_name', async (req, res) => {
     try {
-        const postName = req.params.post_name;
-        const bookUrl = `https://zaudiobooks.com/${postName}/`;
+        const id = req.params.post_name;
+        const bookUrl = `${NAUDIOS_BASE_URL}/watch/${id}`;
         
+        console.log(`[AUDIOBOOKS] Fetching chapters for ID: ${id}`);
         const response = await axios.get(bookUrl, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Referer': 'https://zaudiobooks.com/'
+                'User-Agent': getRandomUserAgent(),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5'
             }
         });
+        
         const html = response.data;
+        const $ = cheerio.load(html);
         
-        // Extract tracks array from the JavaScript code
-        const startMatch = html.match(/tracks\s*=\s*\[/);
+        const chapters = [];
         
-        if (startMatch) {
-            const startIndex = startMatch.index + startMatch[0].length - 1;
-            let bracketCount = 0;
-            let endIndex = startIndex;
+        // Parse track items from the HTML
+        $('.track-item').each((index, element) => {
+            const $track = $(element);
+            const dataSrc = $track.attr('data-src');
+            const title = $track.text().trim();
             
-            // Find the matching closing bracket
-            for (let i = startIndex; i < html.length; i++) {
-                if (html[i] === '[' || html[i] === '{') bracketCount++;
-                if (html[i] === ']' || html[i] === '}') bracketCount--;
-                
-                if (bracketCount === 0 && html[i] === ']') {
-                    endIndex = i + 1;
-                    break;
-                }
-            }
-            
-            const tracksStr = html.substring(startIndex, endIndex);
-            
-            try {
-                // Clean up the JavaScript object to make it valid JSON
-                let tracksJson = tracksStr
-                    .replace(/,(\s*[}\]])/g, '$1')         // Remove trailing commas
-                    .replace(/(\s)(\w+):/g, '$1"$2":')     // Add quotes to keys
-                    .replace(/'/g, '"');                    // Replace single quotes
-                
-                const chapters = JSON.parse(tracksJson);
-                
-                res.json({
-                    success: true,
-                    postName: postName,
-                    count: chapters.length,
-                    data: chapters
-                });
-            } catch (parseError) {
-                console.error('[AUDIOBOOKS] Parse error:', parseError.message);
-                res.status(500).json({
-                    success: false,
-                    error: 'Failed to parse chapters data'
+            if (dataSrc && title) {
+                chapters.push({
+                    chapter_id: dataSrc, // Store the full URL as chapter_id for streaming
+                    track: index + 1,
+                    name: title,
+                    duration: 'Unknown'
                 });
             }
-        } else {
-            res.status(404).json({
-                success: false,
-                error: 'Chapters not found on page'
-            });
-        }
+        });
+        
+        res.json({
+            success: true,
+            post_name: id,
+            count: chapters.length,
+            data: chapters
+        });
     } catch (error) {
         console.error('[AUDIOBOOKS] Chapters error:', error.message);
         res.status(500).json({
@@ -4346,10 +4246,10 @@ app.get('/api/audiobooks/chapters/:post_name', async (req, res) => {
     }
 });
 
-// AudioBooks stream endpoint
+// Stream endpoint - now just returns the direct URL
 app.post('/api/audiobooks/stream', async (req, res) => {
     try {
-        const { chapterId, serverType = 1 } = req.body;
+        const { chapterId } = req.body;
         
         if (!chapterId) {
             return res.status(400).json({
@@ -4358,26 +4258,12 @@ app.post('/api/audiobooks/stream', async (req, res) => {
             });
         }
         
-        const response = await axios.post(
-            'https://api.galaxyaudiobook.com/api/getMp3Link',
-            {
-                chapterId: parseInt(chapterId),
-                serverType: serverType
-            },
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json, text/javascript, */*; q=0.01',
-                    'Origin': 'https://zaudiobooks.com',
-                    'Referer': 'https://zaudiobooks.com/',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36'
-                }
-            }
-        );
-        
+        // chapterId is already the full audio URL from naudios
         res.json({
             success: true,
-            data: response.data
+            data: {
+                link_mp3: chapterId
+            }
         });
     } catch (error) {
         console.error('[AUDIOBOOKS] Stream error:', error.message);

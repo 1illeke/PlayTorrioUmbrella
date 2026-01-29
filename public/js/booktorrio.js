@@ -19,12 +19,12 @@
             }
         }
         
-        // Fallback to platform-specific default
+        // Fallback message when not running in Electron
         const platform = navigator.platform.toLowerCase();
         const userAgent = navigator.userAgent.toLowerCase();
         
         if (platform.includes('win') || userAgent.includes('windows')) {
-            return 'C:\\Users\\[YourUsername]\\AppData\\Roaming\\PlayTorrio\\epub';
+            return 'AppData\\Roaming\\PlayTorrio\\epub (in your user folder)';
         } else if (platform.includes('mac') || userAgent.includes('mac')) {
             return '~/Library/Application Support/PlayTorrio/epub';
         } else {
@@ -72,9 +72,14 @@
                         Please download the file to this location:
                     </p>
                     
-                    <div style="background: rgba(0,0,0,0.4); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;
-                                border: 1px solid rgba(6,182,212,0.2);">
-                        <code style="color: #06b6d4; font-size: 0.85rem; word-break: break-all; user-select: all;">${downloadPath}</code>
+                    <div style="background: rgba(0,0,0,0.4); border-radius: 10px; padding: 1rem; margin-bottom: 0.5rem;
+                                border: 1px solid rgba(6,182,212,0.2); position: relative;">
+                        <code id="downloadPathText" style="color: #06b6d4; font-size: 0.85rem; word-break: break-all; display: block; padding-right: 40px;">${downloadPath}</code>
+                        <button id="copyPathBtn" style="position: absolute; top: 8px; right: 8px; background: rgba(6,182,212,0.2);
+                                border: 1px solid rgba(6,182,212,0.4); border-radius: 6px; padding: 6px 10px; color: #06b6d4;
+                                cursor: pointer; font-size: 0.75rem; transition: all 0.2s;" title="Copy path">
+                            <i class="fas fa-copy"></i>
+                        </button>
                     </div>
                     
                     <p style="color: #6b7280; font-size: 0.8rem; margin-bottom: 1.5rem;">
@@ -98,6 +103,27 @@
         `;
         
         document.body.appendChild(modal);
+        
+        // Handle copy path
+        document.getElementById('copyPathBtn').addEventListener('click', async () => {
+            const pathText = document.getElementById('downloadPathText').textContent;
+            try {
+                await navigator.clipboard.writeText(pathText);
+                const btn = document.getElementById('copyPathBtn');
+                btn.innerHTML = '<i class="fas fa-check"></i>';
+                btn.style.background = 'rgba(34,197,94,0.2)';
+                btn.style.borderColor = 'rgba(34,197,94,0.4)';
+                btn.style.color = '#22c55e';
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fas fa-copy"></i>';
+                    btn.style.background = 'rgba(6,182,212,0.2)';
+                    btn.style.borderColor = 'rgba(6,182,212,0.4)';
+                    btn.style.color = '#06b6d4';
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy path:', err);
+            }
+        });
         
         // Handle cancel
         document.getElementById('cancelDownloadBtn').addEventListener('click', () => modal.remove());
