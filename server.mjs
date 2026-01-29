@@ -1064,6 +1064,15 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
                 writeSettings(s);
             }
             
+            // Migration v1.8.44: Force switch all users to PlayTorrioPlayer (one-time)
+            // This ensures everyone gets the new NipaPlay AppImage on Linux and updated player on all platforms
+            if (!s._migratedToPlayTorrioV1844) {
+                console.log('[Settings] Auto-switching to PlayTorrioPlayer (v1.8.44 update)');
+                s.playerType = 'playtorrio';
+                s._migratedToPlayTorrioV1844 = true;
+                writeSettings(s);
+            }
+            
             return {
                 autoUpdate: true,
                 useTorrentless: false,
@@ -6822,8 +6831,9 @@ for (let i = 0; i < 10; i++) {
             } else {
                 // Linux: Check for AppImage or extracted binary in bundle folder
                 const possiblePaths = [
-                    // Specific AppImage name from v1.8.29 release
-                    path.join(playerDir, 'PlayTorrio-Linux-x64.AppImage'),
+                    // Specific AppImage names from v1.8.44+ release (NipaPlay) and older versions
+                    path.join(playerDir, 'NipaPlay-1.8.44-Linux-amd64.AppImage'),  // v1.8.44+
+                    path.join(playerDir, 'PlayTorrio-Linux-x64.AppImage'),  // Older versions
                     // AppImage in root (glob pattern - find any AppImage)
                     ...(() => {
                         try {
@@ -7251,9 +7261,10 @@ for (let i = 0; i < 10; i++) {
                 }
             } else {
                 // Linux: Check for AppImage or extracted binary in bundle folder
-                // Start with specific AppImage name from v1.8.29 release
+                // Start with specific AppImage names from v1.8.44+ release (NipaPlay) and older versions
                 searchedPaths = [
-                    path.join(playerDir, 'PlayTorrio-Linux-x64.AppImage'),
+                    path.join(playerDir, 'NipaPlay-1.8.44-Linux-amd64.AppImage'),  // v1.8.44+
+                    path.join(playerDir, 'PlayTorrio-Linux-x64.AppImage'),  // Older versions
                 ];
                 
                 try {
