@@ -6160,81 +6160,76 @@ async function getYouTubeAudioUrl(ytMusicSearchQuery, ytDlpSearchQuery, trackId)
     // ignore init errors; will be handled when spawning
   }
 
-  // Return cached URL if available and valid
-  const cached = urlCache.get(trackId);
-  if (cached && Date.now() < cached.expiry) {
-    console.log('[Music] Using cached stream URL');
-    return cached.url;
-  }
+  // DON'T use cached URLs - always extract fresh
+  console.log('[Music] Extracting fresh URL for:', ytMusicSearchQuery);
 
-  // Check if we have a cached video ID for this track
-  let videoId = videoIdCache.get(trackId);
+  // Use ytsearch with official audio/topic keywords - EXACTLY like the working app
+  const searchQuery = ytDlpSearchQuery;
   
-  // Use YouTube Music API to find the video ID if not cached
-  if (!videoId && ytMusicInitialized) {
-    try {
-      console.log('[Music] Searching YouTube Music for:', ytMusicSearchQuery);
-      const searchResults = await ytMusicApi.search(ytMusicSearchQuery, 'song');
-      if (searchResults?.content && searchResults.content.length > 0) {
-        const topResult = searchResults.content[0];
-        videoId = topResult.videoId;
-        // Cache the video ID for 1 hour
-        videoIdCache.set(trackId, videoId);
-        console.log('[Music] Found and cached video ID:', videoId);
-        console.log('[Music] Match:', topResult.name, 'by', topResult.artist?.name);
-      }
-    } catch (err) {
-      console.warn('[Music] YouTube Music API search failed:', err.message);
-    }
-  } else if (videoId) {
-    console.log('[Music] Using cached video ID:', videoId);
-  }
+  // EXACT args from the working app
+  const args = [
+    searchQuery,
+    '--no-check-certificates',
+    '--no-warnings',
+    '--prefer-free-formats',
+    '--extractor-args', 'youtube:player-client=android,web_embedded,web',
+    '-J'  // Get JSON output to extract URL and headers
+  ];
 
-  // Build yt-dlp arguments - optimized for INSTANT streaming
-  let args;
-  if (videoId) {
-    // Use --get-url for instant URL extraction (much faster than --dump-single-json)
-    args = [
-      '--get-url',
-      '--format', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
-      '--no-check-certificate',
-      '--no-warnings',
-      '--geo-bypass',
-      '--add-header', 'referer:https://music.youtube.com/',
-      '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      `https://music.youtube.com/watch?v=${videoId}`
-    ];
-  } else {
-    // Fallback to yt-dlp search if YouTube Music API failed
-    args = [
-      '--get-url',
-      '--format', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
-      '--no-check-certificate',
-      '--no-warnings',
-      '--geo-bypass',
-      '--add-header', 'referer:https://music.youtube.com/',
-      '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      ytDlpSearchQuery
-    ];
-  }
-
-  // Run yt-dlp to get direct stream URL (MUCH faster than JSON parsing)
-  console.log('[Music] Extracting stream URL...');
+  console.log('[Music] Running yt-dlp with args:', args.join(' '));
   const output = await runYtDlp(args);
-  const streamUrl = output.trim().split('\n')[0]; // Get first URL
   
-  if (!streamUrl || !streamUrl.startsWith('http')) {
+  let videoData;
+  try {
+    const info = JSON.parse(output);
+    // Handle playlist entries if search returned a playlist
+    videoData = info._type === 'playlist' ? info.entries[0] : info;
+  } catch (e) {
+    throw new Error('Failed to parse yt-dlp output');
+  }
+
+  if (!videoData) {
+    throw new Error('No video data found');
+  }
+
+  // Find best audio format - EXACTLY like the working app
+  let selectedFormat = null;
+  if (videoData.formats) {
+    // Prefer audio-only formats
+    const audioFormats = videoData.formats.filter(f => 
+      f.acodec && f.acodec !== 'none' && 
+      (!f.vcodec || f.vcodec === 'none') &&
+      f.url
+    );
+    
+    if (audioFormats.length > 0) {
+      audioFormats.sort((a, b) => (b.abr || 0) - (a.abr || 0));
+      selectedFormat = audioFormats[0];
+    } else {
+      const withAudio = videoData.formats.filter(f => 
+        f.acodec && f.acodec !== 'none' && f.url
+      );
+      if (withAudio.length > 0) {
+        withAudio.sort((a, b) => (b.abr || 0) - (a.abr || 0));
+        selectedFormat = withAudio[0];
+      }
+    }
+  }
+
+  if (!selectedFormat && videoData.url) {
+    selectedFormat = { url: videoData.url, http_headers: videoData.http_headers };
+  }
+
+  if (!selectedFormat) {
     throw new Error('Could not extract audio URL');
   }
+
+  console.log('[Music] Stream URL extracted');
   
-  // Cache the URL for longer (10 minutes instead of 5)
-  urlCache.set(trackId, {
-    url: streamUrl,
-    expiry: Date.now() + (10 * 60 * 1000)
-  });
-  
-  console.log('[Music] Stream URL extracted and cached');
-  return streamUrl;
+  return {
+    url: selectedFormat.url,
+    headers: selectedFormat.http_headers || videoData.http_headers || {}
+  };
 }
 
 // Sanitize file names for downloads
@@ -6375,6 +6370,7 @@ function registerMusicApi(app) {
   app.get('/api/direct-stream-url', async (req, res) => {
     try {
       const trackId = req.query.trackId;
+      
       if (!trackId) return res.status(400).json({ error: 'Missing trackId' });
       
       // Get track details to construct search query using Deezer
@@ -6392,17 +6388,13 @@ function registerMusicApi(app) {
         return res.status(400).json({ error: 'Invalid track ID' });
       }
       
-      // Construct search queries
-      const ytMusicSearchQuery = `${title} ${artistName}`;
-      const ytDlpSearchQuery = `ytsearch1:${title} ${artistName} official audio topic`;
+      // ALWAYS return proxy-stream URL - it handles YouTube properly
+      const proxyUrl = `http://localhost:6987/api/proxy-stream?trackId=${encodeURIComponent(trackId)}`;
       
-      // Get the direct stream URL
-      const streamUrl = await getYouTubeAudioUrl(ytMusicSearchQuery, ytDlpSearchQuery, trackId);
-      
-      // Return the direct URL to the client
+      // Return the proxied URL
       res.json({ 
         success: true, 
-        streamUrl: streamUrl,
+        streamUrl: proxyUrl,
         title: title,
         artist: artistName
       });
@@ -6412,42 +6404,152 @@ function registerMusicApi(app) {
     }
   });
 
-  // Stream audio via yt-dlp; supports Range requests
+  // Generic YouTube/yt-dlp URL proxy - fixes 403 errors by proxying with proper headers
+  app.get('/api/ytdlp-proxy', async (req, res) => {
+    const targetUrl = req.query.url;
+    if (!targetUrl) return res.status(400).send('Missing url parameter');
+    
+    try {
+      const https = require('https');
+      const http = require('http');
+      const { URL } = require('url');
+      
+      const parsedUrl = new URL(targetUrl);
+      const isHttps = parsedUrl.protocol === 'https:';
+      const client = isHttps ? https : http;
+      
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (isHttps ? 443 : 80),
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': 'https://www.youtube.com/',
+          'Origin': 'https://www.youtube.com',
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'identity'
+        }
+      };
+      
+      // Forward range header if present
+      if (req.headers.range) {
+        options.headers['Range'] = req.headers.range;
+      }
+      
+      const proxyReq = client.request(options, (proxyRes) => {
+        // Handle redirects
+        if (proxyRes.statusCode === 301 || proxyRes.statusCode === 302 || proxyRes.statusCode === 307 || proxyRes.statusCode === 308) {
+          const redirectUrl = proxyRes.headers.location;
+          if (redirectUrl) {
+            return res.redirect(`/api/ytdlp-proxy?url=${encodeURIComponent(redirectUrl)}`);
+          }
+        }
+        
+        // Handle errors
+        if (proxyRes.statusCode === 403 || proxyRes.statusCode === 404) {
+          console.error('[YT Proxy] Error:', proxyRes.statusCode, targetUrl);
+          return res.status(proxyRes.statusCode).send(`YouTube returned ${proxyRes.statusCode}`);
+        }
+        
+        // Forward response headers
+        res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'video/mp4');
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        
+        if (proxyRes.headers['content-length']) {
+          res.setHeader('Content-Length', proxyRes.headers['content-length']);
+        }
+        
+        if (proxyRes.headers['content-range']) {
+          res.setHeader('Content-Range', proxyRes.headers['content-range']);
+          res.status(206);
+        } else {
+          res.status(proxyRes.statusCode || 200);
+        }
+        
+        // Pipe the stream
+        proxyRes.pipe(res);
+        
+        proxyRes.on('error', (err) => {
+          console.error('[YT Proxy] Stream error:', err.message);
+          if (!res.headersSent) {
+            res.status(500).send('Stream error');
+          }
+        });
+      });
+      
+      proxyReq.on('error', (err) => {
+        console.error('[YT Proxy] Request error:', err.message);
+        if (!res.headersSent) {
+          res.status(500).send('Proxy error: ' + err.message);
+        }
+      });
+      
+      req.on('close', () => {
+        proxyReq.destroy();
+      });
+      
+      proxyReq.end();
+      
+    } catch (err) {
+      console.error('[YT Proxy] Error:', err.message);
+      if (!res.headersSent) {
+        res.status(500).send('Proxy error: ' + err.message);
+      }
+    }
+  });
+
+  // Stream audio via yt-dlp; supports Range requests - EXACTLY like the working app
   app.get('/api/proxy-stream', async (req, res) => {
     const trackId = req.query.trackId;
     if (!trackId) return res.status(400).send('Missing trackId');
-    // Get track details to construct search query using Deezer
-    let title = '';
-    let artistName = '';
-    try {
-      const trackInfo = await callDeezerApi(`https://api.deezer.com/track/${trackId}`);
-      title = trackInfo?.title || '';
-      artistName = trackInfo?.artist?.name || '';
-    } catch (err) {
-      return res.status(400).send('Invalid track ID');
-    }
-    if (!title) {
-      return res.status(400).send('Invalid track ID');
-    }
     
-    // Construct search queries
-    const ytMusicSearchQuery = `${title} ${artistName}`; // Clean query for YouTube Music API
-    const ytDlpSearchQuery = `ytsearch1:${title} ${artistName} official audio topic`; // Fallback for yt-dlp
-    
-    // Attempt streaming up to 2 times if remote 416
     let attempt = 0;
     const maxAttempts = 2;
+    
     while (attempt < maxAttempts) {
       try {
-        const streamUrl = await getYouTubeAudioUrl(ytMusicSearchQuery, ytDlpSearchQuery, trackId);
+        // Get track details to construct search query using Deezer
+        let title = '';
+        let artistName = '';
+        try {
+          const trackInfo = await callDeezerApi(`https://api.deezer.com/track/${trackId}`);
+          title = trackInfo?.title || '';
+          artistName = trackInfo?.artist?.name || '';
+        } catch (err) {
+          return res.status(400).send('Invalid track ID');
+        }
+        
+        if (!title) {
+          return res.status(400).send('Invalid track ID');
+        }
+        
+        // Construct search queries
+        const ytMusicSearchQuery = `${title} ${artistName}`;
+        const ytDlpSearchQuery = `ytsearch1:${title} ${artistName} official audio topic`;
+        
+        console.log(`[Proxy] Attempt ${attempt + 1}: "${title}" by "${artistName}"`);
+        
+        // Get URL and headers (always fresh)
+        const { url: streamUrl, headers: ytHeaders } = await getYouTubeAudioUrl(ytMusicSearchQuery, ytDlpSearchQuery, trackId);
+        
         const headers = {
-          'User-Agent': 'Mozilla/5.0',
-          'Referer': 'https://music.youtube.com/',
-          'Origin': 'https://music.youtube.com'
+          ...ytHeaders,
+          'User-Agent': ytHeaders['User-Agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         };
+        
+        // Delete problematic headers - EXACTLY like the working app
+        delete headers['Host'];
+        delete headers['Content-Length'];
+        
         if (req.headers.range) {
           headers['Range'] = req.headers.range;
+          console.log('[Proxy] Range request:', req.headers.range);
         }
+        
         const response = await axios({
           method: 'GET',
           url: streamUrl,
@@ -6456,42 +6558,56 @@ function registerMusicApi(app) {
           timeout: 30000,
           validateStatus: (status) => status === 200 || status === 206 || status === 416
         });
-        // If remote returns 416, clear cache and retry
+        
+        // If 416, URL likely expired - retry
         if (response.status === 416) {
-          urlCache.delete(trackId);
+          console.warn('[Proxy] 416 Range Not Satisfiable - retrying');
           attempt++;
           if (attempt >= maxAttempts) {
             throw new Error('Range not satisfiable after retry');
           }
           continue;
         }
-        // Set headers for partial or full response
+        
+        // Success - stream the response
         res.setHeader('Content-Type', response.headers['content-type'] || 'audio/webm');
         res.setHeader('Accept-Ranges', 'bytes');
         res.setHeader('Cache-Control', 'no-cache');
+        
         if (response.headers['content-length']) {
           res.setHeader('Content-Length', response.headers['content-length']);
         }
+        
         if (response.headers['content-range']) {
           res.setHeader('Content-Range', response.headers['content-range']);
           res.status(206);
+          console.log('[Proxy] Serving partial:', response.headers['content-range']);
         } else {
           res.status(200);
         }
+        
         response.data.pipe(res);
-        response.data.on('error', () => {
-          if (!res.headersSent) {
-            res.status(500).send('Stream error');
-          }
+        
+        response.data.on('error', (err) => {
+          console.error('[Proxy] Stream error:', err.message);
+          if (!res.headersSent) res.status(500).send('Stream error');
         });
+        
         req.on('close', () => {
           response.data.destroy();
         });
-        return;
+        
+        return; // Success
+        
       } catch (err) {
-        urlCache.delete(trackId);
+        console.error(`[Proxy] Attempt ${attempt + 1} failed:`, err.message);
+        if (err.response) {
+          console.error(`[Proxy] Status: ${err.response.status}`);
+        }
+        
         attempt++;
         if (attempt >= maxAttempts) {
+          console.error('[Proxy] All attempts failed');
           if (!res.headersSent) {
             res.status(500).send('Failed to stream: ' + err.message);
           }
