@@ -6904,13 +6904,9 @@ for (let i = 0; i < 10; i++) {
             console.log(`[PlayTorrioPlayer] Player exe: ${playerExe}`);
             console.log(`[PlayTorrioPlayer] Original URL: ${url}`);
             
-            // Convert localhost to 127.0.0.1 for external player compatibility
-            // External processes may not resolve localhost properly
+            // Keep localhost as-is for PlayTorrioPlayer - it handles localhost properly
+            // No need to convert to 127.0.0.1 for the new player
             let playerUrl = url;
-            if (url.includes('localhost')) {
-                playerUrl = url.replace(/localhost/g, '127.0.0.1');
-                console.log(`[PlayTorrioPlayer] Converted URL: ${playerUrl}`);
-            }
             
             // Launch player with IPC mode (without --url, we'll load via IPC command)
             const args = ['--ipc'];
