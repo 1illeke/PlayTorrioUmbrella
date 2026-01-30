@@ -56,7 +56,7 @@ jobs:
           New-Item -ItemType Directory -Path PlayTorrioPlayer -Force
           
           # Download Windows version from V2
-          $url = "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.44/PlayTorrio-Windows-x64.zip"
+          $url = "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.45/PlayTorrio-Windows-x64.zip"
           $zipPath = "PlayTorrioPlayer\player.zip"
           Invoke-WebRequest -Uri $url -OutFile $zipPath
           
@@ -182,14 +182,14 @@ jobs:
           mkdir -p PlayTorrioPlayer
           
           # Download Linux AppImage from V2
-          curl -L -o PlayTorrioPlayer/NipaPlay-1.8.44-Linux-amd64.AppImage \
-            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.44/NipaPlay-1.8.44-Linux-amd64.AppImage"
+          curl -L -o PlayTorrioPlayer/NipaPlay-1.8.45-Linux-amd64.AppImage \
+            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.45/NipaPlay-1.8.45-Linux-amd64.AppImage"
           
           # Make AppImage executable
-          chmod +x PlayTorrioPlayer/NipaPlay-1.8.44-Linux-amd64.AppImage
+          chmod +x PlayTorrioPlayer/NipaPlay-1.8.45-Linux-amd64.AppImage
           
           # Verify AppImage exists
-          if [ -f PlayTorrioPlayer/NipaPlay-1.8.44-Linux-amd64.AppImage ]; then
+          if [ -f PlayTorrioPlayer/NipaPlay-1.8.45-Linux-amd64.AppImage ]; then
             echo "✓ PlayTorrioPlayer AppImage ready - App will be able to launch it"
             ls -la PlayTorrioPlayer/
           else
@@ -205,7 +205,7 @@ jobs:
           echo "Checking for AppImage..."
           echo ""
           
-          PLAYER="PlayTorrioPlayer/NipaPlay-1.8.44-Linux-amd64.AppImage"
+          PLAYER="PlayTorrioPlayer/NipaPlay-1.8.45-Linux-amd64.AppImage"
           
           if [ -f "$PLAYER" ]; then
             echo "✓ FOUND: $PLAYER"
@@ -276,7 +276,7 @@ jobs:
           
           # Download macOS Universal version from V2
           curl -L -o PlayTorrioPlayer/player.zip \
-            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.44/PlayTorrio-macOS-Universal.zip"
+            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.45/PlayTorrio-macOS-Universal.zip"
           
           # Extract
           cd PlayTorrioPlayer
@@ -394,7 +394,7 @@ jobs:
           
           # Download macOS Universal version from V2
           curl -L -o PlayTorrioPlayer/player.zip \
-            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.44/PlayTorrio-macOS-Universal.zip"
+            "https://github.com/ayman708-UX/PlayTorrioPlayerV2/releases/download/v1.8.45/PlayTorrio-macOS-Universal.zip"
           
           # Extract
           cd PlayTorrioPlayer
