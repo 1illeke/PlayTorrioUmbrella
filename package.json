@@ -137,14 +137,8 @@
       "icon": "build/icon.icns",
       "category": "public.app-category.entertainment",
       "target": [
-        {
-          "target": "dmg",
-          "arch": "universal"
-        },
-        {
-          "target": "zip",
-          "arch": "universal"
-        }
+        "dmg",
+        "zip"
       ],
       "files": [
         "macyt/**"
@@ -158,7 +152,7 @@
         "node_modules/fd-slicer/**",
         "node_modules/node-gyp-build/**"
       ],
-      "artifactName": "${productName}-macOS-Universal.${ext}",
+      "artifactName": "${productName}-mac-${arch}.${ext}",
       "hardenedRuntime": false,
       "identity": null,
       "gatekeeperAssess": false,

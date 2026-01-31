@@ -354,7 +354,8 @@ jobs:
     needs:
       - build-windows
       - build-linux
-      - build-macos-universal
+      - build-macos-x64
+      - build-macos-arm64
 
     steps:
       - name: Checkout code
