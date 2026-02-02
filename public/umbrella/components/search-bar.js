@@ -1,6 +1,4 @@
-/**
- * Umbrella SearchBar – sits in header search slot, single callback for grid search
- */
+/* Umbrella SearchBar */
 function createUmbrellaSearchBar(onSearch) {
   var wrap = document.createElement('div');
   wrap.className = 'umbrella-search-bar';

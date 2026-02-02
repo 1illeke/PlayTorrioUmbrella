@@ -1741,6 +1741,11 @@ function getStartUrl() {
         if (fs.existsSync(settingsPath)) {
             const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
             
+            // If user prefers Umbrella UI, load it directly (avoids index -> umbrella redirect flash)
+            if (settings.preferredUI === 'umbrella') {
+                return 'http://localhost:6987/umbrella/index.html';
+            }
+            
             // Check if this is the first launch of 2.6.1 (force reset to basic mode)
             if (currentVersion === FORCE_BASIC_VERSION && settings.lastVersion !== FORCE_BASIC_VERSION) {
                 console.log('[Settings] Version 2.6.1 detected - switching all users to Basic Mode');
@@ -4176,6 +4181,29 @@ ipcMain.handle('set-preferred-mode', async (event, mode) => {
         return { success: true };
     } catch (error) {
         console.error('[Settings] Error saving preferred mode:', error.message);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('set-preferred-ui', async (event, ui) => {
+    try {
+        const userDataPath = app.getPath('userData');
+        const settingsPath = path.join(userDataPath, 'settings.json');
+        let settings = {};
+        if (fs.existsSync(settingsPath)) {
+            settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        }
+        if (ui === 'umbrella' || ui === '' || ui == null) {
+            settings.preferredUI = ui === 'umbrella' ? 'umbrella' : undefined;
+            if (settings.preferredUI === undefined) delete settings.preferredUI;
+        } else {
+            settings.preferredUI = ui;
+        }
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+        console.log('[Settings] Preferred UI updated to:', settings.preferredUI ?? '(cleared)');
+        return { success: true };
+    } catch (error) {
+        console.error('[Settings] Error saving preferred UI:', error.message);
         return { success: false, error: error.message };
     }
 });

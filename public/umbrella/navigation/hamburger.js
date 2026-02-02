@@ -1,8 +1,5 @@
-/**
- * Umbrella Hamburger menu – expandable transparent panel
- * TV: Live TV, IPTV | Books: Books, AudioBooks, BookTorrio, Comics, Manga
- * Media: Music, Games Downloader | System: Settings, Clear Cache, Refresh
- */
+/* hamburger but in a shit french accent
+ * TV, Books and media not implemented */
 var HAMBURGER_SECTIONS = [
   /**
   {
@@ -49,7 +46,7 @@ function createUmbrellaHamburgerMenu(onNavigate) {
   overlay.setAttribute('aria-label', 'Menu');
 
   var panel = document.createElement('div');
-  panel.className = 'umbrella-hamburger-panel';
+  panel.className = 'umbrella-hamburger-panel umbrella-custom-scroll';
 
   HAMBURGER_SECTIONS.forEach(function (sec) {
     var h = document.createElement('h3');

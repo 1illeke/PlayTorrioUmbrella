@@ -1,7 +1,4 @@
-/**
- * Umbrella Header – sticky, translucent, blurred
- * Structure: [ Movies ] [ TV Shows ] ... [ Search Bar ] ... [ ☰ ]
- */
+/* Umbrella Header */
 function createUmbrellaHeader() {
   const header = document.createElement('header');
   header.id = 'umbrella-header';

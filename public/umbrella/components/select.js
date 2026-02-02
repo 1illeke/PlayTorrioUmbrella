@@ -1,6 +1,4 @@
-/* Umbrella Select – custom dropdown (no native <select>).
- * Full liquid-glass redesign. API: addOption, clearOptions, value, change event.
- */
+/* Umbrella Select */
 function createUmbrellaSelect(options) {
   var opts = options || {};
   var extraClass = (opts.extraClass || '').toString().trim();
@@ -20,7 +18,7 @@ function createUmbrellaSelect(options) {
   trigger.setAttribute('aria-label', ariaLabel);
 
   var dropdown = document.createElement('div');
-  dropdown.className = 'umbrella-select-dropdown';
+  dropdown.className = 'umbrella-select-dropdown umbrella-custom-scroll';
   dropdown.setAttribute('role', 'listbox');
 
   root.appendChild(trigger);

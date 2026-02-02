@@ -30,9 +30,9 @@ function createUmbrellaWatchModal(data) {
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-labelledby', 'umbrella-watch-title');
 
-  var heroContent = '<div class="umbrella-watch-hero-backdrop"></div><div class="umbrella-watch-hero-gradient"></div>';
+  var heroContent = '<div class="umbrella-watch-hero-backdrop"></div>';
   if (backdropUrl) {
-    heroContent = '<div class="umbrella-watch-hero-backdrop"><img src="' + backdropUrl.replace(/"/g, '&quot;') + '" alt="" loading="eager"/></div><div class="umbrella-watch-hero-gradient"></div>';
+    heroContent = '<div class="umbrella-watch-hero-backdrop"><img src="' + backdropUrl.replace(/"/g, '&quot;') + '" alt="" loading="eager"/></div>';
   }
 
   var overviewClampClass = isTv ? '' : ' umbrella-watch-overview-clamp';
@@ -55,7 +55,7 @@ function createUmbrellaWatchModal(data) {
     '<div class="umbrella-watch-backdrop" data-close></div>' +
     '<div class="umbrella-watch-panel">' +
       '<button type="button" class="umbrella-watch-close" aria-label="Close" data-close>\u00D7</button>' +
-      '<div class="umbrella-watch-scroll">' +
+      '<div class="umbrella-watch-scroll umbrella-custom-scroll">' +
         '<div class="umbrella-watch-hero">' + heroContent + '</div>' +
         '<div class="umbrella-watch-info-layer">' +
         '<div class="umbrella-watch-meta-block">' +

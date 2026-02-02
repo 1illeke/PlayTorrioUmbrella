@@ -1,6 +1,4 @@
-/**
- * Umbrella base styles – body, typography (Montserrat), glass-friendly resets
- */
+/* Umbrella base styles */
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap');
 
 body.umbrella-root,
@@ -25,7 +23,7 @@ body.umbrella-root,
   background: var(--umbrella-bg-solid);
 }
 
-/* Typography – Montserrat only */
+/* Typography – Montserrat */
 .umbrella-app-shell,
 .umbrella-header,
 .umbrella-hero,
@@ -46,4 +44,49 @@ body.umbrella-root,
 
 button, select, input {
   font-family: inherit;
+}
+
+/* Global scrollbar – Umbrella fallback (unscoped areas) */
+body.umbrella-root,
+.umbrella-root {
+  scrollbar-width: thin;
+  scrollbar-color: var(--umbrella-accent) var(--umbrella-glass);
+}
+.umbrella-root *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.umbrella-root *::-webkit-scrollbar-track {
+  background: var(--umbrella-glass);
+}
+.umbrella-root *::-webkit-scrollbar-thumb {
+  background: var(--umbrella-accent);
+  border-radius: 5px;
+}
+.umbrella-root *::-webkit-scrollbar-thumb:hover {
+  background: var(--umbrella-accent-hover);
+}
+
+/* Custom scrollbar – applied to Umbrella scroll containers only */
+.umbrella-custom-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+.umbrella-custom-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 0;
+}
+.umbrella-custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+.umbrella-custom-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+}
+.umbrella-custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+.umbrella-custom-scroll::-webkit-scrollbar-corner {
+  background: transparent;
 }

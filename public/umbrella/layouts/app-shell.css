@@ -1,4 +1,4 @@
-/* Umbrella AppShell – title bar + fixed header, main scrolls below */
+/* Umbrella AppShell */
 .umbrella-app-shell {
   display: flex;
   flex-direction: column;
@@ -6,7 +6,6 @@
   width: 100%;
 }
 
-/* Unified liquid-glass backdrop for title bar + header (Windows/Linux) */
 body:not(.platform-darwin) .umbrella-app-shell::before {
   content: '';
   position: fixed;
@@ -52,7 +51,6 @@ body:not(.platform-darwin) .umbrella-title-bar {
   left: 0;
   right: 0;
   z-index: 102;
-  /* Let the shared app-shell backdrop handle glass; avoid any extra tint/line */
   background: transparent;
   border-bottom: none;
   box-shadow: none;
@@ -103,7 +101,6 @@ body:not(.platform-darwin) .umbrella-title-bar {
   color: #fff;
 }
 
-/* Header is fixed; slot only holds the header DOM, takes no layout space */
 .umbrella-header-slot {
   flex-shrink: 0;
   height: 0;

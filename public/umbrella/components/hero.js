@@ -1,6 +1,4 @@
-/**
- * Umbrella Hero – full-width, gradient fade at bottom, title/description/meta, Watch Now
- */
+/* Umbrella Hero */
 function createUmbrellaHero(data) {
   var d = data || {};
   var title = d.title || d.name || 'Featured';

@@ -76,6 +76,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setFullscreen: (isFullscreen) => ipcRenderer.invoke("set-fullscreen", isFullscreen),
   getFullscreen: () => ipcRenderer.invoke("get-fullscreen"),
   setPreferredMode: (mode) => ipcRenderer.invoke("set-preferred-mode", mode),
+  setPreferredUI: (ui) => ipcRenderer.invoke("set-preferred-ui", ui),
 
   // Discord Rich Presence
   updateDiscordPresence: (data) => ipcRenderer.invoke("update-discord-presence", data),
