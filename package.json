@@ -54,7 +54,7 @@
     "publish": {
       "provider": "github",
       "owner": "1illeke",
-      "repo": "umbrella",
+      "repo": "PlayTorrioUmbrella",
       "releaseType": "draft"
     },
     "files": [
