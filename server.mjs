@@ -281,6 +281,31 @@ export function startServer(userDataPath, executablePath = null, ffmpegBin = nul
         }
     });
 
+    // Umbrella-only: TMDB languages list (cached 24h)
+    const TMDB_LANGUAGES_CACHE = { data: null, ts: 0 };
+    const TMDB_LANGUAGES_TTL_MS = 24 * 60 * 60 * 1000;
+    app.get('/api/umbrella/tmdb/languages', async (req, res) => {
+        const API_KEY = 'c3515fdc674ea2bd7b514f4bc3616a4a';
+        const now = Date.now();
+        if (TMDB_LANGUAGES_CACHE.data && (now - TMDB_LANGUAGES_CACHE.ts) < TMDB_LANGUAGES_TTL_MS) {
+            return res.json(TMDB_LANGUAGES_CACHE.data);
+        }
+        try {
+            const url = `https://api.themoviedb.org/3/configuration/languages?api_key=${API_KEY}`;
+            const response = await fetch(url);
+            if (!response.ok) {
+                return res.status(response.status).json({ error: `TMDB API Error: ${response.status}` });
+            }
+            const data = await response.json();
+            TMDB_LANGUAGES_CACHE.data = data;
+            TMDB_LANGUAGES_CACHE.ts = now;
+            res.json(data);
+        } catch (error) {
+            console.error('[Umbrella TMDB languages] Error:', error.message);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     // Proxy for Jackett (Added for Basic Mode)
     app.get('/api/jackett', async (req, res) => {
         let { apikey, q, t, jackettUrl: customUrl } = req.query;

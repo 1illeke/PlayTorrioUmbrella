@@ -23,6 +23,8 @@ function createUmbrellaWatchModal(data) {
     return div.innerHTML;
   }
 
+  var showDownload = (typeof localStorage !== 'undefined' && localStorage.getItem('umbrellaShowDownload') !== '0');
+
   var overlay = document.createElement('div');
   overlay.id = 'umbrella-watch-modal';
   overlay.className = 'umbrella-watch-modal' + (isTv ? ' umbrella-watch-modal--tv' : ' umbrella-watch-modal--movie');
@@ -151,12 +153,16 @@ function createUmbrellaWatchModal(data) {
   }
 
   var downloadSlot = overlay.querySelector('[data-slot="download"]');
-  if (downloadSlot && d.id) {
-    var isTvDownload = (d.media_type || '').toLowerCase() === 'tv';
-    if (isTvDownload && typeof window.fetchAndRenderTvSelectors === 'function') {
-      window.fetchAndRenderTvSelectors(d.id, downloadSlot);
-    } else if (typeof window.fetchDownloaderFilesByTmdb === 'function') {
-      window.fetchDownloaderFilesByTmdb(d.id, downloadSlot);
+  if (downloadSlot) {
+    if (!showDownload) {
+      downloadSlot.classList.add('umbrella-watch-download--hidden');
+    } else if (d.id) {
+      var isTvDownload = (d.media_type || '').toLowerCase() === 'tv';
+      if (isTvDownload && typeof window.fetchAndRenderTvSelectors === 'function') {
+        window.fetchAndRenderTvSelectors(d.id, downloadSlot);
+      } else if (typeof window.fetchDownloaderFilesByTmdb === 'function') {
+        window.fetchDownloaderFilesByTmdb(d.id, downloadSlot);
+      }
     }
   }
   

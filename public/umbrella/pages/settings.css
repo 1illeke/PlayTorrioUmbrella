@@ -5,11 +5,41 @@
   margin: 0 auto;
 }
 
+.umbrella-settings-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4.5rem 0 var(--umbrella-space-lg);
+  gap: var(--umbrella-space-md);
+}
+
 .umbrella-settings-title {
-  margin: 0 0 var(--umbrella-space-lg);
+  margin: 0;
   font-size: 1.5rem;
   font-weight: var(--umbrella-font-display);
   color: var(--umbrella-text);
+}
+
+.umbrella-settings-back-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text-secondary);
+  background: transparent;
+  border: 1px solid var(--umbrella-glass-border);
+  border-radius: var(--umbrella-radius-md);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.umbrella-settings-back-btn:hover {
+  color: var(--umbrella-text);
+  border-color: var(--umbrella-text-muted);
+  background: var(--umbrella-glass-bg, rgba(255, 255, 255, 0.06));
 }
 
 .umbrella-settings-section {
@@ -51,4 +81,32 @@
   margin: 0.5rem 0 0;
   font-size: 0.85rem;
   color: var(--umbrella-text-muted);
+}
+
+.umbrella-settings-language-slot .umbrella-select-trigger {
+  min-width: 200px;
+}
+
+/* Toggle row – Apple Settings layout */
+.umbrella-settings-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--umbrella-space-md);
+}
+
+.umbrella-settings-toggle-label-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.umbrella-settings-toggle-label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: var(--umbrella-font-label);
+  color: var(--umbrella-text);
+}
+
+.umbrella-settings-toggle-hint {
+  margin-top: 0.25rem;
 }

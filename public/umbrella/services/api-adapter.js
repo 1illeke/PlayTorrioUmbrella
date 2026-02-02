@@ -2,6 +2,10 @@
 (function () {
   var KEY = typeof window !== 'undefined' && window.TMDB_API_KEY ? window.TMDB_API_KEY : 'c3515fdc674ea2bd7b514f4bc3616a4a';
 
+  function getTmdbLanguage() {
+    return (typeof localStorage !== 'undefined' && localStorage.getItem('umbrellaTmdbLanguage')) || 'en';
+  }
+
   function normalizeCategory(category) {
     var c = (category || '').toString().toLowerCase();
     if (c === 'tv' || c === 'show' || c === 'shows' || c === 'tvshows' || c === 'tv-shows') return 'tv';
@@ -11,7 +15,7 @@
 
   async function fetchTrending(category, page) {
     var normalized = normalizeCategory(category);
-    var url = 'https://api.themoviedb.org/3/trending/' + normalized + '/week?api_key=' + KEY + '&page=' + (page || 1);
+    var url = 'https://api.themoviedb.org/3/trending/' + normalized + '/week?api_key=' + KEY + '&language=' + getTmdbLanguage() + '&page=' + (page || 1);
     var r = await fetch(url);
     if (!r.ok) throw new Error('Trending fetch failed');
     var d = await r.json();
@@ -28,7 +32,7 @@
       normalized === 'tv'
         ? 'https://api.themoviedb.org/3/tv/popular'
         : 'https://api.themoviedb.org/3/movie/popular';
-    var url = base + '?api_key=' + KEY + '&page=' + (page || 1);
+    var url = base + '?api_key=' + KEY + '&language=' + getTmdbLanguage() + '&page=' + (page || 1);
     var r = await fetch(url);
     if (!r.ok) throw new Error('Popular fetch failed');
     var d = await r.json();
@@ -37,7 +41,7 @@
 
   async function searchMulti(query, page) {
     if (!(query && query.trim())) return [];
-    var url = 'https://api.themoviedb.org/3/search/multi?api_key=' + KEY + '&query=' + encodeURIComponent(query.trim()) + '&page=' + (page || 1);
+    var url = 'https://api.themoviedb.org/3/search/multi?api_key=' + KEY + '&language=' + getTmdbLanguage() + '&query=' + encodeURIComponent(query.trim()) + '&page=' + (page || 1);
     var r = await fetch(url);
     if (!r.ok) throw new Error('Search failed');
     var d = await r.json();
@@ -46,7 +50,7 @@
 
   async function fetchTvSeason(tvId, seasonNumber) {
     if (!tvId) return null;
-    var url = 'https://api.themoviedb.org/3/tv/' + encodeURIComponent(String(tvId)) + '/season/' + encodeURIComponent(String(seasonNumber || 1)) + '?api_key=' + KEY;
+    var url = 'https://api.themoviedb.org/3/tv/' + encodeURIComponent(String(tvId)) + '/season/' + encodeURIComponent(String(seasonNumber || 1)) + '?api_key=' + KEY + '&language=' + getTmdbLanguage();
     var r = await fetch(url);
     if (!r.ok) return null;
     var d = await r.json();
@@ -55,7 +59,7 @@
 
   async function fetchTvDetails(tvId) {
     if (!tvId) return null;
-    var url = 'https://api.themoviedb.org/3/tv/' + encodeURIComponent(String(tvId)) + '?api_key=' + KEY;
+    var url = 'https://api.themoviedb.org/3/tv/' + encodeURIComponent(String(tvId)) + '?api_key=' + KEY + '&language=' + getTmdbLanguage();
     var r = await fetch(url);
     if (!r.ok) return null;
     return r.json();
