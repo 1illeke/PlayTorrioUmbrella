@@ -53,8 +53,8 @@
     "artifactName": "${productName}-Setup.${ext}",
     "publish": {
       "provider": "github",
-      "owner": "ayman708-UX",
-      "repo": "PlayTorrio",
+      "owner": "1illeke",
+      "repo": "umbrella",
       "releaseType": "draft"
     },
     "files": [

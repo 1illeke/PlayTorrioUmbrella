@@ -196,7 +196,7 @@ function setupDiscordRPC() {
                     largeImageKey: 'icon', // uploaded image name on Discord dev portal
                     largeImageText: 'PlayTorrio App',
                     buttons: [
-                        { label: 'Download App', url: 'https://github.com/ayman708-UX/PlayTorrio' }
+                        { label: 'Download App', url: 'https://github.com/1illeke/umbrella' }
                     ]
                 });
             } catch (e) {
@@ -245,8 +245,8 @@ function setupAutoUpdater() {
     // Configure updater to only check current platform
     autoUpdater.setFeedURL({
         provider: 'github',
-        owner: 'ayman708-UX',
-        repo: 'PlayTorrio',
+        owner: '1illeke',
+        repo: 'umbrella',
         releaseType: 'release'
     });
 
@@ -317,18 +317,18 @@ function setupAutoUpdater() {
             console.log('[Updater] Update available:', version, 'Current:', app.getVersion());
 
             // Determine URL based on platform/arch
-            let downloadUrl = 'https://github.com/ayman708-UX/PlayTorrio/releases/latest';
+            let downloadUrl = 'https://github.com/1illeke/umbrella/releases/latest';
             
             if (process.platform === 'win32') {
-                downloadUrl = 'https://github.com/ayman708-UX/PlayTorrio/releases/latest/download/PlayTorrio-installer.exe';
+                downloadUrl = 'https://github.com/1illeke/umbrella/releases/latest/download/PlayTorrio-installer.exe';
             } else if (process.platform === 'linux') {
                 // Default to AppImage
-                 downloadUrl = 'https://github.com/ayman708-UX/PlayTorrio/releases/latest/download/PlayTorrio.AppImage';
+                 downloadUrl = 'https://github.com/1illeke/umbrella/releases/latest/download/PlayTorrio.AppImage';
             } else if (process.platform === 'darwin') {
                 if (process.arch === 'arm64') {
-                     downloadUrl = 'https://github.com/ayman708-UX/PlayTorrio/releases/latest/download/PlayTorrio-mac-arm64.dmg';
+                     downloadUrl = 'https://github.com/1illeke/umbrella/releases/latest/download/PlayTorrio-mac-arm64.dmg';
                 } else {
-                     downloadUrl = 'https://github.com/ayman708-UX/PlayTorrio/releases/latest/download/PlayTorrio-mac-x64.dmg';
+                     downloadUrl = 'https://github.com/1illeke/umbrella/releases/latest/download/PlayTorrio-mac-x64.dmg';
                 }
             }
 
@@ -416,7 +416,7 @@ function setupAutoUpdater() {
         autoUpdater.on('update-downloaded', async (info) => {
             if (process.platform === 'darwin') {
                 // Should not happen because autoDownload=false on mac, but guard just in case
-                const releasesUrl = 'https://github.com/ayman708-UX/PlayTorrio/releases/latest';
+                const releasesUrl = 'https://github.com/1illeke/umbrella/releases/latest';
                 console.log('[Updater] macOS: manual update required. Skipping auto-install.');
                 try {
                     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1019,7 +1019,7 @@ function stopPlayback() {
                 largeImageKey: 'icon',
                 largeImageText: 'PlayTorrio App',
                 buttons: [
-                    { label: 'Download App', url: 'https://github.com/ayman708-UX/PlayTorrio' }
+                    { label: 'Download App', url: 'https://github.com/1illeke/umbrella' }
                 ]
             });
         }
@@ -1580,7 +1580,7 @@ function openInIINA(win, streamUrl, infoHash, startSeconds) {
                         largeImageKey: 'icon',
                         largeImageText: 'PlayTorrio App',
                         buttons: [
-                            { label: 'Download App', url: 'https://github.com/ayman708-UX/PlayTorrio' }
+                            { label: 'Download App', url: 'https://github.com/1illeke/umbrella' }
                         ]
                     });
                 }
@@ -1634,7 +1634,7 @@ function openInVLC(win, streamUrl, infoHash, startSeconds) {
                         largeImageKey: 'icon',
                         largeImageText: 'PlayTorrio App',
                         buttons: [
-                            { label: 'Download App', url: 'https://github.com/ayman708-UX/PlayTorrio' }
+                            { label: 'Download App', url: 'https://github.com/1illeke/umbrella' }
                         ]
                     });
                 }
@@ -3321,7 +3321,7 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
                             largeImageKey: 'icon',
                             largeImageText: 'PlayTorrio App',
                             buttons: [
-                                { label: 'Download App', url: 'https://github.com/ayman708-UX/PlayTorrio' }
+                                { label: 'Download App', url: 'https://github.com/1illeke/umbrella' }
                             ]
                         });
                     }
@@ -3849,7 +3849,7 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
                 activity.buttons = presenceData.buttons;
             } else {
                 activity.buttons = [
-                    { label: 'Download App', url: 'https://github.com/ayman708-UX/PlayTorrio' }
+                    { label: 'Download App', url: 'https://github.com/1illeke/umbrella' }
                 ];
             }
 
@@ -3874,7 +3874,7 @@ ipcMain.handle('spawn-mpvjs-player', async (event, { url, tmdbId, imdbId, season
                 largeImageKey: 'icon',
                 largeImageText: 'PlayTorrio App',
                 buttons: [
-                    { label: 'Download App', url: 'https://github.com/ayman708-UX/PlayTorrio' }
+                    { label: 'Download App', url: 'https://github.com/1illeke/umbrella' }
                 ]
             });
             return { success: true };
