@@ -270,7 +270,7 @@
   border-top: 1px solid var(--umbrella-glass-border);
 }
 
-/* Episodes header: flex row, center-aligned, space-between, section spacing. */
+/* Episodes header */
 .umbrella-watch-episodes-header {
   display: flex;
   flex-direction: row;
@@ -288,7 +288,7 @@
   color: var(--umbrella-text);
 }
 
-/* Season selector: label + select, small gap; label uses secondary color. */
+/* Season selector */
 .umbrella-watch-episodes-season {
   display: inline-flex;
   align-items: center;
@@ -301,7 +301,7 @@
   color: var(--umbrella-text-secondary);
 }
 
-/* Liquid-glass select (base from components/select.css); modal-specific min-width. */
+/* Liquid-glass select */
 .umbrella-watch-season-select {
   min-width: 120px;
 }
@@ -437,6 +437,10 @@
   margin-top: var(--umbrella-space-md);
   padding-top: var(--umbrella-space-md);
   border-top: 1px solid var(--umbrella-glass-border);
+}
+
+.umbrella-watch-download.umbrella-watch-download--hidden {
+  display: none;
 }
 
 .umbrella-watch-download .api-btn {
