@@ -23,7 +23,7 @@ function createUmbrellaSettingsPage() {
       '<div class="umbrella-settings-toggle-row">' +
         '<div class="umbrella-settings-toggle-label-wrap">' +
           '<span class="umbrella-settings-toggle-label">Show download option</span>' +
-          '<p class="umbrella-settings-hint umbrella-settings-toggle-hint">Display download controls in the watch modal.</p>' +
+          '<p class="umbrella-settings-hint umbrella-settings-toggle-hint">Display download controls in the watch modal. Note: This is a work in progress and shows very little.</p>' +
         '</div>' +
         '<label class="umbrella-toggle" data-toggle="show-download">' +
           '<input type="checkbox" class="umbrella-toggle-input" id="umbrella-toggle-show-download">' +
@@ -37,8 +37,8 @@ function createUmbrellaSettingsPage() {
       '<p class="umbrella-settings-hint">Titles, descriptions and episode metadata will use this language where available.</p>' +
     '</section>' +
     '<footer class="umbrella-settings-footer">' +
-      '<p><strong>Made with ❤️ by Ayman</strong></p>' +
-      '<p><strong>Umbrella UI by Lilleke</strong></p>' +
+      '<p><strong>PlayTorrio made with ❤️ by Ayman</strong></p>' +
+      '<p><strong>Umbrella UI made with boredom by Lilleke</strong></p>' +
     '</footer>' +
   '</div>';
 

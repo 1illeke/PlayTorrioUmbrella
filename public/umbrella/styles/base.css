@@ -67,7 +67,7 @@ body.umbrella-root,
   background: var(--umbrella-accent-hover);
 }
 
-/* Custom scrollbar – applied to Umbrella scroll containers only */
+/* Custom scrollbar */
 .umbrella-custom-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
