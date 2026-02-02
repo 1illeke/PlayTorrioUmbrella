@@ -8,7 +8,7 @@ function createUmbrellaGrid(items, options) {
   var wrap = document.createElement('div');
   wrap.className = 'umbrella-grid-wrap';
 
-  // Back-compat / search mode: flat grid when no category is specified.
+  // Back-compat
   if (!hasCategory) {
     var flatGrid = document.createElement('div');
     flatGrid.className = 'umbrella-grid';
@@ -140,15 +140,13 @@ function createUmbrellaGrid(items, options) {
   var popularSection = createSection('Popular', popularFetcher, [], 0);
   wrap.appendChild(popularSection);
 
-  // Kick off initial load for Popular so it has content for the first two rows.
+  // Kick off initial load for Popular
   if (popularFetcher) {
     popularFetcher(1).then(function (results) {
       var list = Array.isArray(results) ? results : [];
       var grids = popularSection.getElementsByClassName('umbrella-grid');
       if (!grids[0]) return;
       var gridEl = grids[0];
-      // Reuse the same logic as in createSection by rebuilding the section with initial items.
-      // Simpler: just append cards directly here for the initial two rows.
       gridEl.innerHTML = '';
       var filtered = list.filter(filterByMediaType);
       filtered.forEach(function (item) {
@@ -169,9 +167,6 @@ function createUmbrellaGridCard(item, onItemClick, categoryHint) {
   card.setAttribute('data-id', item && item.id ? item.id : '');
   var type = (item && item.media_type) || (categoryHint === 'tv' ? 'tv' : 'movie');
   card.setAttribute('data-type', type);
-  // Ensure the backing item carries a media_type so detail views (watch modal)
-  // can reliably detect TV vs movie, even when TMDB responses omit media_type
-  // on popular endpoints.
   if (item && !item.media_type) {
     item.media_type = type;
   }

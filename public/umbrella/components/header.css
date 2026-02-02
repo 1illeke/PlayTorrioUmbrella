@@ -19,8 +19,7 @@
 
 body:not(.platform-darwin) .umbrella-header {
   top: var(--umbrella-title-bar-height);
-  /* On Windows/Linux the shared app-shell backdrop provides the glass;
-     keep the header chrome visually merged into that background. */
+  /* On Windows/Linux the shared app-shell backdrop provides the glass */
   background: transparent;
   border: none;
   box-shadow: none;

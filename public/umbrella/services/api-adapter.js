@@ -2,6 +2,7 @@
 (function () {
   var KEY = typeof window !== 'undefined' && window.TMDB_API_KEY ? window.TMDB_API_KEY : 'c3515fdc674ea2bd7b514f4bc3616a4a';
 
+// Language support, ty TioLu.
   function getTmdbLanguage() {
     return (typeof localStorage !== 'undefined' && localStorage.getItem('umbrellaTmdbLanguage')) || 'en';
   }
