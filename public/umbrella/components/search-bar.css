@@ -18,6 +18,16 @@
   transition: background 0.2s, border-color 0.2s;
 }
 
+/* Hide native search clear so only custom .umbrella-search-clear is shown */
+.umbrella-search-input::-webkit-search-cancel-button,
+.umbrella-search-input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.umbrella-search-input::-moz-search-cancel-button {
+  display: none;
+}
+
 .umbrella-search-input::placeholder {
   color: rgba(255, 255, 255, 0.5);
 }

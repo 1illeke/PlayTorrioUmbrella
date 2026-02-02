@@ -1,1 +1,1 @@
-// Umbrella navigation hook – placeholder for task 16
+// Umbrella navigation hook

@@ -1,7 +1,4 @@
-/**
- * Umbrella design tokens
- * Glass, accent, Montserrat, spacing. 90% neutral, 10% accent.
- */
+/* Umbrella design tokens*/
 :root {
   /* Base – dark translucent, slightly blue */
   --umbrella-bg: rgba(8, 10, 18, 0.92);
@@ -14,7 +11,7 @@
   --umbrella-glass-border: rgba(255, 255, 255, 0.08);
   --umbrella-blur: 12px;
 
-  /* Liquid glass – blur(20px) saturate(180%), shared across header/hamburger/modal */
+  /* Liquid glass – blur(20px) saturate(180%) */
   --umbrella-liquid-glass-bg: rgba(255, 255, 255, 0.05);
   --umbrella-liquid-glass-bg-header: rgba(0, 0, 0, 0.35);
   --umbrella-liquid-glass-blur: blur(20px) saturate(180%);
@@ -46,12 +43,12 @@
   --umbrella-space-lg: 1.5rem;
   --umbrella-space-xl: 2rem;
 
-  /* Radius – soft, no hard borders */
+  /* Radius */
   --umbrella-radius-sm: 6px;
   --umbrella-radius-md: 10px;
   --umbrella-radius-lg: 14px;
 
-  /* Layout – fixed header, title bar, watch modal hero */
+  /* Layout */
   --umbrella-header-height: 56px;
   --umbrella-title-bar-height: 32px;
   --umbrella-watch-hero-height: 440px;

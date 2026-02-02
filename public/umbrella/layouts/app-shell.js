@@ -1,7 +1,4 @@
-/**
- * Umbrella AppShell layout
- * Structure: TitleBar (non-mac) + Header + MainContent + GlobalModals
- */
+/* Umbrella AppShell layout */
 function createAppShell() {
   const shell = document.createElement('div');
   shell.id = 'umbrella-app-shell';
@@ -38,7 +35,7 @@ function createAppShell() {
 
   const main = document.createElement('main');
   main.id = 'umbrella-main-content';
-  main.className = 'umbrella-main-content';
+  main.className = 'umbrella-main-content umbrella-custom-scroll';
   main.setAttribute('data-slot', 'main');
   main.innerHTML = '<!-- MainContent -->';
 

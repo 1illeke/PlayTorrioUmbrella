@@ -1,6 +1,4 @@
-/**
- * Umbrella app entry – mounts AppShell, header tabs, search, hero, grid, settings
- */
+/* Umbrella app entry */
 (function () {
   var activeTab = 'movies';
   var currentItems = [];
@@ -40,7 +38,6 @@
     gridContainer.style.scrollSnapAlign = 'start';
     main.appendChild(heroContainer);
     main.appendChild(gridContainer);
-    if (typeof mountUmbrellaHero === 'function') mountUmbrellaHero(heroContainer, { title: 'PlayTorrio', overview: 'Stream movies and TV.' }, onItemClick);
     loadAndRender(activeTab);
     var tabs = document.querySelectorAll('.umbrella-header-tab');
     tabs.forEach(function (t) {

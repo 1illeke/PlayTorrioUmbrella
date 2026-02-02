@@ -83,6 +83,12 @@
   height: var(--umbrella-watch-hero-height);
   position: relative;
   overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
 .umbrella-watch-hero-backdrop {
@@ -96,17 +102,6 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.umbrella-watch-hero-gradient {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 60%;
-  z-index: 1;
-  background: linear-gradient(to top, var(--umbrella-bg-solid) 0%, transparent 100%);
-  pointer-events: none;
 }
 
 /* Info layer */
@@ -442,6 +437,35 @@
   margin-top: var(--umbrella-space-md);
   padding-top: var(--umbrella-space-md);
   border-top: 1px solid var(--umbrella-glass-border);
+}
+
+.umbrella-watch-download .api-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: var(--umbrella-font-label);
+  font-family: var(--umbrella-font);
+  color: var(--umbrella-text);
+  background: var(--umbrella-liquid-glass-bg);
+  backdrop-filter: var(--umbrella-liquid-glass-blur);
+  -webkit-backdrop-filter: var(--umbrella-liquid-glass-blur);
+  border: var(--umbrella-liquid-glass-border);
+  border-radius: var(--umbrella-liquid-glass-radius);
+  box-shadow: var(--umbrella-liquid-glass-shadow);
+  cursor: pointer;
+  transition: var(--umbrella-liquid-glass-transition);
+}
+
+.umbrella-watch-download .api-btn-primary {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.umbrella-watch-download .api-btn-primary:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 [data-slot="download"]:empty::before {

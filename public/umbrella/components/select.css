@@ -1,7 +1,4 @@
-/* Umbrella Select – custom dropdown, fully redesigned (no native <select>).
- * Liquid-glass trigger + dropdown panel. Reusable across Umbrella UI.
- * Blur matches header; stronger value so dropdown reads same as header.
- */
+/* Umbrella Select */
 
 .umbrella-select-root {
   position: relative;
@@ -9,7 +6,7 @@
   font-family: var(--umbrella-font);
 }
 
-/* Trigger button – header liquid-glass */
+/* Trigger button */
 .umbrella-select-trigger {
   display: inline-flex;
   align-items: center;
@@ -63,7 +60,7 @@
   transform: rotate(180deg);
 }
 
-/* Dropdown panel – header liquid-glass, same blur as header */
+/* Dropdown panel */
 .umbrella-select-dropdown {
   position: absolute;
   top: 100%;
@@ -72,6 +69,7 @@
   min-width: 100%;
   max-height: 240px;
   overflow-y: auto;
+  overflow-x: hidden;
   margin-top: var(--umbrella-space-xs);
   padding: var(--umbrella-space-xs);
   background: var(--umbrella-liquid-glass-bg-header);
@@ -93,7 +91,7 @@
   transform: translateY(0);
 }
 
-/* Portaled dropdown: fixed, outside overflow – ensures backdrop-filter blurs modal */
+/* Portaled dropdown */
 .umbrella-select-dropdown--fixed {
   position: fixed;
   right: auto;

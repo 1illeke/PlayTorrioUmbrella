@@ -24,6 +24,9 @@ function createUmbrellaSettingsPage() {
   var btn = wrap.querySelector('[data-action="switch-basic"]');
   if (btn) {
     btn.addEventListener('click', function () {
+      if (typeof window.electronAPI !== 'undefined' && window.electronAPI.setPreferredUI) {
+        window.electronAPI.setPreferredUI('');
+      }
       if (typeof localStorage !== 'undefined') localStorage.setItem('uiMode', 'new');
       window.location.replace('../index.html');
     });

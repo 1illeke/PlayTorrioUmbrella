@@ -5,8 +5,10 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Ayman's PlayTorrio</title>
     <script>
+    // Check if Umbrella UI is enabled
     (function(){
       if (localStorage.getItem('uiMode') === 'umbrella') {
+        if (window.electronAPI?.setPreferredUI) window.electronAPI.setPreferredUI('umbrella');
         window.location.replace('umbrella/index.html');
       }
     })();
@@ -2039,6 +2041,7 @@
                                     <button onclick="if(window.electronAPI?.setPreferredMode) window.electronAPI.setPreferredMode('basic'); window.location.href='basicmode/index.html'" class="btn btn-outline" style="width:100%; justify-content:center;">
                                         <i class="fas fa-bolt"></i> Switch to Basic Mode
                                     </button>
+                                    <!-- Umbrella UI Switch -->
                                 </div>
                                 <div style="margin-top:0.5rem;">
                                     <button onclick="localStorage.setItem('uiMode','umbrella'); window.location.replace('umbrella/index.html');" class="btn btn-outline" style="width:100%; justify-content:center;">

@@ -1,4 +1,4 @@
-# PlayTorrio - All-in-One Media Center
+L# PlayTorrio - All-in-One Media Center
 
 ![Platform Support](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)
 ![Version](https://img.shields.io/badge/version-2.5.9-green)

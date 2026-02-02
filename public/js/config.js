@@ -142,4 +142,4 @@ const themes = {
         hoverBg: 'rgba(255, 152, 0, 0.25)'
     }
 };
-if (typeof window !== 'undefined') window.themes = themes;
+if (typeof window !== 'undefined') window.themes = themes; // Export themes for Umbrella
