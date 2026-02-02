@@ -129,6 +129,8 @@ function createUmbrellaWatchModal(data) {
         iframe.src = url;
         iframe.title = 'Stream';
         iframe.className = 'umbrella-watch-streaming-iframe';
+        iframe.setAttribute('allowfullscreen', '');
+        iframe.setAttribute('allow', 'fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
         iframeSlot.appendChild(iframe);
       }
     });
@@ -235,6 +237,8 @@ function createUmbrellaWatchModal(data) {
                   ifr.src = url;
                   ifr.title = 'Stream';
                   ifr.className = 'umbrella-watch-streaming-iframe';
+                  ifr.setAttribute('allowfullscreen', '');
+                  ifr.setAttribute('allow', 'fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
                   iframeSlot.appendChild(ifr);
                 }
               });
