@@ -2,12 +2,12 @@
 
 > [!NOTE]
 >
-> ## PlayTorrioUmbrella (Catppuccin Mocha fork)
+> ## PlayTorrioUmbrella (Catppuccin fork)
 >
-> This is a fork of [1illeke/PlayTorrioUmbrella](https://github.com/1illeke/PlayTorrioUmbrella) that adds a **Catppuccin Mocha** color theme option.
+> This is a fork of [1illeke/PlayTorrioUmbrella](https://github.com/1illeke/PlayTorrioUmbrella) that adds all four **Catppuccin** color theme options.
 >
 > **What's different**
-> - Adds "Catppuccin Mocha" to the existing color theme switcher (**Settings → User Interface → Theme → Color Theme**), using the official [Catppuccin](https://github.com/catppuccin/palette) Mocha palette with Mauve as the accent.
+> - Adds "Catppuccin Mocha", "Catppuccin Latte", "Catppuccin Frappé", and "Catppuccin Macchiato" to the existing color theme switcher (**Settings → User Interface → Theme → Color Theme**), each using the official [Catppuccin](https://github.com/catppuccin/palette) palette for that flavor with Mauve as the accent.
 > - Everything else is unchanged from PlayTorrioUmbrella.
 >
 > **Disclaimer:** The code changes in this fork and this description were written by Claude (Anthropic's AI assistant).
