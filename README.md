@@ -1,4 +1,4 @@
-> i haven't reviewed this code for safety yet, just had Claude make it for personal use and thought i'd share. use at ur own risk.
+# i haven't reviewed this code for safety yet, just had Claude make it for personal use and thought i'd share. use at ur own risk.
 
 > [!NOTE]
 >
