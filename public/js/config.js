@@ -141,20 +141,6 @@ const themes = {
         inputBg: 'rgba(255, 152, 0, 0.15)',
         hoverBg: 'rgba(255, 152, 0, 0.25)'
     },
-    'catppuccin-mocha': {
-        primary: '#313244',
-        secondary: '#cba6f7',
-        tertiary: '#b4befe',
-        dark: '#11111b',
-        light: '#cdd6f4',
-        gray: '#7f849c',
-        accent: '#f5c2e7',
-        cardBg: '#45475a',
-        modalBg: 'linear-gradient(135deg, #313244, #11111b)',
-        headerBg: '#313244',
-        inputBg: 'rgba(203, 166, 247, 0.15)',
-        hoverBg: 'rgba(203, 166, 247, 0.25)'
-    },
     'catppuccin-latte': {
         primary: '#ccd0da',
         secondary: '#8839ef',
@@ -196,6 +182,20 @@ const themes = {
         headerBg: '#363a4f',
         inputBg: 'rgba(198, 160, 246, 0.15)',
         hoverBg: 'rgba(198, 160, 246, 0.25)'
+    },
+    'catppuccin-mocha': {
+        primary: '#313244',
+        secondary: '#cba6f7',
+        tertiary: '#b4befe',
+        dark: '#11111b',
+        light: '#cdd6f4',
+        gray: '#7f849c',
+        accent: '#f5c2e7',
+        cardBg: '#45475a',
+        modalBg: 'linear-gradient(135deg, #313244, #11111b)',
+        headerBg: '#313244',
+        inputBg: 'rgba(203, 166, 247, 0.15)',
+        hoverBg: 'rgba(203, 166, 247, 0.25)'
     }
 };
 if (typeof window !== 'undefined') window.themes = themes; // Export themes for Umbrella
