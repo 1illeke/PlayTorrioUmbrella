@@ -1,3 +1,19 @@
+> i haven't reviewed this code for safety yet, just had Claude make it for personal use and thought i'd share. use at ur own risk.
+
+> [!NOTE]
+>
+> ## PlayTorrioUmbrella (Catppuccin Mocha fork)
+>
+> This is a fork of [1illeke/PlayTorrioUmbrella](https://github.com/1illeke/PlayTorrioUmbrella) that adds a **Catppuccin Mocha** color theme option.
+>
+> **What's different**
+> - Adds "Catppuccin Mocha" to the existing color theme switcher (**Settings → User Interface → Theme → Color Theme**), using the official [Catppuccin](https://github.com/catppuccin/palette) Mocha palette with Mauve as the accent.
+> - Everything else is unchanged from PlayTorrioUmbrella.
+>
+> **Disclaimer:** The code changes in this fork and this description were written by Claude (Anthropic's AI assistant).
+
+---
+
 # THIS IS NOT OFFICIAL PLAYTORRIO
 ## PlayTorrio - All-in-One Media Center
 
